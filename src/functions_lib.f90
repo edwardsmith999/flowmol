@@ -2040,8 +2040,8 @@ subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, omega)
     ! min(A) with  k**2 = Q**2
    if (present(omega)) then
         !print*, "CONSTRAINT APPLIED"
-        Lx = 2.d0 * pi / Qxy(modes_shape(1)+1,2)    
-        Ly = 2.d0 * pi / Qxy(2,1)  
+        !Lx = 2.d0 * pi / Qxy(modes_shape(1)+1,2)    
+        !Ly = 2.d0 * pi / Qxy(2,1)  
         do j=1,size(ph,2)
             ph(:,j) = ph(:,j) + omega * dcmplx(Q(j), 0.d0)
             !ph(:,j) = ph(:,j) + omega * dcmplx(Lx*Ly*Q(j), 0.d0)
@@ -2306,18 +2306,8 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, p
     call get_initial_pivots(points, box, normal, initial_pivots)
     if (allocated(pivots)) deallocate(pivots)
     pivots = initial_pivots
-!    if (.not. allocated(pivots)) then
-!        allocate(pivots(9))
-!        pivots = initial_pivots
-!        !call get_initial_pivots(points, box, normal, pivots)
-!    else
-!        !Ideally we'd use previous value of pivots
-!        !here but array of points can change size
-!        deallocate(pivots)
-!        allocate(pivots(9))
-!        pivots = initial_pivots
-!        !call get_initial_pivots(points, box, normal, pivots)
-!    endif
+
+    !Get positions and fits surface to initial pivots
     sp = size(pivots,1)
     allocate(pivot_pos(sp,3))
     do i =1, sp
@@ -2331,21 +2321,11 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, p
         call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
     endif
 
-
-    !Start from the largest (end) value
-
-    !Test error before update
-    !call surface_from_modes(pivot_pos, normal, q_vectors, modes, surf)
-    
 !    do i=1,sp
 !        print*, "Pivot error = ", pivot_pos(i,:), surf(i), pivot_pos(i,3)-surf(i)
 !    enddo
 
     do try = 1, maxtry
-
-!        do i =1, size(pivots,1)
-!            print*, "pivot pos = ", i, pivot_pos(i,:), surf(i)
-!        enddo
 
         !Get new pivots
         call update_pivots(points, q_vectors, modes, pivots, &
@@ -2367,17 +2347,10 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, p
         endif
 
 
-        !Exit once we have converged to a fix set of pivots
-!        if (size(new_pivots,1) .eq. size(pivots,1)) then
-!            if (all(new_pivots .eq. pivots)) then
-!                exit
-!            else
-!                pivots = new_pivots
-!            endif
-        !Convergence if Ns/A0 > 0.8
+        !Exit once we have converged to particles on surface / area = 0.8
         if (size(new_pivots)/area .gt. 0.8)  then
             deallocate(pivots)
-            ! Truncate pivots to give 0.8 as all posiitons in 
+            ! Truncate pivots to give 0.8 as all positions in 
             ! order of increasing distance from max pivot mol
             ntarget = int(0.8*area)
             allocate(pivots(ntarget))
@@ -2392,30 +2365,9 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, p
 !                print'(a,2i5,3f10.5,f18.8)', "new pivot pos = ", i, ntarget, pivot_pos(i,:), diff
 !            enddo   
             exit
+        !If stuck on same numbers of pivots, try increasing search range
         elseif (size(new_pivots,1) .eq. size(pivots,1)) then
             tau_ = tau_ + 0.01
-!        elseif (size(new_pivots)/area .gt. 0.81) then
-!            tau_ = tau_ - 0.1
-!            !Randomly delete a few, see if we get the same
-!            deallocate(pivots)
-!            j = 0
-!            do i =1, size(new_pivots,1)
-!                call random_number(rand)
-!                if (rand .gt. 0.7) cycle
-!                j = j + 1
-!                new_pivots(j) = new_pivots(i)
-!            enddo
-!            allocate(pivots(j))
-!            pivots(:) = new_pivots(1:j)
-!            deallocate(new_pivots)   
-!            tau_ = tau
-!        elseif (size(pivots)/area .gt. 0.9) then
-!            deallocate(pivots)
-!            sp = int(0.4*area)
-!            allocate(pivots(sp))
-!            print*, "reducing pivots", sp
-!            pivots = new_pivots(1:sp)
-!            deallocate(new_pivots)
         else
             deallocate(pivots)
             allocate(pivots(size(new_pivots,1)))
@@ -2675,7 +2627,7 @@ subroutine modes_surface_to_bilinear_surface(modes, q_vectors, box, nbins, norma
 
     logical          :: debug=.true.
     logical, save    :: first_time = .true.
-    integer          :: i, j, k, ixyz, jxyz, gbin(3)
+    integer          :: i, j, k, n, ixyz, jxyz, gbin(3), fileno
     real(kind(0.d0)) :: ysb, yst, zsb, zst, binsize(2)
     real(kind(0.d0)) :: y(2,2), z(2,2), P(2,2), A(2,2)
     real(kind(0.d0)), dimension(:), allocatable :: elevation
@@ -2691,6 +2643,7 @@ subroutine modes_surface_to_bilinear_surface(modes, q_vectors, box, nbins, norma
     binsize(1) = box(ixyz)/dble(nbins(ixyz))
     binsize(2) = box(jxyz)/dble(nbins(jxyz))
 
+    n = 1
     do j = 1,nbins(ixyz)
     do k = 1,nbins(jxyz)
         !gbin = globalise_bin((/ 1, j, k /))
@@ -2713,12 +2666,21 @@ subroutine modes_surface_to_bilinear_surface(modes, q_vectors, box, nbins, norma
 
         !DEBUG code here
         call get_surface_bilinear(points, A, elevation)
+        !fileno = get_new_fileunit() 
+        !open(fileno, file="surface.obj")
         do i =1, 4
             if ((elevation(i)- P(mod(i+1,2)+1,int(ceiling(i/2.d0)))) .gt. 1e-10) then
                 print'(a,3i5,f16.4, 5f10.5, e18.8)', "elevation bilinear",j,k,i,A(:,:),points(i,:), &
                                         elevation(i)-P(mod(i+1,2)+1,int(ceiling(i/2.d0)))
             endif
+
+            !Write to wavefunction obj format
+            !write(fileno,'(a1, f15.8)') "v", points(i,1), points(i,2), elevation(i)
         enddo
+        !write(fileno,'(a1, i8)'), "f", n, n+1, n+2, n+3
+       ! n = n + 4
+        !close(fileno)
+
     enddo
     enddo
 
@@ -2803,6 +2765,116 @@ subroutine fit_intrinsic_surface(points, box, normal, nbins, &
 
 
 end subroutine fit_intrinsic_surface
+
+
+
+
+subroutine sample_intrinsic_surface(modes, q_vectors, box, nbins, normal, vertices, writeiter)
+    implicit none
+
+    integer,intent(in) ::    normal
+    integer,intent(in),dimension(3) :: nbins
+    real(kind(0.d0)),intent(in),dimension(3) :: box
+    real(kind(0.d0)), intent(in), dimension(:,:,:), allocatable :: q_vectors
+    double complex, intent(in), dimension(:,:), allocatable :: modes
+
+    real(kind(0.d0)), dimension(:,:,:),intent(out), allocatable :: vertices
+    integer, intent(in), optional :: writeiter
+
+
+    logical          :: debug=.true., writeobj=.false.
+    logical, save    :: first_time = .true.
+    integer          :: i, j, k, n, v, ixyz, jxyz, fileno
+    real(kind(0.d0)) :: ysb, yst, zsb, zst, binsize(2)
+    real(kind(0.d0)), dimension(:), allocatable :: elevation
+    real(kind(0.d0)), dimension(:,:), allocatable :: points
+    character(200) :: outfile_t, filename
+
+    if (present(writeiter)) then      
+        writeobj = .true.
+    else
+        writeobj = .false.
+    endif
+
+    ixyz = mod(normal,3)+1
+    jxyz = mod(normal+1,3)+1
+    binsize(1) = box(ixyz)/dble(nbins(ixyz))
+    binsize(2) = box(jxyz)/dble(nbins(jxyz))
+
+    allocate(points(4,2))
+    allocate(vertices(nbins(ixyz)*nbins(jxyz),4,3))
+
+    if (writeobj) then
+        fileno = get_new_fileunit() 
+        call get_Timestep_FileName(writeiter,"./results/surface",outfile_t)
+        write(filename,'(a,a4)') trim(outfile_t),'.obj'
+        open(fileno, file=trim(filename))
+    endif
+
+    n = 1; v = 1
+    do j = 1,nbins(ixyz)
+    do k = 1,nbins(jxyz)
+        ysb = float(j-1)*binsize(1)-0.5d0*box(ixyz)
+        yst = float(j)*binsize(1)-0.5d0*box(ixyz)
+        zsb = float(k-1)*binsize(2)-0.5d0*box(jxyz)
+        zst = float(k)*binsize(2)-0.5d0*box(jxyz)
+
+        points(1,1) = ysb; points(1,2) = zsb !Bottom left
+        points(2,1) = yst; points(2,2) = zsb !Bottom right
+        points(3,1) = ysb; points(3,2) = zst !Top left
+        points(4,1) = yst; points(4,2) = zst !Top right
+
+        call surface_from_modes(points, 3, q_vectors, modes, elevation)
+        do i =1, 4
+            vertices(v,i,:) = (/ points(i,1), points(i,2), elevation(i) /)
+            !print*, i, j, k, v, vertices(v,i,:)
+        enddo
+       
+        !Write to wavefunction obj format
+        if (writeobj) then
+            !Needs to be clockwise!
+            do i =1, 4
+                write(fileno,'(a1, 3f15.8)') "v", vertices(v,i,:)
+            enddo
+            write(fileno,'(a1, 4i8)') "f", n, n+1, n+3, n+2
+            n = n + 4
+        endif
+        v = v + 1
+
+    enddo
+    enddo
+
+    if (writeobj) close(fileno)
+
+end subroutine sample_intrinsic_surface
+
+subroutine write_waveobj(vertices, writeiter)
+    implicit none
+
+    real(kind(0.d0)), dimension(:,:,:), intent(in), allocatable :: vertices
+    integer, intent(in) :: writeiter
+
+    integer          :: v, i, n, fileno
+    character(200) :: outfile_t, filename
+
+    fileno = get_new_fileunit() 
+    call get_Timestep_FileName(writeiter,"./results/surface",outfile_t)
+    write(filename,'(a,a4)') trim(outfile_t),'.obj'
+    open(fileno, file=trim(filename))
+
+    n = 1
+    do v = 1,size(vertices,1)
+        !Write to wavefunction obj format
+        !Needs to be clockwise!
+        do i =1, 4
+            write(fileno,'(a1, 3f15.8)') "v", vertices(v,i,:)
+        enddo
+        write(fileno,'(a1, 4i8)') "f", n, n+1, n+3, n+2
+        n = n + 4
+    enddo
+    close(fileno)
+
+end subroutine write_waveobj
 
 
 !-------------------------------------------------------------------------------------
@@ -6026,14 +6098,15 @@ contains
     end function single_triangle_outside_area
 
     function double_triangle_area(ixs,vx,vy,vertices_in) result(area)
+        implicit none
 
         real(kind(0.d0)), intent(in) :: ixs(2,2)
         real(kind(0.d0)), intent(in) :: vx(4), vy(4)
         logical, intent(in) :: vertices_in(4)
         real(kind(0.d0)) :: area
 
-        integer :: i, cnt, vertices(2)
-        real(kind(0.d0)) :: px(3), py(3)
+        integer :: i, cnt, vertex, vertices(2)
+        real(kind(0.d0)) :: px(3), py(3), A1, A2
         real(kind(0.d0)) :: rvertex(2,2) 
         real(kind(0.d0)) :: first(2), second(2), third(2), fourth(2), temp(2)
 
@@ -6315,7 +6388,9 @@ contains
     end function signum
 
     subroutine vertices_in_radius(vx, vy, r, v_in, n_in)
-        
+        implicit none
+
+        integer :: vertex
         real(kind(0.d0)), intent(in) :: vx(4), vy(4), r
         logical, intent(out) :: v_in(4)
         integer, intent(out) :: n_in

@@ -183,12 +183,17 @@ contains
         real(kind(0.d0)),intent(in),dimension(3) :: r
 	    integer,dimension(3) 					 :: bin
 
-        integer :: ixyz
+        integer :: ixyz, binshift
         real(kind(0.d0)), allocatable, dimension(:) :: elevation
         real(kind(0.d0)), allocatable, dimension(:,:) :: points
 
-        bin(2) = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
-        bin(3) = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
+        !bin(2) = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
+        !bin(3) = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
+
+        bin = bin_from_integer_division(r)
+
+        !if (bin(1) .lt. 300 .or. bin(1) .gt. 400) return
+
         allocate(points(1,3))
         points(1,1) = r(2)
         points(1,2) = r(3)
@@ -196,7 +201,14 @@ contains
         call surface_from_modes(points, 3, q_vectors, modes, elevation)
 
         !Add a shift by half a bin here to put in centre (otherwise on edge and switches between)
-        bin(1) = ceiling(((r(1)-elevation(1)+0.5*binsize(1))+halfdomain(1))/binsize(1))+nhb(1)
+        !bin(1) = ceiling(((r(1)-elevation(1)+0.5*binsize(1))+halfdomain(1))/binsize(1))+nhb(1)
+
+        !If we shift bin after, then can skip points further away from surface
+        binshift = ceiling(elevation(1)/binsize(1))
+        bin(1) = bin(1) - binshift
+
+        !print*, bin(1), ceiling((r(1)+halfdomain(1))/binsize(1))+nhb(1), binshift, & 
+        !        ceiling((r(1)+halfdomain(1))/binsize(1))+nhb(1)-binshift
 
 !        if (abs(r(1)-elevation(1)) .lt. 1e-1) then
 !             print*, "Bin ", bin, r, elevation(1), r(1)-elevation(1)
@@ -244,17 +256,16 @@ contains
 
         real(kind(0.d0)),intent(in),dimension(3) :: r
 	    integer,dimension(3) 					 :: bin
+        real(kind(0.d0))                         :: elevation
 
-        integer :: ixyz
+        integer :: ixyz, binshift
 
-        bin(2) = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
-        bin(3) = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
-!        bin(1) = ceiling((r(1) - zeta(r(2),r(3)) & 
-!                          +halfdomain(1))/binsize(1))+nhb(1)
+        bin = bin_from_integer_division(r)
 
         !Use convention that no halos in Abilinear values (as no idea how to parallise all this)
-        bin(1) = ceiling((r(1) - xsurfpos(r(2), r(3), Abilinear(:,:,bin(2)-nhb(2), bin(3)-nhb(3))) & 
-                          +halfdomain(1))/binsize(1))+nhb(1)
+        elevation = xsurfpos(r(2), r(3), Abilinear(:,:,bin(2)-nhb(2), bin(3)-nhb(3)))
+        binshift = ceiling(elevation/binsize(1))
+        bin(1) = bin(1) - binshift
 
 
         !print*, "Bin before = ", ceiling((r(1)+halfdomain(1))/binsize(1))+nhb(1), "bin after = ", bin(1)
@@ -500,7 +511,7 @@ subroutine evaluate_macroscopic_properties
 		print*, 'np = ', np
 		print*, 'max(potenergymol) = ', maxval(potenergymol(1:np))
 		do n=1,np
-			write(3000+irank,'(i10,f28.4,6f10.4)'), n , potenergymol(n), r(:,n), globalise(r(:,n))
+			write(3000+irank,'(i10,f28.4,6f10.4)') n , potenergymol(n), r(:,n), globalise(r(:,n))
 		enddo
 		print*, 'Simulation aborted because max PE has reached an unreasonably high value.'
 		print*, 'Inspect fort.(3000+irank) for n, potenergymol, r, r_global'
@@ -636,8 +647,8 @@ subroutine print_mol_escape_error(n)
 	rglob = globalise(r(:,n))
 
 	! Store processor-specific filename
-	write(ranknum, '(i4)'), irank	
-	write(filename,'(a15,a)'), "mol_escape_err.", trim(adjustl(ranknum))
+	write(ranknum, '(i4)') irank	
+	write(filename,'(a15,a)') "mol_escape_err.", trim(adjustl(ranknum))
 
 	! Warn user of escape
 	print('(a,i8,a,i4,3a)'),' Molecule ',n,' on process ', &
@@ -650,28 +661,28 @@ subroutine print_mol_escape_error(n)
 	! Open file and write escape info
 	open(unit=fileunit,file=filename,access='append')
 
-		write(fileunit,'(a,i6,a,i4,a)'),' Molecule ',n,' on process ', &
+		write(fileunit,'(a,i6,a,i4,a)')' Molecule ',n,' on process ', &
 			  irank, ' is outside the domain and halo cells.'
-		write(fileunit,'(a,i8,a)'),' At iteration ',iter,' it is located at: '
-		write(fileunit,'(a,e20.5)'),   '    rx: ', r(1,n)
-		write(fileunit,'(a,e20.5)'),   '    ry: ', r(2,n)
-		write(fileunit,'(a,e20.5,a)'), '    rz: ', r(3,n), ','
-		write(fileunit,'(a,e20.5)'),   '    globalrx: ', rglob(1) 
-		write(fileunit,'(a,e20.5)'),   '    globalry: ', rglob(2) 
-		write(fileunit,'(a,e20.5,a)'), '    globalrz: ', rglob(3), ','
-		write(fileunit,'(a)'),         ' with velocity: '
-		write(fileunit,'(a,e20.5)'),   '    vx: ', v(1,n)
-		write(fileunit,'(a,e20.5)'),   '    vy: ', v(2,n)
-		write(fileunit,'(a,e20.5)'),   '    vz: ', v(3,n)
-		write(fileunit,'(a)'),         ' and acceleration: '
-		write(fileunit,'(a,e20.5)'),   '    ax: ', a(1,n)
-		write(fileunit,'(a,e20.5)'),   '    ay: ', a(2,n)
-		write(fileunit,'(a,e20.5)'),   '    az: ', a(3,n)
+		write(fileunit,'(a,i8,a)')' At iteration ',iter,' it is located at: '
+		write(fileunit,'(a,e20.5)')   '    rx: ', r(1,n)
+		write(fileunit,'(a,e20.5)')   '    ry: ', r(2,n)
+		write(fileunit,'(a,e20.5,a)') '    rz: ', r(3,n), ','
+		write(fileunit,'(a,e20.5)')   '    globalrx: ', rglob(1) 
+		write(fileunit,'(a,e20.5)')   '    globalry: ', rglob(2) 
+		write(fileunit,'(a,e20.5,a)') '    globalrz: ', rglob(3), ','
+		write(fileunit,'(a)')         ' with velocity: '
+		write(fileunit,'(a,e20.5)')   '    vx: ', v(1,n)
+		write(fileunit,'(a,e20.5)')   '    vy: ', v(2,n)
+		write(fileunit,'(a,e20.5)')   '    vz: ', v(3,n)
+		write(fileunit,'(a)')         ' and acceleration: '
+		write(fileunit,'(a,e20.5)')   '    ax: ', a(1,n)
+		write(fileunit,'(a,e20.5)')   '    ay: ', a(2,n)
+		write(fileunit,'(a,e20.5)')   '    az: ', a(3,n)
 		if (ensemble.eq.tag_move) then
-			write(fileunit,'(a)'),         ' Molecular tag: '
-			write(fileunit,'(a,i4)'),   '    tag: ', tag(n)
+			write(fileunit,'(a)')         ' Molecular tag: '
+			write(fileunit,'(a,i4)')   '    tag: ', tag(n)
 		end if
-		write(fileunit,'(a,3i4)'),' Processor coords: ',iblock,jblock,kblock
+		write(fileunit,'(a,3i4)')' Processor coords: ',iblock,jblock,kblock
 
 	close(fileunit,status='keep')
 
@@ -4435,7 +4446,6 @@ end subroutine energy_flux_averaging
 
 subroutine energy_snapshot
 	use field_io, only : energy_bin_io
-	use librarymod
 	use module_record
     use module_set_parameters, only : mass
 	implicit none
@@ -5725,14 +5735,15 @@ contains
 
 
     subroutine get_cluster_properties(self, rd)
-        use physical_constants_MD, only : np, tethereddisttop, tethereddistbottom
-        use computational_constants_MD, only : iter, thermo_tags, thermo, free, globaldomain 
+        use physical_constants_MD, only : np, nd, tethereddisttop, tethereddistbottom
+        use computational_constants_MD, only : iter, tplot, thermo_tags, thermo, free, globaldomain 
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
-        use arrays_MD, only : tag, r
+        use arrays_MD, only : tag, r, intnscshift
         use librarymod, only : heaviside  =>  heaviside_a1, fit_intrinsic_surface, & 
-                               fit_intrinsic_surface_return_modes
-        use calculated_properties_MD, only : nbins
+                               fit_intrinsic_surface_return_modes, sample_intrinsic_surface, &
+                               get_new_fileunit, get_Timestep_FileName, surface_from_modes
+        use calculated_properties_MD, only : nbins, binsize
         use module_record, only : Abilinear, modes, q_vectors
         implicit none
 
@@ -5741,45 +5752,76 @@ contains
 
         logical                         :: first_time=.true.
         character(32)                   :: filename, debug_outfile
-        integer                         :: n,i,j,resolution,fittype, clustNo
-        double precision                :: tolerance
-        double precision, dimension(3)  :: bintop, binbot !Used in CV
+        integer                         :: n,i,j,resolution,fittype,normal, clustNo, bins(3)
+        double precision                :: tolerance, alpha, tau, omega
+        double precision, dimension(3)  :: bintop, binbot, box !Used in CV
         double precision,dimension(6)   :: extents
         double precision,dimension(4)   :: ptin, pbin
         double precision,dimension(:),allocatable :: x,y,z,f,pt,pb, elevation
         double precision,dimension(:,:),allocatable :: rnp, extents_grid
         double precision,dimension(:,:),allocatable, save :: points
+        double precision,dimension(:,:,:),allocatable :: vertices
+
+        integer :: fileno, length
+        character(200) :: outfile_t
 
         clustNo = imaxloc(self%Nlist)
-        resolution = 10; tolerance = rd
-        fittype = 3
 
-        !Only recheck external molecules of cluster every 25 timesteps
-        !if ((modulo(iter, 1) .eq. 0) .or. first_time) then 
-        !    first_time = .false.
-            !print*, "Rechecking cluster extents and rebuilding pivots"
-        call cluster_to_array(self, clustNo, rnp)
+        !Intrinsic surface coefficients
+        normal = 3
+        alpha = 0.5d0
+        tau = 1.d0
+        omega = 0.00000001d0
 
-        !Z normal is the only one tested so far
-        if (allocated(points)) deallocate(points)
-        allocate(points(size(rnp,2), size(rnp,1)))
-        points = 0.d0
-        do i =1, size(rnp,2)
-            points(i,1) = rnp(2,i)
-            points(i,2) = rnp(3,i)
-            points(i,3) = rnp(1,i)
-        enddo
+        !Only recheck external molecules of cluster every tplot timesteps
+        if (mod(iter,tplot) .eq. 0) then
+            !Get cluster data into array
+            call cluster_to_array(self, clustNo, rnp)
 
-    !if (iter > 2) then
-        call fit_intrinsic_surface_return_modes(points, (/globaldomain(2), globaldomain(3), globaldomain(1)/), &
-                                                3, (/nbins(2), nbins(3), nbins(1)/), 0.8d0, 1.0d0, q_vectors, modes, 0.000001d0)
+            !Z normal is the only one tested so far
+            if (allocated(points)) deallocate(points)
+            allocate(points(size(rnp,2), size(rnp,1)))
+            points = 0.d0
+            do i =1, size(rnp,2)
+                points(i,1) = rnp(2,i)
+                points(i,2) = rnp(3,i)
+                points(i,3) = rnp(1,i)
+            enddo
+
+            !Get surface in terms of modes
+            box = (/globaldomain(2), globaldomain(3), globaldomain(1)/)
+            bins = (/nbins(2), nbins(3), nbins(1)/)
+            call fit_intrinsic_surface_return_modes(points, box, 3, bins, alpha, tau, q_vectors, modes, omega)
 
             !call fit_intrinsic_surface(points, (/globaldomain(2), globaldomain(3), globaldomain(1)/), &
-            !                           3, (/nbins(2), nbins(3), nbins(1)/), 1.d0, 1.5d0, Abilinear)
+            !                           3, (/nbins(2), nbins(3), nbins(1)/), alpha, tau, Abilinear, omega)
 
-!        endif
+            !Get shift for intrinsic surface for each molecule
+!            deallocate(points)
+!            allocate(points(np, nd))
+!            points(:,1) = r(2,1:np)
+!            points(:,2) = r(3,1:np)
+!            points(:,3) = r(1,1:np)
+!            call surface_from_modes(points, 3, q_vectors, modes, elevation)
+!            intnscshift = ceiling(elevation(:)/binsize(1))
 
-        !endif
+            !Write modes to file
+    !        fileno = get_new_fileunit() 
+    !        call get_Timestep_FileName(iter,"./results/surfacemodes",outfile_t)
+    !        print*, shape(modes)
+    !        inquire(iolength=length) modes
+    !        open(fileno, file=trim(outfile_t), form='unformatted', access='direct', recl=length)
+    !        write(fileno, rec=1) modes
+    !        close(fileno)
+
+            !Sample intrinsic surface and write to obj file
+            !bins = (/size(modes,1), size(modes,2), 1/)
+            !call sample_intrinsic_surface(modes, q_vectors, box, 8*bins, 3, vertices, iter)
+
+        endif
+
+
+
 
         !Print biggest cluster
         !call print_cluster(self, clustNo)
@@ -5787,7 +5829,10 @@ contains
         !DEBUG INTRINSIC HERE, return now
         return
         !DEBUG INTRINSIC HERE, return now
-    
+
+
+        resolution = 10; tolerance = rd
+        fittype = 3   
 
         call cluster_global_extents(self, clustNo, extents)
 
@@ -6151,7 +6196,7 @@ contains
             do i =1,nvals
 				!print'(a,i8,i4,7f11.5)','clustCV_mass', iter,irank, & 
 				!	conserved, 0.d0, sum(X_cross,2), dX_dt, 0.d0, X_mdt, X
-                write(586482,'(i12,i4,11f18.8)'), iter,i, conserved, X(i), dX_dt(i), X_cross(i,:), -dsurf_top(i), dsurf_bot(i)
+                write(586482,'(i12,i4,11f18.8)') iter,i, conserved, X(i), dX_dt(i), X_cross(i,:), -dsurf_top(i), dsurf_bot(i)
             enddo
         endif
 
@@ -6818,7 +6863,7 @@ contains
         complex(kind(0.d0))             :: z
         double precision, parameter     :: tol=1e-8
 
-        !Copy to variable to define polynimial surfaces as bintop/binbot intent in 
+        !Copy to variable to define polynomial surfaces as bintop/binbot intent in 
         top = bintop; bot = binbot
 
         !reset surface crossing
@@ -8089,7 +8134,7 @@ contains
         surface(:,3) = eigvec(:,mod(mineig+1,3)+1)
 
         open(unit=1984,file='./eigenvalues',access='append')
-        write(1984,'(i8,6f10.4,3f20.7)'), iter, ri, rave(:), eigval
+        write(1984,'(i8,6f10.4,3f20.7)') iter, ri, rave(:), eigval
         close(1984,status='keep')
 
  !dot_product(surface(:,1),surface(:,2)), dot_product(surface(:,1),surface(:,3)),surface
@@ -8186,7 +8231,7 @@ contains
                     rarray = rneigh(:,1:ncount)
                     deallocate(rneigh)
                     call get_surface_at_ri(ri, rarray, surfacei(:,:,i))
-                    write(452,'(i5,12f10.4)'), i, ri(:), surfacei(:,:,i)
+                    write(452,'(i5,12f10.4)') i, ri(:), surfacei(:,:,i)
                     deallocate(rarray)
 
                 ! If the interface cutoff is greater than rcutoff

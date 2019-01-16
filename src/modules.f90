@@ -322,7 +322,8 @@ module arrays_MD
 	integer,          dimension(:),   allocatable, target	:: & 
         tag,     &   !Mol tags
         moltype, &   !Type used for interactions
-        glob_no      !Global molecular number
+        glob_no, &   !Global molecular number
+        intnscshift  !Intrinsic surface binshift
 
 	integer, 	  	  dimension(:,:), allocatable, target	:: fix  !Fixed molecules
 	real(kind(0.d0)), dimension(:),   allocatable, target 	:: &
