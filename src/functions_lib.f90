@@ -1990,22 +1990,22 @@ subroutine compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
 end subroutine compute_q_vectors
 
 
-subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, omega)
+subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, eps)
 #if USE_LAPACK
     use lapack_fns, only : pinverse
 #endif
     implicit none
 
     integer, intent(in), dimension(2) :: modes_shape
-    double precision, intent(in), optional :: omega
+    double precision, intent(in), optional :: eps
     double precision, intent(in), dimension(:), allocatable :: Q
     double precision, intent(in), dimension(:,:), allocatable :: Qxy, points
     double complex, intent(out), dimension(:,:), allocatable :: modes
 
-    integer :: i,j
+    integer :: i, j, n
     real(kind(0.d0)), parameter :: pi=3.141592653589793d0
     real(kind(0.d0)) :: az, Lx, Ly
-    real(kind(0.d0)), dimension(:), allocatable :: z
+    real(kind(0.d0)), dimension(:), allocatable :: z, c
     real(kind(0.d0)), dimension(:,:), allocatable :: xy, QR
     double complex, dimension(:), allocatable :: s
     double complex, dimension(:,:), allocatable :: ph, pinv_ph, modesT
@@ -2035,17 +2035,27 @@ subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, omega)
     enddo
 
     ! Constraint here Least Squares solution of  
-    ! A = \omega/2 * \sum_i (z_i - ph(x_i,y_i))^2 
+    ! A = \eps/2 * \sum_i (z_i - ph(x_i,y_i))^2 
     !   + (Lx*Ly)/2 * \sum_k k^2 | \xi_k |^2 
     ! min(A) with  k**2 = Q**2
-   if (present(omega)) then
+   if (present(eps)) then
+
+        allocate(c(modes_shape(1)*modes_shape(2)))
+        do i = 1, modes_shape(1)
+        do j = 1, modes_shape(2)
+            n = j+(i-1)*modes_shape(2)
+            c(n) = eps * (i**2 + j**2)*(2.d0*pi)**2
+        enddo
+        enddo
+
         !print*, "CONSTRAINT APPLIED"
         !Lx = 2.d0 * pi / Qxy(modes_shape(1)+1,2)    
         !Ly = 2.d0 * pi / Qxy(2,1)  
         do j=1,size(ph,2)
-            ph(:,j) = ph(:,j) + omega * dcmplx(Q(j), 0.d0)
-            !ph(:,j) = ph(:,j) + omega * dcmplx(Lx*Ly*Q(j), 0.d0)
-            !ph(:,j) = ph(:,j) + omega * dcmplx((2.d0*pi)**2*(j**2), 0.d0)
+            ph(:,j) = ph(:,j) + dcmplx(c(j+1), c(j+1))
+            !ph(:,j) = ph(:,j) + dcmplx(Q(j), 0.d0)
+            !ph(:,j) = ph(:,j) + eps * dcmplx(Lx*Ly*Q(j), 0.d0)
+            !ph(:,j) = ph(:,j) + eps * dcmplx((2.d0*pi)**2*(j**2), 0.d0)
         enddo
     endif
 
@@ -2275,12 +2285,13 @@ subroutine update_pivots(points, q_vectors, modes, pivots, &
 
 end subroutine update_pivots
 
-subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, pivots, omega)
+subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, & 
+                                       tau, ns, modes, pivots, eps)
     implicit none
 
     integer, intent(in) :: normal
-    double precision, intent(in) :: alpha, tau
-    double precision, intent(in), optional :: omega
+    double precision, intent(in) :: alpha, tau, ns
+    double precision, intent(in), optional :: eps
     double precision, intent(in), dimension(3) :: box
     double precision, intent(in), dimension(:,:), allocatable ::  points
     double complex, intent(out), dimension(:,:), allocatable :: modes
@@ -2315,8 +2326,8 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, p
         !print*, "initial pivot pos = ", i, pivot_pos(i,:)
     enddo
 
-    if (present(omega)) then
-        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+    if (present(eps)) then
+        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
     else
         call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
     endif
@@ -2331,7 +2342,6 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, p
         call update_pivots(points, q_vectors, modes, pivots, &
                            normal, alpha, tau_, new_pivots)
 
-
         !Get new positions and new modes
         if (allocated(pivot_pos)) deallocate(pivot_pos)
         sp = size(new_pivots,1)
@@ -2340,27 +2350,29 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, p
             pivot_pos(i,:) = points(new_pivots(i),:)
             !print*, "new pivot pos = ", i, pivot_pos(i,:)
         enddo
-        if (present(omega)) then
-            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+        if (present(eps)) then
+            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
         else
             call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
         endif
 
 
-        !Exit once we have converged to particles on surface / area = 0.8
-        if (size(new_pivots)/area .gt. 0.8)  then
+        !Exit once we have converged to particles on surface / area = ns
+        if (size(new_pivots)/area .gt. ns)  then
             deallocate(pivots)
-            ! Truncate pivots to give 0.8 as all positions in 
+            ! Truncate pivots to give ns as all positions in 
             ! order of increasing distance from max pivot mol
-            ntarget = int(0.8*area)
+            ntarget = int(ns*area)
             allocate(pivots(ntarget))
             pivots = new_pivots(1:ntarget)
+
+            !Debugging print statement of surface molecules
 !            allocate(initial_pivot_pos(9,3))
 !            do i =1, 9
 !                initial_pivot_pos(i,:) = points(initial_pivots(i),:)
 !            enddo
 !            maxpivot = maxval(initial_pivot_pos(:,normal))
-!            do i =1, sp
+!            do i =1, ntarget
 !                diff = maxpivot - pivot_pos(i, normal)
 !                print'(a,2i5,3f10.5,f18.8)', "new pivot pos = ", i, ntarget, pivot_pos(i,:), diff
 !            enddo   
@@ -2384,11 +2396,6 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, p
             d = pivot_pos(:, normal) - surf(:)
             Error = sqrt(sum(d * d) / size(d))
 
-!        do i =1,size(q_vectors,2)
-!        do j =1,size(q_vectors,3)
-!            area = area + 0.5*box(ixyz)*box(jxyz)*(q_vectors(1,i,j)+q_vectors(2,i,j)**2)*abs(modes(i,j)*modes(i,j))
-!        enddo
-!        enddo
             print*, "Try no. = ", try, "No. pivots = ", size(pivots), & 
                     "Error=", Error, "Area=", area, size(pivots)/area
 
@@ -2404,8 +2411,8 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, p
                     !print*, "initial pivot pos = ", i, pivot_pos(i,:)
                 enddo
 
-                if (present(omega)) then
-                    call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+                if (present(eps)) then
+                    call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
                 else
                     call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
                 endif
@@ -2436,8 +2443,8 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, p
 !        !print*, "initial pivot pos = ", i, pivot_pos(i,:)
 !    enddo
 
-!    if (present(omega)) then
-!        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+!    if (present(eps)) then
+!        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
 !    else
 !        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
 !    endif
@@ -2481,8 +2488,8 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, p
 !!                !print*, "initial pivot pos = ", i, pivot_pos(i,:)
 !!            enddo
 
-!!            if (present(omega)) then
-!!                call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+!!            if (present(eps)) then
+!!                call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
 !!            else
 !!                call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
 !!            endif
@@ -2504,8 +2511,8 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, p
 !            pivot_pos(i,:) = points(new_pivots(i),:)
 !            !print*, "new pivot pos = ", i, pivot_pos(i,:)
 !        enddo
-!        if (present(omega)) then
-!            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, omega)
+!        if (present(eps)) then
+!            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
 !        else
 !            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
 !        endif
@@ -2690,14 +2697,14 @@ end subroutine modes_surface_to_bilinear_surface
 
 
 subroutine fit_intrinsic_surface_return_modes(points, box, normal, nbins, & 
-                                              alpha, tau, q_vectors, modes, omega)
+                                              alpha, tau, ns, q_vectors, modes, eps)
     implicit none
 
     !logical, intent(in), optional :: reuse_pivots
     integer, intent(in) :: normal
     integer, dimension(3), intent(in) :: nbins
-    double precision, intent(in) :: alpha, tau
-    double precision, intent(in), optional :: omega
+    double precision, intent(in) :: alpha, tau, ns
+    double precision, intent(in), optional :: eps
     double precision, intent(in), dimension(3) :: box
     double precision, intent(in), dimension(:,:), allocatable ::  points
     double precision, intent(out), dimension(:,:,:), allocatable :: q_vectors
@@ -2709,20 +2716,20 @@ subroutine fit_intrinsic_surface_return_modes(points, box, normal, nbins, &
     double precision, dimension(:,:), allocatable :: Qxy
 
     call compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
-    call fit_intrinsic_surface_modes(points, box, normal, alpha, tau, modes, pivots, omega)
+    call fit_intrinsic_surface_modes(points, box, normal, alpha, tau, ns, modes, pivots, eps)
 
 end subroutine fit_intrinsic_surface_return_modes
 
 
 
 subroutine fit_intrinsic_surface(points, box, normal, nbins, & 
-                                 alpha, tau, Abilinear, omega)
+                                 alpha, tau, ns, Abilinear, eps)
     implicit none
 
     integer, intent(in) :: normal
     integer, dimension(3), intent(in) :: nbins
-    double precision, intent(in) :: alpha, tau
-    double precision, intent(in), optional :: omega
+    double precision, intent(in) :: alpha, tau, ns
+    double precision, intent(in), optional :: eps
     double precision, intent(in), dimension(3) :: box
     double precision, intent(in), dimension(:,:), allocatable ::  points
     double precision, intent(out), dimension(:,:,:,:), allocatable :: Abilinear
@@ -2738,7 +2745,7 @@ subroutine fit_intrinsic_surface(points, box, normal, nbins, &
 
 
     call fit_intrinsic_surface_return_modes(points, box, normal, nbins, & 
-                                            alpha, tau, q_vectors, modes, omega)
+                                            alpha, tau, ns, q_vectors, modes, eps)
     call surface_from_modes(points, normal, q_vectors, modes, elevation)
     call modes_surface_to_bilinear_surface(modes, q_vectors, box, nbins, normal, Abilinear)
 

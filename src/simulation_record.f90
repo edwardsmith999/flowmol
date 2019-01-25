@@ -295,11 +295,15 @@ subroutine simulation_record
     integer, save   :: vmdintervalno = 1
 
     !Cluster analysis or average bin based tracking of liquid vapour interfaces
-    if (cluster_analysis_outflag .eq. 1) then
+    if (cluster_analysis_outflag .eq. 1 .and.  & 
+        any(intrinsic_interface_outflag .eq. (/1,2/))) then
         call get_interface_from_clusters()
         !call debug_sine_to_bilinear_surface_coeff()
-        !get_bin => bin_from_intrinsic
-        get_bin => bin_from_full_intrinsic
+        if (intrinsic_interface_outflag .eq. 1) then
+            get_bin => bin_from_full_intrinsic
+        elseif (intrinsic_interface_outflag .eq. 2) then
+            get_bin => bin_from_intrinsic
+        endif
     elseif (cluster_analysis_outflag .eq. 2) then
         call sl_interface_from_binaverage()
     else
@@ -5607,26 +5611,39 @@ contains
 	    implicit none
 
         type(clusterinfo),intent(inout)    :: self
-        double precision, intent(in)        :: rd
 
-        integer                         :: i
+        double precision, intent(in)       :: rd
+
+        integer                            :: i
 
         !Initialised cluster list
         if (.not. allocated(self%Nlist)) then
             allocate(self%Nlist(np+extralloc))
-            allocate(self%inclust(np+extralloc))
             allocate(self%head(np+extralloc))
+        endif
+        if (.not. allocated(self%inclust)) then
+            allocate(self%inclust(np+extralloc))
+        endif
+        if (.not. allocated(self%clusterngbrs)) then
+            allocate(self%clusterngbrs(np))
         endif
 
         self%Nclust = 0
 	    do i = 1,np+extralloc
             self%inclust(i) = 0
+            !self%clusterngbrs(i) = 0
 		    self%Nlist(i) = 0	!Zero number of molecules in cluster list
 		    nullify(self%head(i)%point)!Nullify cluster list head pointer 
 	    enddo
 
         !Call to build clusters from neighbour and cell lists
-        call build_from_cellandneighbour_lists(self, cell, neighbour, rd, r, np, skipwalls_=.true.)
+        call build_from_cellandneighbour_lists(self, cell, neighbour, rd,  & 
+                                               r, np, skipwalls_=.true.)
+
+        ! If number of checked molecules greater than minimum 
+        ! used in definitions of cluster list 
+        ! (1 by Stillinger, 3 Braga et al 2018)
+        !if (min_ngbr .ne. 0) call StripClusterSubNgbr(self, min_ngbr)
   
         !Remove all empty cluster references
         call CompressClusters(self)
@@ -5650,7 +5667,7 @@ contains
 
         logical :: first_time=.true.
         integer :: fileunit
-        integer, parameter :: DEBUG=0, ONEDIM=1, TWODIM=2, TWODIM16=3, FourierISM=4
+        integer, parameter :: DEBUG=0, ONEDIM=1, TWODIM=2, TWODIM16=3
         double precision   :: m, c, cl_angle
         !Save previous surface as initial guess
         double precision,dimension(:), &
@@ -5714,17 +5731,6 @@ contains
             if (present(debug_outfile)) then
                 write(fileunit,'(i12, 19f15.8)') iter, m, c, cl_angle, p0
             endif
-       else if (fittype .eq. FourierISM) then
-!            allocate(points(size(x,1),3))
-!            !X is the surface normal, stored in y but ISM assumes z is normal
-!            points(:,1) = x
-!            points(:,2) = z
-!            points(:,3) = y
-!            call fit_intrinsic_surface(points, globaldomain, normal=3, alpha=2.d0, tau=0.5d0, modes)
-!            call surface_from_modes(xy_grid, globaldomain, alpha=2.d0, modes=modes, elevation=elevation)
-!            if (present(debug_outfile)) then
-!                write(fileunit,*) iter, elevation
-!            endif
         endif
         !Save soln  as initial guess for next time
         p0_ = p0
@@ -5734,9 +5740,11 @@ contains
     end subroutine fit_surface
 
 
-    subroutine get_cluster_properties(self, rd)
+    subroutine get_cluster_properties(self, rd, min_ngbr)
         use physical_constants_MD, only : np, nd, tethereddisttop, tethereddistbottom
-        use computational_constants_MD, only : iter, tplot, thermo_tags, thermo, free, globaldomain 
+        use computational_constants_MD, only : iter, tplot, thermo_tags, thermo, &
+                                               free, globaldomain, intrinsic_interface_outflag, &
+                                               II_normal, II_alpha, II_tau, II_eps, II_ns
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
         use arrays_MD, only : tag, r, intnscshift
@@ -5745,15 +5753,17 @@ contains
                                get_new_fileunit, get_Timestep_FileName, surface_from_modes
         use calculated_properties_MD, only : nbins, binsize
         use module_record, only : Abilinear, modes, q_vectors
+        use interfaces, only : error_abort
         implicit none
 
         type(clusterinfo),intent(inout)    :: self
+        integer, intent(in)                :: min_ngbr
         double precision, intent(in)       :: rd
 
         logical                         :: first_time=.true.
         character(32)                   :: filename, debug_outfile
         integer                         :: n,i,j,resolution,fittype,normal, clustNo, bins(3)
-        double precision                :: tolerance, alpha, tau, omega
+        double precision                :: tolerance, alpha, tau, eps, ns, area
         double precision, dimension(3)  :: bintop, binbot, box !Used in CV
         double precision,dimension(6)   :: extents
         double precision,dimension(4)   :: ptin, pbin
@@ -5767,149 +5777,180 @@ contains
 
         clustNo = imaxloc(self%Nlist)
 
-        !Intrinsic surface coefficients
-        normal = 3
-        alpha = 0.5d0
-        tau = 1.d0
-        omega = 0.00000001d0
+        !Different intrinsic surface types
+        if (intrinsic_interface_outflag .eq. 0) then
+            !Do nothing, no intrinsic interface
+            return
+        else if (any(intrinsic_interface_outflag .eq. (/ 1, 2 /))) then
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            ! Fit intrinsic (sine/cosine) surface !
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-        !Only recheck external molecules of cluster every tplot timesteps
-        if (mod(iter,tplot) .eq. 0) then
-            !Get cluster data into array
-            call cluster_to_array(self, clustNo, rnp)
+            !Intrinsic surface coefficients
+            normal = II_normal ! 3
+            alpha =  II_alpha ! 0.5d0
+            tau =  II_tau ! 1.d0
+            eps =  II_eps !0.00000001d0
+            ns =  II_ns !0.8d0
 
-            !Z normal is the only one tested so far
-            if (allocated(points)) deallocate(points)
-            allocate(points(size(rnp,2), size(rnp,1)))
-            points = 0.d0
-            do i =1, size(rnp,2)
-                points(i,1) = rnp(2,i)
-                points(i,2) = rnp(3,i)
-                points(i,3) = rnp(1,i)
-            enddo
+            !Only recheck external molecules of cluster every tplot timesteps
+            if (mod(iter,tplot) .eq. 0) then
+                !Get cluster data into array
+                call cluster_to_array(self, clustNo, rnp, min_ngbr)
 
-            !Get surface in terms of modes
-            box = (/globaldomain(2), globaldomain(3), globaldomain(1)/)
-            bins = (/nbins(2), nbins(3), nbins(1)/)
-            call fit_intrinsic_surface_return_modes(points, box, 3, bins, alpha, tau, q_vectors, modes, omega)
+                !print*, "Size of cluster = ", size(rnp,2)
 
-            !call fit_intrinsic_surface(points, (/globaldomain(2), globaldomain(3), globaldomain(1)/), &
-            !                           3, (/nbins(2), nbins(3), nbins(1)/), alpha, tau, Abilinear, omega)
+                !Z normal is the only one tested so far
+                if (allocated(points)) deallocate(points)
+                allocate(points(size(rnp,2), size(rnp,1)))
+                points = 0.d0
+                do i =1, size(rnp,2)
+                    points(i,1) = rnp(2,i)
+                    points(i,2) = rnp(3,i)
+                    points(i,3) = rnp(1,i)
+                enddo
 
-            !Get shift for intrinsic surface for each molecule
-!            deallocate(points)
-!            allocate(points(np, nd))
-!            points(:,1) = r(2,1:np)
-!            points(:,2) = r(3,1:np)
-!            points(:,3) = r(1,1:np)
-!            call surface_from_modes(points, 3, q_vectors, modes, elevation)
-!            intnscshift = ceiling(elevation(:)/binsize(1))
+                !Get surface in terms of modes
+                box = (/globaldomain(2), globaldomain(3), globaldomain(1)/)
+                bins = (/nbins(2), nbins(3), nbins(1)/)
 
-            !Write modes to file
-    !        fileno = get_new_fileunit() 
-    !        call get_Timestep_FileName(iter,"./results/surfacemodes",outfile_t)
-    !        print*, shape(modes)
-    !        inquire(iolength=length) modes
-    !        open(fileno, file=trim(outfile_t), form='unformatted', access='direct', recl=length)
-    !        write(fileno, rec=1) modes
-    !        close(fileno)
+                if (intrinsic_interface_outflag .eq. 1) then
+                    call fit_intrinsic_surface_return_modes(points, box, normal, bins, alpha, & 
+                                                            tau, ns, q_vectors, modes, eps)
 
-            !Sample intrinsic surface and write to obj file
-            !bins = (/size(modes,1), size(modes,2), 1/)
-            !call sample_intrinsic_surface(modes, q_vectors, box, 8*bins, 3, vertices, iter)
+!                    area = 0.d0 ! box(2)*box(3)
+!                    do i =1,size(q_vectors,2)
+!                    do j =1,size(q_vectors,3)
+!                        area = area + abs(modes(i,j)*modes(i,j)) !0.5*box(2)*box(3) & 
+!                                      !*(q_vectors(1,i,j)**2+q_vectors(2,i,j)**2) & 
+!                                      !*abs(modes(i,j)*modes(i,j))
+!                    enddo
+!                    enddo
+!                    print*, "Surface Area", area
 
+                else if (intrinsic_interface_outflag .eq. 2) then
+                    call fit_intrinsic_surface(points, box, normal, bins, alpha, & 
+                                               tau, ns, Abilinear, eps)
+                endif
+
+                !Get shift for intrinsic surface for each molecule
+    !            deallocate(points)
+    !            allocate(points(np, nd))
+    !            points(:,1) = r(2,1:np)
+    !            points(:,2) = r(3,1:np)
+    !            points(:,3) = r(1,1:np)
+    !            call surface_from_modes(points, 3, q_vectors, modes, elevation)
+    !            intnscshift = ceiling(elevation(:)/binsize(1))
+
+                !Write modes to file
+        !        fileno = get_new_fileunit() 
+        !        call get_Timestep_FileName(iter,"./results/surfacemodes",outfile_t)
+        !        print*, shape(modes)
+        !        inquire(iolength=length) modes
+        !        open(fileno, file=trim(outfile_t), form='unformatted', access='direct', recl=length)
+        !        write(fileno, rec=1) modes
+        !        close(fileno)
+
+                !Sample intrinsic surface and write to obj file
+                !bins = (/size(modes,1), size(modes,2), 1/)
+                !call sample_intrinsic_surface(modes, q_vectors, box, 8*bins, 3, vertices, iter)
+                !Print biggest cluster
+                !call print_cluster(self, clustNo)
+
+            endif
+
+        elseif (intrinsic_interface_outflag .eq. 3) then
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            !     Fit linear and cubic surface    !
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            resolution = 10; tolerance = rd
+            fittype = 3   
+
+            call cluster_global_extents(self, clustNo, extents)
+
+            !Get molecules on top surface
+            call cluster_extents_grid(self, clustNo, 1, resolution, & 
+                                      extents_grid)!, debug_outfile='./results/maxcell_top')
+            call cluster_outer_mols(self, clustNo, tolerance=tolerance, dir=1, & 
+                                    rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_top')
+
+            !Curve fits to clusters
+            allocate(x(size(rnp,2)), y(size(rnp,2)), z(size(rnp,2)))
+            x = rnp(2,:); y = rnp(1,:); z = rnp(3,:)
+            call fit_surface(x, y, z, fittype, pt, f, debug_outfile='./results/linecoeff_top')
+            deallocate(x,y,z)
+
+            !Get molecules on bottom surface
+            call cluster_extents_grid(self, imaxloc(self%Nlist), 4, resolution, &
+                                      extents_grid )!, debug_outfile='./results/maxcell_bot')
+            call cluster_outer_mols(self, imaxloc(self%Nlist), tolerance=tolerance, dir=4, & 
+                                    rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_bot')
+
+            !Curve fits to clusters
+            allocate(x(size(rnp,2)), y(size(rnp,2)), z(size(rnp,2)))
+            x = rnp(2,:); y = rnp(1,:); z = rnp(3,:)
+            call fit_surface(x, y, z, fittype, pb, f, debug_outfile='./results/linecoeff_bot')
+            deallocate(x,y,z)
+
+            !pb = (/ c, m, 0.0d0, 0.0d0  /)
+
+            !No surface in x needed
+            bintop(1) = 1e18
+            binbot(1) = -1e18
+
+            !Set a small CV in x, y and z at the surface 
+            bintop(2) = 2.d0; binbot(2) = -2.d0
+            bintop(3) = 2.d0; binbot(3) = -2.d0
+            !pb = (/pt(1)-4.d0, 0.0d0, 0.00d0, 0.000d0  /)
+
+            !Top/bottom surfaces in y
+            !bintop(2) = 0.5d0*globaldomain(2) - tethereddisttop(2)
+            !binbot(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
+            
+            !Front/back surfaces in z
+            !bintop(3) = 0.5d0*globaldomain(3) - tethereddisttop(3)
+            !binbot(3) = -0.5d0*globaldomain(3) + tethereddistbottom(3)
+
+            !Apply CV analysis to control volume with moving interface
+            ptin = (/ 3.d0, -0.1d0, -0.01d0, -0.001d0  /) !pt(1:4)
+            pbin = (/-3.d0, -0.1d0, -0.01d0, -0.001d0  /) !pb(1:4)
+            !call cluster_CV_fn(pt, pb, bintop, binbot, 1)
+            call cluster_CV_fn(ptin, pbin, bintop, binbot, 2)
+            !call cluster_CV_fn(pt, pb, bintop, binbot, 3)
+
+            ! - - -Set cluster molecules to be thermostatted - - -
+
+            !First set all thermostatted liquid molecules to unthermostatted
+            !do n = 1,np
+            !   ! if (tag(n) .eq. thermo) 
+            !    tag(n) = free
+            !enddo
+            !Then set molecules in biggest cluster to thermostatted
+            !call thermostat_cluster(self, imaxloc(self%Nlist))
+
+            !Print Biggest cluster
+    !        call get_Timestep_FileName(iter,'./results/Big_clust',filename)
+    !        open(unit=1042,file=trim(filename),access='append')
+    !        do i = 1, self%Nclust
+    !            if (self%Nlist(i) .ne. maxval(self%Nlist)) then
+    !                print*, 'skipping', i, 'with ', self%Nlist(i)
+    !                cycle
+    !            endif
+    !            call linklist_printneighbourlist(self, i, 1042)
+    !        enddo
+    !        close(1042,status='keep')
+
+
+            !If cluster has broken up, stop simulation
+            call check_for_cluster_breakup(self)
+
+
+        else
+            call error_abort('Error - Unknown intrinsic_interface_outflag')
         endif
 
 
-
-
-        !Print biggest cluster
-        !call print_cluster(self, clustNo)
-
-        !DEBUG INTRINSIC HERE, return now
-        return
-        !DEBUG INTRINSIC HERE, return now
-
-
-        resolution = 10; tolerance = rd
-        fittype = 3   
-
-        call cluster_global_extents(self, clustNo, extents)
-
-        !Get molecules on top surface
-        call cluster_extents_grid(self, clustNo, 1, resolution, & 
-                                  extents_grid)!, debug_outfile='./results/maxcell_top')
-        call cluster_outer_mols(self, clustNo, tolerance=tolerance, dir=1, & 
-                                rmols=rnp, extents=extents_grid, debug_outfile='./results/clust_edge_top')
-
-        !Curve fits to clusters
-        allocate(x(size(rnp,2)), y(size(rnp,2)), z(size(rnp,2)))
-        x = rnp(2,:); y = rnp(1,:); z = rnp(3,:)
-        call fit_surface(x, y, z, fittype, pt, f, debug_outfile='./results/linecoeff_top')
-        deallocate(x,y,z)
-
-        !Get molecules on bottom surface
-        call cluster_extents_grid(self, imaxloc(self%Nlist), 4, resolution, &
-                                  extents_grid )!, debug_outfile='./results/maxcell_bot')
-        call cluster_outer_mols(self, imaxloc(self%Nlist), tolerance=tolerance, dir=4, & 
-                                rmols=rnp, extents=extents_grid)!, debug_outfile='./results/clust_edge_bot')
-
-        !Curve fits to clusters
-        allocate(x(size(rnp,2)), y(size(rnp,2)), z(size(rnp,2)))
-        x = rnp(2,:); y = rnp(1,:); z = rnp(3,:)
-        call fit_surface(x, y, z, fittype, pb, f, debug_outfile='./results/linecoeff_bot')
-        deallocate(x,y,z)
-
-        !pb = (/ c, m, 0.0d0, 0.0d0  /)
-
-        !If cluster has broken up, stop simulation
-        call check_for_cluster_breakup(self)
-
-        !No surface in x needed
-        bintop(1) = 1e18
-        binbot(1) = -1e18
-
-        !Set a small CV in x, y and z at the surface 
-        bintop(2) = 2.d0; binbot(2) = -2.d0
-        bintop(3) = 2.d0; binbot(3) = -2.d0
-        !pb = (/pt(1)-4.d0, 0.0d0, 0.00d0, 0.000d0  /)
-
-        !Top/bottom surfaces in y
-        !bintop(2) = 0.5d0*globaldomain(2) - tethereddisttop(2)
-        !binbot(2) = -0.5d0*globaldomain(2) + tethereddistbottom(2)
-        
-        !Front/back surfaces in z
-        !bintop(3) = 0.5d0*globaldomain(3) - tethereddisttop(3)
-        !binbot(3) = -0.5d0*globaldomain(3) + tethereddistbottom(3)
-
-        !Apply CV analysis to control volume with moving interface
-        ptin = (/ 3.d0, -0.1d0, -0.01d0, -0.001d0  /) !pt(1:4)
-        pbin = (/-3.d0, -0.1d0, -0.01d0, -0.001d0  /) !pb(1:4)
-        !call cluster_CV_fn(pt, pb, bintop, binbot, 1)
-        call cluster_CV_fn(ptin, pbin, bintop, binbot, 2)
-        !call cluster_CV_fn(pt, pb, bintop, binbot, 3)
-
-        ! - - -Set cluster molecules to be thermostatted - - -
-
-        !First set all thermostatted liquid molecules to unthermostatted
-        !do n = 1,np
-        !   ! if (tag(n) .eq. thermo) 
-        !    tag(n) = free
-        !enddo
-        !Then set molecules in biggest cluster to thermostatted
-        !call thermostat_cluster(self, imaxloc(self%Nlist))
-
-        !Print Biggest cluster
-!        call get_Timestep_FileName(iter,'./results/Big_clust',filename)
-!        open(unit=1042,file=trim(filename),access='append')
-!        do i = 1, self%Nclust
-!            if (self%Nlist(i) .ne. maxval(self%Nlist)) then
-!                print*, 'skipping', i, 'with ', self%Nlist(i)
-!                cycle
-!            endif
-!            call linklist_printneighbourlist(self, i, 1042)
-!        enddo
-!        close(1042,status='keep')
+        !if (iter .gt. 100200) stop
 
 
     end subroutine get_cluster_properties
@@ -7054,7 +7095,8 @@ contains
 
         else
             print*, 'It appears clusters have broken up'
-            print'(a,8f10.1,e18.8)', 'CLUSTER DETAILS ', cluster_sizes(1:8), (cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1)
+            print'(a,8f10.1,e18.8)', 'CLUSTER DETAILS ', cluster_sizes(1:8), & 
+                   (cluster_sizes(1) - cluster_sizes(2))/cluster_sizes(1)
 
             !print*, 'It appears clusters have broken up -- writing final state and exiting'
             !Exit Gracefully
@@ -7102,7 +7144,8 @@ contains
     end subroutine thermostat_cluster
 
 
-    subroutine build_from_cellandneighbour_lists(self, cell, neighbour, rd, rmols, nmols, skipwalls_)
+    subroutine build_from_cellandneighbour_lists(self, cell, neighbour, rd, & 
+                                                 rmols, nmols, skipwalls_)
 	    use module_compute_forces, only: cellinfo, neighbrinfo, rj, rij, ri,&
                                          delta_rneighbr, rcutoff, rij2, &
                                          moltype
@@ -7119,13 +7162,13 @@ contains
         double precision, intent(in)    :: rd
         double precision, intent(in), dimension(:,:) :: rmols
 
-        logical                         :: skipwalls
-	    integer                         :: i, j !Define dummy index
-	    integer							:: icell, jcell, kcell, Nchecked
-	    integer                         :: cellnp 
-	    integer							:: molnoi, molnoj, noneighbrs
-        double precision                :: rd2
-	    type(node), pointer 	        :: oldi, currenti, noldj,ncurrentj
+        logical                              :: skipwalls
+	    integer                              :: i, j, m, n !Define dummy index
+	    integer							     :: icell, jcell, kcell, Nchecked, Nnghbrs
+	    integer                              :: cellnp, molnoi, molnoj, noneighbrs
+        double precision                     :: rd2
+        !integer, dimension(:), allocatable   :: clusterngbrs
+	    type(node), pointer 	             :: oldi, currenti, noldj,ncurrentj
 
         if (present(skipwalls_)) then
             skipwalls = skipwalls_
@@ -7135,60 +7178,102 @@ contains
 
         rd2 = rd**2
 
+        ! If number of checked molecules greater than minimum 
+        ! used in definitions of cluster list 
+        ! (1 by Stillinger or 3 used by Braga et al 2018)
+!        allocate(clusterngbrs(nmols))
+!        if (min_ngbr .ne. 0) then
+!            !First count number of cluster neighbours 
+!            do molnoi = 1, nmols
+
+!	            ri = rmols(:,molnoi)         	!Retrieve ri
+!                if (skipwalls .and. (Mie_potential .ne. 0)) then
+!                    if (any(moltype(molnoi) .eq. (/ 2, 9 /) )) cycle !Don't include wall molecules
+!                endif
+
+!                noneighbrs = neighbour%Nlist(molnoi)	    !Determine number of elements in neighbourlist
+!                noldj => neighbour%head(molnoi)%point		!Set old to head of neighbour list
+!                Nnghbrs = 0
+
+!                !Step through all neighbours i 
+!                do j = 1, noneighbrs
+!	                molnoj = noldj%molno			        !Number of molecule j
+!	                rj(:) = rmols(:,molnoj)			            !Retrieve rj
+!	                rij(:)= ri(:) - rj(:)   	            !Evaluate distance between particle i and j
+!	                rij2  = dot_product(rij,rij)            !Square of vector calculated
+
+!	                if (rij2 .lt. rd2) then
+!                        if (skipwalls .and. (Mie_potential .ne. 0)) then
+!                            if (any(moltype(molnoj) .eq. (/ 2, 9 /))) cycle
+!                        endif
+!                        Nnghbrs = Nnghbrs + 1
+!                    endif
+!	                ncurrentj => noldj
+!	                noldj => ncurrentj%next !Use pointer in datatype to obtain next item in list
+!                 enddo
+!                clusterngbrs(molnoi) = Nnghbrs
+!            enddo
+!        endif
+
+        !allocate(clusterngbrs(nmols))
+        self%clusterngbrs = 0
         do molnoi = 1, nmols
+
+            !if (clusterngbrs(molnoi) .lt. min_ngbr) cycle
 
 	        ri = rmols(:,molnoi)         	!Retrieve ri
             if (skipwalls .and. (Mie_potential .ne. 0)) then
                 if (any(moltype(molnoi) .eq. (/ 2, 9 /) )) cycle !Don't include wall molecules
             endif
 
-            ! If interface cutoff is less that interaction rcutoff
-            ! then we can use the neighbourlist to get molecules in 
-            ! interface region (N.B. need to use all interations)
-            if (rd .le. (rcutoff + minval(delta_rneighbr))) then
+            noneighbrs = neighbour%Nlist(molnoi)	    !Determine number of elements in neighbourlist
+            noldj => neighbour%head(molnoi)%point		!Set old to head of neighbour list
 
-                noneighbrs = neighbour%Nlist(molnoi)	!Determine number of elements in neighbourlist
-	            noldj => neighbour%head(molnoi)%point		!Set old to head of neighbour list
-                Nchecked = 0
-	            do j = 1,noneighbrs							!Step through all pairs of neighbours i and j
+            !A list of bonded pairs which we add to cluster linked list
+            !only if they have more than min_ngbrs
+            Nchecked = 0
+            !Step through all neighbours i 
+            do j = 1, noneighbrs
 
-		            molnoj = noldj%molno			        !Number of molecule j
+	            molnoj = noldj%molno			        !Number of molecule j
 
-                    !if (molnoj .gt. nmols) cycle               !Ignore halo values
+                !if (molnoj .gt. nmols) cycle               !Ignore halo values
+                !if (clusterngbrs(molnoj) .lt. min_ngbr) cycle
 
-		            rj(:) = rmols(:,molnoj)			            !Retrieve rj
-		            rij(:)= ri(:) - rj(:)   	            !Evaluate distance between particle i and j
-		            rij2  = dot_product(rij,rij)            !Square of vector calculated
+	            rj(:) = rmols(:,molnoj)			            !Retrieve rj
+	            rij(:)= ri(:) - rj(:)   	            !Evaluate distance between particle i and j
+	            rij2  = dot_product(rij,rij)            !Square of vector calculated
 
-		            if (rij2 .lt. rd2) then
-                        if (skipwalls .and. (Mie_potential .ne. 0)) then
-                            if (any(moltype(molnoj) .eq. (/ 2, 9 /))) then
-                                call AddBondedPair(self, molnoi, molnoi)
-                            else
-                                call AddBondedPair(self, molnoi, molnoj)
-                            endif
+	            if (rij2 .lt. rd2) then
+                    if (skipwalls .and. (Mie_potential .ne. 0)) then
+                        if (any(moltype(molnoj) .eq. (/ 2, 9 /))) then
+                            call AddBondedPair(self, molnoi, molnoi)
                         else
                             call AddBondedPair(self, molnoi, molnoj)
                         endif
-                        Nchecked = Nchecked + 1
+                    else
+                        call AddBondedPair(self, molnoi, molnoj)
                     endif
-
-		            ncurrentj => noldj
-		            noldj => ncurrentj%next !Use pointer in datatype to obtain next item in list
-                enddo
-                !If no neighbours, add molecule to its own cluster list
-                if (Nchecked .eq. 0) then
-                    call AddBondedPair(self, molnoi, molnoi)
+                    Nchecked = Nchecked + 1
                 endif
-            else
-                call error_abort("Error in build cluster -- rd must be less than neighbourlist cutoff")
+	            ncurrentj => noldj
+	            noldj => ncurrentj%next !Use pointer in datatype to obtain next item in list
+            enddo
+
+            !If no neighbours, add molecule to its own cluster list
+            if (Nchecked .eq. 0) then
+                call AddBondedPair(self, molnoi, molnoi)
+                Nchecked = Nchecked + 1
             endif
+
+            !Store number of clusterable molecules close to each molecule
+            self%clusterngbrs(molnoi) = Nchecked
 
 		    !currenti => oldi
 		    !oldi => currenti%next !Use pointer in datatype to obtain next item in list
         enddo
 
-    end subroutine
+    end subroutine build_from_cellandneighbour_lists
 
 
     subroutine AddBondedPair(self, molnoi, molnoj)
@@ -7287,6 +7372,51 @@ contains
 
     end subroutine AddBondedPair
 
+    !Remove any molecules from clusters with fewer than target 
+    !numbers of neighbours
+    !THIS DOES NOT WORK, NOT SIMPLE TO STRIP OUT MOLECULES
+!    subroutine StripClusterSubNgbr(self, min_ngbr)
+!        implicit none
+
+!        type(clusterinfo),intent(inout) :: self
+!        integer, intent(in)             :: min_ngbr
+
+!        integer                         :: Nmols, molno, j, n
+!	    type(node), pointer 	        :: old, current, pop, pold, pcurrent
+
+!        !Loop though all clusters
+!        do j = 1,self%Nclust
+!            !For all clusters which are not empty
+!            Nmols = self%Nlist(j)
+!            if (Nmols .gt. 0) then
+!                current => self%head(j)%point
+!                do n = 1,Nmols
+!                    molno = current%molno
+!                    if (self%clusterngbrs(molno) .le. min_ngbr) then
+!                        !Remove molno from cluster
+!                        !Check if popped molecule is last in list
+!                        pop => current
+!                        if (associated(pop%next)) then
+!                            !If just an element in list, remove it
+!                            old     => pop%next        !Set old to next item in list
+!                            current => pop%previous    !Set current to previous item in list
+!                            deallocate(pop)				!Destroy pop
+
+!                            !print*, n, Nmols, self%clusterngbrs(molno)
+
+!                            old%previous => current   !Previous pointer connects to old (pop missed out)
+!                            current%next => old     	!Next pointer connects to current (pop missed out)
+!                        endif
+!                    endif
+!                    old => current%next
+!                    current => old
+!                enddo
+!            endif
+!        enddo
+
+!    end subroutine StripClusterSubNgbr
+
+
     !Remove any gaps in the list of clusters
     subroutine CompressClusters(self)
         implicit none
@@ -7319,6 +7449,82 @@ contains
         enddo
 
     end subroutine CompressClusters
+
+
+    subroutine cluster_to_array(self, clustNo, array, min_ngbr)
+        use arrays_MD, only : r
+        use physical_constants_MD, only : np
+        implicit none
+
+        type(clusterinfo),intent(in)    :: self
+        integer, intent(in)             :: clustNo, min_ngbr
+        double precision, dimension(:,:), allocatable, intent(out) :: array
+
+        integer                         :: n, m, Nmols
+	    type(node), pointer 	        :: old, current
+        double precision, dimension(:,:), allocatable :: temp
+
+
+        !For all clusters which are not empty
+        Nmols = self%Nlist(clustNo)
+        if (Nmols .gt. 0) then
+            allocate(temp(3,Nmols)); m = 1
+            current => self%head(clustNo)%point
+            !Loop through all cluster molecules         
+            do n = 1,Nmols
+                !Check not halo and minimum number of neighbours
+                if (current%molno .le. np .and. & 
+                    self%clusterngbrs(n) .gt. min_ngbr) then
+                    temp(:,m) = r(:,current%molno)
+                    m = m + 1
+                    !print*, n, m, current%molno
+                endif
+                old => current%next
+                current => old
+            enddo
+        endif
+        allocate(array(3,m-1))
+        array(:,:) = temp(:,1:m-1)
+
+    end subroutine cluster_to_array
+
+    subroutine print_cluster(self, clustNo)
+        use arrays_MD, only : r
+        use physical_constants_MD, only : np
+        implicit none
+
+        type(clusterinfo),intent(in)    :: self
+
+        integer, intent(in)             :: clustNo
+        integer                         :: n,Nmols
+	    type(node), pointer 	        :: old, current
+
+        !For all clusters which are not empty
+        Nmols = self%Nlist(clustNo)
+        if (Nmols .gt. 0) then
+            current => self%head(clustNo)%point
+            !Loop through all cluster molecules         
+            do n = 1,Nmols
+                if (n .le. np) then
+                    print*, "molno = ", current%molno, " position = ", r(:,current%molno), np, Nmols
+                endif
+                old => current%next
+                current => old
+            enddo
+        endif
+
+    end subroutine print_cluster
+
+    subroutine destroy_clusters(self)
+        use linked_list, only : linklist_deallocate_cluster
+        implicit none
+
+        type(clusterinfo),intent(inout)    :: self
+
+        call linklist_deallocate_cluster(self)
+
+    end subroutine destroy_clusters
+
 
 
     subroutine cluster_centre_of_mass(self, clustNo, COM)
@@ -7797,82 +8003,6 @@ contains
 
 !    end subroutine build_debug_clusters
 
-    subroutine cluster_to_array(self, clustNo, array)
-        use arrays_MD, only : r
-        use physical_constants_MD, only : np
-        implicit none
-
-        type(clusterinfo),intent(in)    :: self
-        integer, intent(in)             :: clustNo
-        double precision, dimension(:,:), allocatable, intent(out) :: array
-
-        integer                         :: n, m, Nmols
-	    type(node), pointer 	        :: old, current
-        double precision, dimension(:,:), allocatable :: temp
-
-
-        !For all clusters which are not empty
-        Nmols = self%Nlist(clustNo)
-        if (Nmols .gt. 0) then
-            allocate(temp(3,Nmols)); m = 1
-            current => self%head(clustNo)%point
-            !Loop through all cluster molecules         
-            do n = 1,Nmols
-                if (current%molno .le. np) then
-                    temp(:,m) = r(:,current%molno)
-                    m = m + 1
-                    !print*, n, m, current%molno
-                endif
-                old => current%next
-                current => old
-            enddo
-        endif
-        allocate(array(3,m-1))
-        array(:,:) = temp(:,1:m-1)
-
-    end subroutine cluster_to_array
-
-
-
-    subroutine print_cluster(self, clustNo)
-        use arrays_MD, only : r
-        use physical_constants_MD, only : np
-        implicit none
-
-        type(clusterinfo),intent(in)    :: self
-
-        integer, intent(in)             :: clustNo
-        integer                         :: n,Nmols
-	    type(node), pointer 	        :: old, current
-
-        !For all clusters which are not empty
-        Nmols = self%Nlist(clustNo)
-        if (Nmols .gt. 0) then
-            current => self%head(clustNo)%point
-            !Loop through all cluster molecules         
-            do n = 1,Nmols
-                if (n .le. np) then
-                    print*, "molno = ", current%molno, " position = ", r(:,current%molno), np, Nmols
-                endif
-                old => current%next
-                current => old
-            enddo
-        endif
-
-    end subroutine print_cluster
-
-
-
-    subroutine destroy_clusters(self)
-        use linked_list, only : linklist_deallocate_cluster
-        implicit none
-
-        type(clusterinfo),intent(inout)    :: self
-
-        call linklist_deallocate_cluster(self)
-
-    end subroutine destroy_clusters
-
 
 end module cluster_analysis
 
@@ -7881,13 +8011,17 @@ subroutine get_interface_from_clusters()
                                  get_cluster_properties, & 
                                  destroy_clusters
     use linked_list, only : cluster
+    use computational_constants_MD, only : CA_rd, CA_min_nghbr
     implicit none
 
+    integer             :: min_ngbr
     double precision    :: rd
 
-    rd = 1.5d0
+    min_ngbr = CA_min_nghbr !1000000
+    rd = CA_rd !1.5d0
+    
     call build_clusters(cluster, rd)
-    call get_cluster_properties(cluster, rd)
+    call get_cluster_properties(cluster, rd, min_ngbr)
     call destroy_clusters(cluster)
 
 end subroutine get_interface_from_clusters
