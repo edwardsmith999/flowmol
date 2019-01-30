@@ -169,8 +169,22 @@ module computational_constants_MD
 		CVweighting_flag = 0, &			!Distribution of CV forces
 		CVforce_correct = 0, &			!Apply force to correct CV velocity to setpoint
         CVforce_correct_nsteps, &       !Number of steps to apply velocity correction over
-		CVforce_starttime, &			!Start time of applied force
-        cluster_analysis_outflag        !Cluster analysis with interface tracking
+		CVforce_starttime   			!Start time of applied force
+
+    !Cluster analysis coefficinets
+	integer	:: & 
+        cluster_analysis_outflag, &     !Cluster analysis 
+        CA_min_nghbr                    ! Minimum number of neighbours
+    real(kind(0.d0)) :: CA_rd           ! Cutoff length for cluster search
+
+    !Intrinsic interface coefficients
+    integer          :: intrinsic_interface_outflag
+	integer	         :: II_normal   ! Surface normal direction
+    real(kind(0.d0)) :: II_alpha    ! Smallest wavelength
+    real(kind(0.d0)) :: II_tau      ! Search radius around surface pivots
+    real(kind(0.d0)) :: II_eps      ! Weight for surface energy minimising constraint
+    real(kind(0.d0)) :: II_ns       ! Target density of surface Npivots/Area
+
 
     logical,dimension(3)    :: CVforce_applied_dir  !Which directions to apply force
 

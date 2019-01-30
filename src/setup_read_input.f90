@@ -834,13 +834,9 @@ subroutine setup_read_input
 	if (found_in_input) then
 		read(1,*) texture_type
 		read(1,*,iostat=ios) texture_intensity
-		if (ios .ne. 0) then
-			texture_intensity = 0.5d0
-		endif
+		if (ios .ne. 0) texture_intensity = 0.5d0
 		read(1,*,iostat=ios) texture_therm
-		if (ios .ne. 0) then
-			texture_therm = 0
-		endif
+		if (ios .ne. 0) texture_therm = 0
 	else
 		texture_type = 0
 	endif
@@ -876,10 +872,64 @@ subroutine setup_read_input
             if (nproc .ne. 1) then
                 call error_abort("Cluster Analysis only works with one processor")
             end if
+		    read(1,*,iostat=ios) CA_rd   ! Cutoff length for cluster search
+            if (ios .ne. 0) CA_rd = 1.5
+		    read(1,*,iostat=ios) CA_min_nghbr   ! Minimum number of neighbours
+            if (ios .ne. 0) CA_min_nghbr = 0  ! Set to zero (i.e. default no minimum)
+
+            ! If interface cutoff is less that interaction rcutoff
+            ! then we can use the neighbourlist to get molecules in 
+            ! interface region (N.B. need to use all interations)
+            if (CA_rd .gt. (rcutoff + minval(delta_rneighbr))) then
+                call error_abort("Error in build cluster -- rd must be less than neighbourlist cutoff")
+            endif
+
+            if (force_list .ne. 2) then
+                call error_abort("Error in build_from_cellandneighbour_lists -- full "//&
+                                 "neightbour list should be used with interface tracking"//&
+                                 "Set FORCE_LIST to 2 in input file.")
+            end if
         endif
     else
         cluster_analysis_outflag = 0
 	endif
+
+    !print*, "CLUSTER_ANALYSIS inputs", CA_rd, CA_min_nghbr
+
+    !#########################################################################
+    !# Fit an intrinsic surface to the outside of the cluster
+    !#   flag   1 - Intrinsic sine/cosine  2 - sine/cosine with bilinear approx  
+    !#       - normal     Surface normal direction
+    !#       - alpha      Smallest wavelength
+    !#       - tau        Search radius around surface
+    !#       - omega      Weight for surface energy minimising constraint
+    !#       - ns         Target density of surface Npivots/Area
+    !#   flag       3  - Linear and cubic surfaces
+    !#       - No flags yet
+    !# -----------------------------------------------------------------------
+	call locate(1,'INTRINSIC_INTERFACE',.false.,found_in_input)
+	if (found_in_input) then
+        if (cluster_analysis_outflag .eq. 0) then
+            call error_abort("Cluster Analysis must be on to use intrinsic interface")
+        endif
+		read(1,*) intrinsic_interface_outflag
+        if (intrinsic_interface_outflag .ne. 0) then
+    		read(1,*,iostat=ios) II_normal   ! Surface normal direction
+            if (ios .ne. 0) II_normal = 3
+            read(1,*,iostat=ios) II_alpha    ! Smallest wavelength
+            if (ios .ne. 0) II_alpha = 0.5d0
+            read(1,*,iostat=ios) II_tau      ! Search radius around surface
+            if (ios .ne. 0) II_tau = 1.d0
+            read(1,*,iostat=ios) II_eps    ! Weight for surface energy minimising constraint
+            if (ios .ne. 0) II_eps = 0.00000001d0
+            read(1,*,iostat=ios) II_ns       ! Target density of surface Npivots/Area
+            if (ios .ne. 0) II_ns = 0.8d0
+        endif
+    else
+        intrinsic_interface_outflag = 0
+	endif
+
+    !print*, "INTRINSIC_INTERFACE inputs", intrinsic_interface_outflag, II_normal, II_alpha, II_tau, II_eps, II_ns      
 
 	call locate(1,'LOCAL_HEAT',.false.,found_in_input)
 	if (found_in_input) then
@@ -889,8 +939,6 @@ subroutine setup_read_input
     else
         local_heat_region = -666.d0
     endif
-
-
 
 	!Flag to determine if output is switched on
 	call locate(1,'VMD_OUTFLAG',.false.,found_in_input)

@@ -92,7 +92,7 @@ module linked_list
 	type, extends(neighbrinfo) :: clusterinfo
         integer :: Nclust
         integer :: maxclusts=10000
-        integer, dimension(:),allocatable :: inclust
+        integer, dimension(:),allocatable :: inclust, clusterngbrs
 	end type clusterinfo
 	
 
@@ -1877,13 +1877,13 @@ subroutine linklist_writeallcells(self)
 		old => self%head(icell,jcell, kcell)%point
 		cellnp = self%cellnp(icell,jcell, kcell)
 
-		write(f, '(a,3i10)'), 'Cell', icell, jcell, kcell
-		if(cellnp == 0) write(f,'(a)'), 'linklist empty'
+		write(f, '(a,3i10)') 'Cell', icell, jcell, kcell
+		if(cellnp == 0) write(f,'(a)') 'linklist empty'
 
 		current => old ! make current point to head of list
 		do j=1,cellnp
 			!print*, 'more items in linked list?: ', associated(old%next)
-			write(f, '(i10, 3f15.4)'), current%molno, r(:,current%molno)
+			write(f, '(i10, 3f15.4)') current%molno, r(:,current%molno)
 			if (associated(old%next) .eqv. .true. ) then !Exit if null
 				old => current%next ! Use pointer in datatype to obtain next item in list
 				current => old      ! make current point to old - move alone one
@@ -1972,11 +1972,11 @@ subroutine linklist_printneighbourlist(self, molno, unitno)
         
 		!print*, 'more items in linked list?: ', associated(old%next)
         if (present(unitno)) then
-            write(unitno,'(i6, 2(a,i8),6f10.5)'), j, &
+            write(unitno,'(i6, 2(a,i8),6f10.5)') j, &
             ' Linklist print called for i = ', molno,' j = ', &
             current%molno, r(:,molno), r(:,current%molno)
         else
-    		print'(i6, 2(a,i8),6f10.5)', j, &
+    		print'(i6, 2(a,i8),6f10.5)' j, &
             ' Linklist print called for i = ', molno,' j = ', &
             current%molno, r(:,molno), r(:,current%molno)
         endif
