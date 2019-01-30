@@ -85,7 +85,15 @@ module module_record
 		end function fn_get_bin
 	end interface
 
+	abstract interface
+		function fn_get_bin_molno(n)
+	        integer,dimension(3) :: fn_get_bin_molno
+            integer,intent(in)   :: n
+		end function fn_get_bin_molno
+	end interface
+
    procedure (fn_get_bin),   pointer :: get_bin   => null ()
+   procedure (fn_get_bin_molno),   pointer :: get_bin_molno   => null ()
 
 contains
 
@@ -100,6 +108,19 @@ contains
         bin = ceiling((r+halfdomain)/binsize)+nhb
 
     end function bin_from_integer_division
+
+    function bin_molno_from_integer_division(n) result(bin)
+        use computational_constants_MD, only : halfdomain, nhb
+        use calculated_properties_MD, only : binsize
+        use arrays_MD, only : r
+        implicit none
+
+        integer,intent(in)       :: n
+	    integer,dimension(3) 	 :: bin
+
+        bin = ceiling((r(:,n)+halfdomain)/binsize)+nhb
+
+    end function bin_molno_from_integer_division
 
     function zeta(y, z)
         use computational_constants_MD, only : globaldomain
@@ -226,6 +247,32 @@ contains
     end function bin_from_full_intrinsic
 
 
+    !A version getting the explicit location from the intrinsic surface
+    function bin_molno_from_full_intrinsic(n) result(bin)
+        use computational_constants_MD, only : halfdomain, nhb
+        use calculated_properties_MD, only : binsize, nbins
+        use arrays_MD, only : r, intnscshift
+        implicit none
+
+        integer,intent(in)          :: n
+	    integer,dimension(3) 		:: bin
+
+        integer :: ixyz
+
+        bin = bin_from_integer_division(r(:,n))
+        bin(1) = bin(1) - intnscshift(n)
+
+        !Prevents out of range values
+        do ixyz=1,3
+    		if (bin(ixyz) > nbins(ixyz)+nhb(ixyz)) then
+                bin(ixyz) = nbins(ixyz)+nhb(ixyz)
+            elseif (bin(ixyz) < 1 ) then
+                bin(ixyz) = 1   
+            endif
+        enddo
+
+    end function bin_molno_from_full_intrinsic
+
     !Get surface position from positions for a known bin
     ! e.g. use with a bilinear surface as follows
     ! i = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
@@ -249,7 +296,7 @@ contains
 
     end function xsurfpos
 
-    function bin_from_intrinsic(r) result(bin)
+    function bin_from_bilinear(r) result(bin)
         use computational_constants_MD, only : halfdomain, nhb
         use calculated_properties_MD, only : binsize, nbins
         implicit none
@@ -279,7 +326,7 @@ contains
             endif
         enddo
 
-    end function bin_from_intrinsic
+    end function bin_from_bilinear
 
 end module module_record
 !==========================================================================
@@ -298,12 +345,14 @@ subroutine simulation_record
     if (cluster_analysis_outflag .eq. 1) then
         call get_interface_from_clusters()
         !call debug_sine_to_bilinear_surface_coeff()
-        !get_bin => bin_from_intrinsic
+        !get_bin => bin_from_bilinear
         get_bin => bin_from_full_intrinsic
+        get_bin_molno => bin_molno_from_full_intrinsic
     elseif (cluster_analysis_outflag .eq. 2) then
         call sl_interface_from_binaverage()
     else
         get_bin => bin_from_integer_division
+        get_bin_molno => bin_molno_from_integer_division
     endif
 
 	if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
@@ -816,7 +865,7 @@ subroutine cumulative_velocity_PDF
 	allocate(vmagnitude(1))
 	do n = 1, np    ! Loop over all particles
 		!cbin(:) = ceiling((r(:,n)+0.5d0*domain(:))/binsize_(:))+1
-        cbin = get_bin(r(:,n))
+        cbin = get_bin_molno(n)
         do ixyz = 1,nd
     		vmagnitude(1)=v(ixyz,n)
             call velPDF_array(cbin(1),cbin(2),cbin(3),ixyz)%update(vmagnitude)
@@ -1533,14 +1582,14 @@ subroutine cumulative_mass(ixyz)
         case(0)
             do n = 1,np
                 !Add up current volume mass densities
-                ibin(:) = get_bin(r(:,n))
+                ibin(:) = get_bin_molno(n)
                 volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + mass(n)
             enddo
         case(1:2)
             !Seperate logging for polymer and non-polymer 
             do n = 1,np
                 !Add up current volume mass densities
-                ibin = get_bin(r(:,n))
+                ibin = get_bin_molno(n)
                 if (monomer(n)%chainID .eq. 0) then
                     !Skip wall molecules
                     if (split_pol_sol_stats .eq. 1 .and. &
@@ -1637,7 +1686,7 @@ subroutine momentum_averaging(ixyz)
 
 		do n=1,np
 			!Save streaming momentum per molecule
-            ib(:) = get_bin(r(:,n))
+            ib(:) = get_bin_molno(n)
 			U(:,n) =  volume_momentum(ib(1),ib(2),ib(3),:) / volume_mass(ib(1),ib(2),ib(3))
 		enddo
 
@@ -1739,7 +1788,7 @@ subroutine cumulative_momentum(ixyz)
             !Reset Control Volume momentum 
             do n = 1,np
                 !Add up current volume mass and momentum densities
-                ibin(:) = get_bin(r(:,n))
+                ibin(:) = get_bin_molno(n)
                 volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + mass(n)
                 volume_momentum(ibin(1),ibin(2),ibin(3),:) = volume_momentum(ibin(1),ibin(2),ibin(3),:) & 
                                                             + mass(n)*(v(:,n) + slidev(:,n))
@@ -1748,7 +1797,7 @@ subroutine cumulative_momentum(ixyz)
             !Reset Control Volume momentum 
             do n = 1,np
                 !Add up current volume mass and momentum densities
-                ibin(:) = get_bin(r(:,n))
+                ibin(:) = get_bin_molno(n)
                 if (monomer(n)%chainID .eq. 0) then
                     if (any(tag(n).eq.tether_tags)) cycle
                     volume_mass_s(ibin(1),ibin(2),ibin(3)) = volume_mass_s(ibin(1),ibin(2),ibin(3)) + mass(n)
@@ -1915,7 +1964,7 @@ subroutine cumulative_temperature(ixyz)
 		do n = 1,np
 
 			!Add up current volume mass and temperature densities
-            ibin(:) = get_bin(r(:,n))
+            ibin(:) = get_bin_molno(n)
 			if (momentum_outflag .ne. 4) & 
 			volume_mass(ibin(1),ibin(2),ibin(3)) = volume_mass(ibin(1),ibin(2),ibin(3)) + mass(n)
 			!Note - the streaming term is removed but includes sliding so this must be added back on
@@ -2055,7 +2104,7 @@ subroutine cumulative_energy(ixyz)
  
 		do n = 1,np
 			!Add up current volume mass and energy densities
-            ibin(:) = get_bin(r(:,n))
+            ibin(:) = get_bin_molno(n)
 			if (peculiar_flag .eq. 0) then
 		        velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t! + slidev(:,n)
 		        energy = 0.5d0*(mass(n)*dot_product(velvect,velvect)+potenergymol(n))
@@ -2125,6 +2174,7 @@ subroutine cumulative_centre_of_mass(ixyz)
 	use module_record, only : tag, tether_tags, r, nbins, domain, error_abort, &
                               halfdomain, centre_of_mass, np, get_bin, nhb
     use module_set_parameters, only : mass
+	use module_record, only : get_bin_molno
 	implicit none
 
 	integer							:: n,ixyz
@@ -2143,7 +2193,7 @@ subroutine cumulative_centre_of_mass(ixyz)
         do n = 1,np
             !Add up current centre_of_mass
             if (any(tag(n).eq.tether_tags)) cycle
-            ibin(:) = get_bin(r(:,n))
+            ibin(:) = get_bin_molno(n)
             bin_centre(:) = (ibin(:)-1*nhb(:)-0.5d0)*mbinsize(:)-halfdomain(:)
             COM(:) = mass(n) * (r(:,n) - bin_centre(:))
             !COM(:) = mass(n) * r(:,n)
@@ -2373,7 +2423,7 @@ subroutine simulation_compute_kinetic_VA(imin,imax,jmin,jmax,kmin,kmax)
 	!VAbinsize(:) = domain(:) / nbins(:)
 
 
-    bin(:) = get_bin(r(:,n))
+    bin(:) = get_bin_molno(n)
 
 	! Add kinetic part of pressure tensor for all molecules
 	do n = 1, np
@@ -3919,7 +3969,7 @@ subroutine mass_snapshot
 	volume_mass_temp = 0
 	do n = 1,np
 		!Add up current volume momentum densities
-		ibin(:) = get_bin(r(:,n)) 
+		ibin(:) = get_bin_molno(n) 
 		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = & 
             volume_mass_temp(ibin(1),ibin(2),ibin(3)) + mass(n)
@@ -4190,7 +4240,7 @@ subroutine momentum_snapshot
 	volume_momentum_temp = 0.d0
 	do n = 1,np
 		!Add up current volume momentum densities
-        ibin(:) =  get_bin(r(:,n))
+        ibin(:) =  get_bin_molno(n)
 		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = & 
@@ -4465,7 +4515,7 @@ subroutine energy_snapshot
 	volume_energy_temp = 0.d0
 	do n = 1,np
 		!Add up current volume momentum densities
-        ibin(:) = get_bin(r(:,n))
+        ibin(:) = get_bin_molno(n)
 		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb(:)
 		velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
 		energy = 0.5d0 * ( mass(n)*dot_product(velvect,velvect) + potenergymol(n))
@@ -5797,13 +5847,13 @@ contains
             !                           3, (/nbins(2), nbins(3), nbins(1)/), alpha, tau, Abilinear, omega)
 
             !Get shift for intrinsic surface for each molecule
-!            deallocate(points)
-!            allocate(points(np, nd))
-!            points(:,1) = r(2,1:np)
-!            points(:,2) = r(3,1:np)
-!            points(:,3) = r(1,1:np)
-!            call surface_from_modes(points, 3, q_vectors, modes, elevation)
-!            intnscshift = ceiling(elevation(:)/binsize(1))
+            deallocate(points)
+            allocate(points(np, nd))
+            points(:,1) = r(2,1:np)
+            points(:,2) = r(3,1:np)
+            points(:,3) = r(1,1:np)
+            call surface_from_modes(points, 3, q_vectors, modes, elevation)
+            intnscshift = ceiling(elevation(:)/binsize(1))
 
             !Write modes to file
     !        fileno = get_new_fileunit() 
@@ -8400,3 +8450,116 @@ end subroutine sl_interface_from_binaverage
 !	nullify(oldj)            !Nullify old as no longer required
 
 !end subroutine evaluate_properties_cellradialdist
+
+
+
+
+
+!!===================================================================================
+!! Mass Flux over a surface of a bin
+!! Includes all intermediate bins
+
+!subroutine cumulative_mass_flux_opt
+!	use module_record
+!    use librarymod, only : CV_surface_flux, imaxloc!, heaviside  =>  heaviside_a1
+!    use module_set_parameters, only : mass
+!    !use CV_objects, only : CV_sphere_mass
+!    implicit none
+
+!	integer							:: jxyz,i,j,k,n
+!	integer		,dimension(3)		:: ibin1,ibin2,cbin
+!	real(kind(0.d0))				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+!	real(kind(0.d0)),dimension(3)	:: mbinsize,crossface
+!	real(kind(0.d0)),dimension(3)	:: ri1,ri2,ri12,bintop,binbot,Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+!	real(kind(0.d0)),dimension(1)	:: quantity
+!	real(kind(0.d0)),dimension(6)	:: CV
+!	real(kind(0.d0)),dimension(1,6)	:: fluxes
+!	!Determine bin size
+!	mbinsize(:) = domain(:) / nbins(:)
+
+!	do n = 1,np
+
+!		ri1(:) = r(:,n) 							!Molecule i at time t
+!		ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
+!        quantity(1) = mass(n)
+
+!        ! fluxes  -- Additional fluxes over surfaces of CV
+!        !       1) xbinbot, 2) ybinbot, 3) zbinbot
+!        !       4) xbintop, 5) ybintop, 6) zbintop
+!        call get_crossings(ri1, ri2, 1, rcx)
+!        do i =1,size(rcx,2)
+!            cbin(:) =  get_bin(rcx)
+!			!Add Mass flux over face
+!            mass_flux(cbin(1),cbin(2),cbin(3),1) = & 
+!                mass_flux(cbin(1),cbin(2),cbin(3),1) + mass(n)
+!            mass_flux(cbin(1)-1,cbin(2),cbin(3),4) = & 
+!                mass_flux(cbin(1)-1,cbin(2),cbin(3),4) + mass(n)
+!        enddo
+
+!        call get_crossings(ri1, ri2, 2, rcy)
+!        do i =1,size(rcy,2)
+!            cbin(:) =  get_bin(rcy)
+!			!Add Mass flux over face
+!            mass_flux(cbin(1),cbin(2),cbin(3),2) = & 
+!                mass_flux(cbin(1),cbin(2),cbin(3),2) + mass(n)
+!            mass_flux(cbin(1),cbin(2)-1,cbin(3),5) = & 
+!                mass_flux(cbin(1),cbin(2)-1,cbin(3),5) + mass(n)
+!        enddo
+
+!        call get_crossings(ri1, ri2, 3, rcz)
+!        do i =1,size(rcz,2)
+!            cbin(:) =  get_bin(rcz)
+!			!Add Mass flux over face
+!            mass_flux(cbin(1),cbin(2),cbin(3),3) = & 
+!                mass_flux(cbin(1),cbin(2),cbin(3),3) + mass(n)
+!            mass_flux(cbin(1),cbin(2),cbin(3)-1,6) = & 
+!                mass_flux(cbin(1),cbin(2),cbin(3)-1,6) + mass(n)
+!        enddo
+!        
+!	enddo
+
+!end subroutine cumulative_mass_flux_opt
+
+
+!subroutine get_crossings(r1, r2, n, rc)
+!    use computational_constants_MD, only : halfdomain, nhb
+!    use calculated_properties_MD, only : binsize
+!    implicit none
+
+!    integer, intent(in)                      :: n
+!    real(kind(0.d0)),intent(in),dimension(3) :: r1, r2
+!    real(kind(0.d0)),intent(out),dimension(:,:), allocatable :: rc
+
+!    integer                 :: t1, t2, i, j, maxbin, minbin
+!    integer,dimension(3) 	:: bin1, bin2
+!    double precision        :: pt
+
+!    !Tangents
+!    t1 = mod(n,3)+1
+!    t2 = mod(n+1,3)+1
+
+!	!Assign to bins before and after using integer division
+!    bin1 = ceiling((r1(n)+halfdomain(n))/binsize(n))+nhb(n)
+!    bin2 = ceiling((r2(n)+halfdomain(n))/binsize(n))+nhb(n)
+!    !Ideally we have directional functions
+!    !bin1(:) =  get_bin_component(r1, n)
+!    !bin2(:) =  get_bin_component(r2, n)
+!    minbin = min(bin1(n), bin2(n))
+!    maxbin = max(bin1(n), bin2(n))
+
+!	r12   = r1 - r2							!Molecule i trajectory between t-dt and t
+!	where (r12 .eq. 0.d0) r12 = 0.000001d0
+
+!    allocate(rc(3, maxbin-minbin+1))
+!    j = 0
+!    do i = min(bin1(n), bin2(n)), max(bin1(n), bin2(n))
+!		pt = (i-1*nhb(n))*binsize(n)-halfdomain(n)
+!        rc(:,j) = (/ pt, r1(t1)+(r12(t1)/r12(n))*(pt-r1(n)), & 
+!                         r1(t2)+(r12(t2)/r12(n))*(pt-r1(n)) /)
+!        j = j + 1
+!    enddo
+
+!end subroutine get_crossings
+
+
+
