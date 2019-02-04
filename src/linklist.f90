@@ -1976,7 +1976,7 @@ subroutine linklist_printneighbourlist(self, molno, unitno)
             ' Linklist print called for i = ', molno,' j = ', &
             current%molno, r(:,molno), r(:,current%molno)
         else
-    		print'(i6, 2(a,i8),6f10.5)' j, &
+    		print'(i6, 2(a,i8),6f10.5)', j, &
             ' Linklist print called for i = ', molno,' j = ', &
             current%molno, r(:,molno), r(:,current%molno)
         endif
