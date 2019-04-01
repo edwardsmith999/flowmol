@@ -113,6 +113,9 @@ subroutine setup_initial_record
         call parallel_io_psf()
     endif
 
+    !Assign get bins functions
+    call setup_assign_get_bins_fn() !Check if bins/cluster setup
+
     !Calculate Control Volume starting state
     call initial_control_volume
 
@@ -983,8 +986,8 @@ end subroutine initial_macroscopic_properties
 !----------------------------------------------------------------------------------
 !Add up initial control volume mass densities
 subroutine initial_control_volume
-use module_initial_record
-implicit none
+    use module_initial_record
+    implicit none
 
 !    !Obtain and record momentum and mass
 !    if (momentum_outflag .ne. 0) then

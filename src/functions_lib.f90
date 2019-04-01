@@ -980,6 +980,553 @@ END Module PolynomialRoots   ! ==============================================
 
 
 
+!A module to provide object oriented version of intrinsic surface functions
+
+module intrinsic_module
+
+    double precision, parameter :: pi=3.141592653589793d0
+
+    type :: intrinsic_surface_complex
+
+        integer      :: normal, ixyz, jxyz
+        integer, dimension(2)  :: modes_shape
+        double precision  :: alpha, eps
+        double precision, dimension(3) :: box
+        double precision, dimension(:), allocatable     :: Q
+        double precision, dimension(:,:), allocatable   :: Qxy
+        double complex, dimension(:,:), allocatable     :: modes
+        double precision, dimension(:,:,:), allocatable :: q_vectors
+
+	    contains
+		    procedure :: initialise  => compute_q_vectors
+		    procedure :: update_surface => update_surface_modes
+		    procedure :: get_surface => get_surface
+!		    procedure :: sample_surface => sample_intrinsic_surface
+
+    end type intrinsic_surface_complex
+
+    type :: intrinsic_surface_real
+
+        integer      :: normal, ixyz, jxyz, n_waves, n_waves2, qm
+        integer, dimension(:), allocatable     :: u, v
+
+        double precision  :: alpha, eps, area
+        double precision, dimension(3) :: box
+        double precision, dimension(:), allocatable     :: diag, coeff
+        double precision, dimension(:,:), allocatable   :: diag_matrix
+
+	    contains
+		    procedure :: initialise  => initialise
+		    procedure :: update_surface => update_real_surface
+		    procedure :: get_surface => get_real_surface
+!		    procedure :: sample_surface => sample_intrinsic_surface
+
+    end type intrinsic_surface_real
+
+
+contains 
+
+
+!Adapted from Alias surface code
+
+!Function to allow domains where Lx != Ly
+function check_uv(u, v)
+    implicit none
+
+    integer,dimension(:),intent(in)     :: u, v
+
+    real(kind(0.d0)),dimension(size(u))    :: check_uv
+
+    integer :: i
+
+    do i =1,size(u,1)
+        if ((abs(u(i))+abs(v(i))) .eq. 0) then
+            check_uv(i) = 4.d0
+        elseif (u(i)*v(i) .eq. 0) then
+            check_uv(i) = 2.d0
+        else
+            check_uv(i) = 1.d0
+        endif
+    enddo
+
+end function check_uv
+
+!Function 
+
+function wave_function(x, u, Lx)
+    implicit none
+
+    integer,intent(in) :: u
+    real(kind(0.d0)),intent(in) :: Lx
+    real(kind(0.d0)),intent(in),dimension(:) :: x
+
+    real(kind(0.d0)),dimension(size(x))    :: wave_function
+    integer :: i
+
+    do i =1,size(x,1)
+        if (u .ge. 0) then
+            wave_function(i) = cos(2.d0 * pi * u * x(i) / Lx)
+        else
+            wave_function(i) = sin(2.d0 * pi * abs(u) * x(i) / Lx)
+        endif
+    enddo
+
+end function wave_function
+
+subroutine initialise(self, box, normal, alpha, eps)
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    integer, intent(in)         :: normal
+    double precision, intent(in) :: alpha, eps
+    double precision, intent(in), dimension(3) :: box
+
+    integer :: i, j
+
+    self%normal = normal
+    self%box = box
+    self%alpha = alpha
+    self%eps = eps
+    self%ixyz = mod(normal,3)+1
+    self%jxyz = mod(normal+1,3)+1
+
+    self%area = box(self%ixyz)*box(self%jxyz)
+    self%qm = int(0.5*sqrt(self%area)/alpha)
+    self%n_waves = 2*self%qm+1
+    self%n_waves2 = self%n_waves**2
+    allocate(self%u(self%n_waves2), self%v(self%n_waves2))
+    do i=1,self%n_waves2
+        self%u(i) = (i-1) / self%n_waves - self%qm
+        self%v(i) = modulo((i-1), self%n_waves) - self%qm
+    enddo
+
+    allocate(self%diag(self%n_waves2))
+    self%diag = check_uv(self%u, self%v) & 
+                 * (  self%u**2 * box(2) / box(1) & 
+                    + self%v**2 * box(1) / box(2))
+    allocate(self%diag_matrix(size(self%diag,1),size(self%diag,1)))
+    self%diag_matrix = 0.d0
+    do i=1,size(self%diag,1)
+    do j=1,size(self%diag,1)
+        if (i .eq. j) then
+            self%diag_matrix(i,j) = 4.d0 * pi**2 * eps * self%diag(i)
+        endif
+    enddo
+    enddo
+
+end subroutine initialise
+
+subroutine update_real_surface(self, points)
+#if USE_LAPACK
+    use lapack_fns, only : solve, multiply_by_tranpose
+#endif
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+
+    integer :: j
+    double precision, dimension(:), allocatable :: b
+    double precision, dimension(:,:), allocatable :: A, fuv
+
+    logical :: debug=.false.
+    double precision, dimension(:), allocatable :: surf
+
+    allocate(A(self%n_waves2, self%n_waves2))
+    allocate(b(self%n_waves2))
+    allocate(fuv(size(points,1), self%n_waves2))
+
+    A = 0.d0
+    b = 0.d0
+    do j =1, self%n_waves2
+        fuv(:,j) = wave_function(points(:,self%ixyz), self%u(j), self%box(self%ixyz)) & 
+                  *wave_function(points(:,self%jxyz), self%v(j), self%box(self%jxyz))
+        b(j) = b(j) + sum(points(:,self%normal) * fuv(:,j))
+    enddo
+
+    A = 0.d0
+    call multiply_by_tranpose(fuv, fuv, A)
+
+    !This solves Ax = b
+    A = A + self%diag_matrix
+    call solve(A, b, self%coeff)
+
+    !Check surface we just fitted actually matches our points
+    if (debug) then
+        call self%get_surface(points, surf)
+        do j = 1, size(points,1)
+            print*, "Elevation vs points = ", j, surf(j) , points(j,3), &
+                     surf(j)-points(j,3)
+        enddo
+!    do j=1, self%n_waves2
+!        print*, "Coeffs = ", j, self%coeff(j)
+!    enddo
+
+    endif
+
+end subroutine update_real_surface
+
+
+
+
+subroutine get_real_surface(self, points, elevation, qu)
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(in), optional ::  qu
+    double precision, intent(out), dimension(:), allocatable :: elevation
+
+    integer :: j, ui, vi, qu_
+
+    if (present(qu)) then
+        qu_ = qu
+    else
+        qu_ = self%qm
+    endif
+
+    allocate(elevation(size(points,1)))
+    elevation = 0.d0
+    do ui = -qu_, qu_
+    do vi = -qu_, qu_
+        j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
+        !print*, u,v,j
+        elevation(:) = elevation(:) + self%coeff(j) & 
+                     * wave_function(points(:,self%ixyz), ui, self%box(self%ixyz)) & 
+                     * wave_function(points(:,self%jxyz), vi, self%box(self%jxyz)) 
+    enddo
+    enddo
+
+end subroutine get_real_surface
+
+
+subroutine meshgrid2D(x, y, xgrid, ygrid)
+    implicit none
+
+    real(kind(0.d0)),dimension(:),allocatable, intent(in) :: x, y
+    real(kind(0.d0)),dimension(:,:),allocatable, intent(out)    :: xgrid, ygrid
+
+    integer :: i, j
+    integer, dimension(2) :: ncxy
+
+    ncxy(1) = size(x,1)
+    ncxy(2) = size(y,1)
+
+    ! Construct cartesian grid
+    allocate(xgrid(ncxy(1), ncxy(2)))
+    allocate(ygrid(ncxy(1), ncxy(2)))
+    do i=1, ncxy(1)
+    do j=1, ncxy(2)
+        xgrid(i, j) = x(i)
+        ygrid(i, j) = y(j)
+    enddo
+    enddo
+
+end subroutine meshgrid2D
+
+!Adapted from pytim surface code
+subroutine compute_q_vectors(self, box, normal, alpha, eps)
+    implicit none
+
+	class(intrinsic_surface_complex) :: self
+
+    integer, intent(in)         :: normal
+    double precision, intent(in) :: alpha, eps
+    double precision, intent(in), dimension(3) :: box
+
+    integer :: i,j
+    real(kind(0.d0)), dimension(:), allocatable :: qx, qy
+    real(kind(0.d0)), dimension(:,:), allocatable :: qx_vectors,  qy_vectors
+
+    !Compute the q-vectors compatible with the current box dimensions.
+
+    !Inputs:
+    !box       : List of domain dimensions [Lx, Ly, Lz]
+    !normal    : Normal to surface x=1, y=2 and z=3
+    !alpha     : Molecular scale cutoff, default 2.0
+    !eps       : Constraint tolerance
+
+    self%normal = normal
+    self%box = box
+    self%alpha = alpha
+    self%eps = eps
+    !save in object:
+    !q_vectors : two 2D arrays forming the grid of q-values, similar
+    !            to a meshgrid
+    !mode_shape: Number of modes
+    !Qxy       : array of the different q-vectors
+    !Q         : squared module of Qxy with the first element missing
+
+    !Shift to allow normal that is any direction
+    self%ixyz = mod(normal,3)+1
+    self%jxyz = mod(normal+1,3)+1
+    self%modes_shape(1) = ceiling(box(self%ixyz) / alpha)
+    self%modes_shape(2) = ceiling(box(self%jxyz) / alpha)
+    allocate(qx(self%modes_shape(1)), qy(self%modes_shape(2)))
+    do i=1,self%modes_shape(1)
+        qx(i) = dble((i-1)) * 2.d0 * pi / box(1)
+    enddo
+    do i=1,self%modes_shape(2)
+        qy(i) = dble((i-1)) * 2.d0 * pi / box(2)
+    enddo
+
+    call meshgrid2D(qx, qy, qx_vectors, qy_vectors)
+    allocate(self%q_vectors(2, self%modes_shape(1), self%modes_shape(2)))
+    self%q_vectors(1,:,:) = qx_vectors
+    self%q_vectors(2,:,:) = qy_vectors
+
+    allocate(self%Qxy(self%modes_shape(1)*self%modes_shape(2),2))
+    do i = 1, self%modes_shape(1)
+    do j = 1, self%modes_shape(2)
+        self%Qxy(j+(i-1)*self%modes_shape(2),1) = self%q_vectors(1,i,j)
+        self%Qxy(j+(i-1)*self%modes_shape(2),2) = self%q_vectors(2,i,j)
+    enddo
+    enddo
+    !Exclude zeroth mode
+    allocate(self%Q(self%modes_shape(1)*self%modes_shape(2)-1))
+    self%Q = sqrt(self%Qxy(2:,1)**2 + self%Qxy(2:,2)**2)
+
+
+end subroutine compute_q_vectors
+
+subroutine update_surface_modes(self, points)
+#if USE_LAPACK
+    use lapack_fns, only : pinverse
+#endif
+    implicit none
+
+	class(intrinsic_surface_complex) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable :: points
+
+    logical :: debug=.false.
+    integer :: i,j
+    real(kind(0.d0)), parameter :: pi=3.141592653589793d0
+    real(kind(0.d0)) :: az, Lx, Ly
+    real(kind(0.d0)), dimension(:), allocatable :: z, surf
+    real(kind(0.d0)), dimension(:,:), allocatable :: xy, QR
+    double complex, dimension(:), allocatable :: s
+    double complex, dimension(:,:), allocatable :: A, ph, pinv_ph, modesT
+    double precision, dimension(:,:,:), allocatable :: q_vectors
+
+    !Make some definitions
+    allocate(xy(size(points,1),2))
+    xy(:,1) = points(:, 1);  xy(:,2) = points(:, 2)
+    allocate(z(size(points,1)))
+    z = points(:, 3)
+    az = sum(z)/size(z)
+    z = z - az
+
+    ! Qx is an unravelled array of modes, we dot each of the x-y parts with a point
+    ! to get the contribution of each point to spectral basis set
+    allocate(QR(size(xy,1), size(self%Qxy,1)))
+    do i=1,size(QR,1)
+    do j=1,size(QR,2)
+        QR(i,j) = xy(i,1)*self%Qxy(j,1) + xy(i,2)*self%Qxy(j,2)
+        !print'(2i6,5f10.5)', i,j,QR(i,j), xy(i,1), Qxy(j,1),xy(i,2), Qxy(j,2)
+    enddo
+    enddo
+
+    ! We exclude the zero mode and add the mean back in as zero mode instead
+    allocate(ph(size(QR,1), size(QR,2)-1))
+    do j=1,size(ph,2)
+        ph(:,j) = dcmplx(cos(QR(:,j+1)), sin(QR(:,j+1)))/ self%Q(j) 
+    enddo
+
+    ! Constraint here Least Squares solution
+    Lx = 2.d0 * pi / self%Qxy(self%modes_shape(1)+1,2)    
+    Ly = 2.d0 * pi / self%Qxy(2,1)  
+    do j=1,size(ph,2)
+        ph(:,j) = ph(:,j) + self%eps * dcmplx(self%Q(j), 0.d0)
+    enddo
+
+    ! Least square solution solving ph*z = s
+    call pinverse(ph, pinv_ph)
+
+    !Multiply inverse with z values to get mode coefficients
+    allocate(s(self%modes_shape(1)*self%modes_shape(2)))
+    s(1) = dcmplx(az, 0.d0)
+    do i=2,size(s,1)
+        !s(i) = dot_product(conjg(pinv_ph(i-1,:)),z(:))/Q(i-1)
+        s(i) = sum(pinv_ph(i-1,:)*z(:))/self%Q(i-1)
+    enddo
+
+    !Return modes in right shape (for some reason this needs to be done this way)
+    modesT = reshape(s, (/self%modes_shape(2), self%modes_shape(1)/))
+    if (.not. allocated(self%modes)) then
+        allocate(self%modes(self%modes_shape(1),self%modes_shape(2)))
+    elseif ((size(self%modes,1) .ne. self%modes_shape(1)) .or. &
+            (size(self%modes,2) .ne. self%modes_shape(2))) then
+        deallocate(self%modes)
+        allocate(self%modes(self%modes_shape(1),self%modes_shape(2)))
+    endif
+    self%modes = transpose(modesT)
+
+    !Check surface we just fitted actually matches our points
+    if (debug) then
+        call self%get_surface(points, surf)
+        do i = 1, size(points,1)
+            print*, "Elevation vs points = ", i, surf(i) , points(i,3), &
+                     surf(i)-points(i,3),   surf(i)/points(i,3)
+        enddo
+        print'(a,10f10.5)', "Modes", self%modes(1,1), self%modes(1,2), & 
+                    self%modes(2,1), self%modes(1,3), self%modes(3,1)
+        !stop "Stop in debug of update_surface_modes" 
+    endif
+
+end subroutine update_surface_modes
+
+
+
+subroutine get_surface(self, points, elevation)
+    implicit none
+
+	class(intrinsic_surface_complex) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(out), dimension(:), allocatable :: elevation
+
+    integer :: i, j, n
+
+    double precision, dimension(:,:), allocatable :: dotp
+    double complex, dimension(:,:), allocatable :: phase
+
+    allocate(elevation(size(points,1)))
+    allocate(dotp(size(self%q_vectors,2),size(self%q_vectors,3)))
+    allocate(phase(size(self%q_vectors,2),size(self%q_vectors,3)))
+
+    elevation = 0.d0
+    do n = 1,size(points,1)
+    do i = 1,size(self%q_vectors,2)
+    do j = 1,size(self%q_vectors,3)
+        !dotp(i,j) = dot_product(q_vectors(:,i,j), points(n, :))
+        dotp(i,j) = self%q_vectors(1,i,j) * points(n,self%ixyz) & 
+                  + self%q_vectors(2,i,j) * points(n,self%jxyz)
+        phase(i,j) = dcmplx(cos(dotp(i,j)), sin(dotp(i,j)))
+        !print'(3i7,8f10.5)', i,j,n,points(n, ixyz),points(n,jxyz),modes(i,j), & 
+        !                     phase(i,j), real(phase(i,j) * modes(i,j)), elevation(n)
+        elevation(n) = elevation(n) + real(phase(i,j) * self%modes(i,j))
+    enddo
+    enddo
+    enddo
+
+end subroutine get_surface
+
+
+
+!subroutine sample_intrinsic_surface(self, nbins, vertices, writeiter)
+!    implicit none
+
+!	class(intrinsic_surface) :: self
+
+!    integer,intent(in),dimension(3) :: nbins
+
+!    real(kind(0.d0)), dimension(:,:,:),intent(out), allocatable :: vertices
+!    integer, intent(in), optional :: writeiter
+
+
+!    logical          :: debug=.true., writeobj=.false.
+!    logical, save    :: first_time = .true.
+!    integer          :: i, j, k, n, v, ixyz, jxyz, fileno, qm, qu
+!    real(kind(0.d0)) :: ysb, yst, zsb, zst, binsize(2), area
+!    real(kind(0.d0)), dimension(:), allocatable :: elevation
+!    real(kind(0.d0)), dimension(:,:), allocatable :: points
+!    character(200) :: outfile_t, filename
+
+!    if (present(writeiter)) then      
+!        writeobj = .true.
+!    else
+!        writeobj = .false.
+!    endif
+
+!    binsize(1) = self%box(self%ixyz)/dble(nbins(self%ixyz))
+!    binsize(2) = self%box(self%jxyz)/dble(nbins(self%jxyz))
+
+!    allocate(points(4,2))
+!    allocate(vertices(nbins(self%ixyz)*nbins(self%jxyz),4,3))
+
+!    if (writeobj) then
+!        fileno = get_new_fileunit() 
+!        call get_Timestep_FileName(writeiter,"./results/surface",outfile_t)
+!        write(filename,'(a,a4)') trim(outfile_t),'.obj'
+!        open(fileno, file=trim(filename))
+!    endif
+
+!    n = 1; v = 1
+!    do j = 1,nbins(self%ixyz)
+!    do k = 1,nbins(self%jxyz)
+!        ysb = float(j-1)*binsize(1)-0.5d0*self%box(self%ixyz)
+!        yst = float(j  )*binsize(1)-0.5d0*self%box(self%ixyz)
+!        zsb = float(k-1)*binsize(2)-0.5d0*self%box(self%jxyz)
+!        zst = float(k  )*binsize(2)-0.5d0*self%box(self%jxyz)
+
+!        points(1,1) = ysb; points(1,2) = zsb !Bottom left
+!        points(2,1) = yst; points(2,2) = zsb !Bottom right
+!        points(3,1) = ysb; points(3,2) = zst !Top left
+!        points(4,1) = yst; points(4,2) = zst !Top right
+
+!        call self%get_surface(points, elevation)
+!        !call surface_from_modes(points, 3, q_vectors, modes, elevation)
+!        do i =1, 4
+!            vertices(v,i,:) = (/ points(i,1), points(i,2), elevation(i) /)
+!            !print*, i, j, k, v, vertices(v,i,:)
+!        enddo
+!       
+!        !Write to wavefunction obj format
+!        if (writeobj) then
+!            !Needs to be clockwise!
+!            do i =1, 4
+!                write(fileno,'(a1, 3f15.8)') "v", vertices(v,i,:)
+!            enddo
+!            write(fileno,'(a1, 4i8)') "f", n, n+1, n+3, n+2
+!            n = n + 4
+!        endif
+!        v = v + 1
+
+!    enddo
+!    enddo
+
+!    if (writeobj) close(fileno)
+
+!end subroutine sample_intrinsic_surface
+
+!subroutine write_waveobj(vertices, writeiter)
+!    implicit none
+
+!    real(kind(0.d0)), dimension(:,:,:), intent(in), allocatable :: vertices
+!    integer, intent(in) :: writeiter
+
+!    integer          :: v, i, n, fileno
+!    character(200) :: outfile_t, filename
+
+!    fileno = get_new_fileunit() 
+!    call get_Timestep_FileName(writeiter,"./results/surface",outfile_t)
+!    write(filename,'(a,a4)') trim(outfile_t),'.obj'
+!    open(fileno, file=trim(filename))
+
+!    n = 1
+!    do v = 1,size(vertices,1)
+!        !Write to wavefunction obj format
+!        !Needs to be clockwise!
+!        do i =1, 4
+!            write(fileno,'(a1, 3f15.8)') "v", vertices(v,i,:)
+!        enddo
+!        write(fileno,'(a1, 4i8)') "f", n, n+1, n+3, n+2
+!        n = n + 4
+!    enddo
+!    close(fileno)
+
+!end subroutine write_waveobj
+
+
+end module intrinsic_module
+
+
+
+
 module librarymod
 
 	use Weight_fn_mod
@@ -1925,214 +2472,398 @@ subroutine Partition(A, marker, indices)
 
 end subroutine Partition
 
-!Copied from pytim surface code
-subroutine compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
-    implicit none
-
-    double precision, intent(in) :: alpha
-    double precision, intent(in), dimension(3) :: box
-
-    integer, intent(out), dimension(2) :: modes_shape
-    double precision, intent(out), dimension(:), allocatable :: Q
-    double precision, intent(out), dimension(:,:), allocatable :: Qxy
-    double precision, intent(out), dimension(:,:,:), allocatable :: q_vectors
-
-    integer :: i,j
-    double precision, parameter :: pi=3.141592653589793d0
-    real(kind(0.d0)), dimension(:), allocatable :: qx, qy
-    real(kind(0.d0)), dimension(:,:), allocatable :: qx_vectors,  qy_vectors
 
 
-    !Compute the q-vectors compatible with the current box dimensions.
 
-    !Inputs:
-    !box       : List of domain dimensions [Lx, Ly, Lz]
-    !normal    : Normal to surface x=1, y=2 and z=3
-    !alpha     : Molecular scale cutoff, default 2.0
-
-    !Outputs:
-    !q_vectors : two 2D arrays forming the grid of q-values, similar
-    !            to a meshgrid
-    !mode_shape: Number of modes
-    !Qxy       : array of the different q-vectors
-    !Q         : squared module of Qxy with the first element missing
-
-    !Shift to allow normal that is any direction
-    !box = np.roll(box, 2 - normal)
-    modes_shape = ceiling(box(1:2) / alpha)
-    allocate(qx(modes_shape(1)), qy(modes_shape(2)))
-    do i=1,modes_shape(1)
-        qx(i) = dble((i-1)) * 2.d0 * pi / box(1)
-    enddo
-    do i=1,modes_shape(2)
-        qy(i) = dble((i-1)) * 2.d0 * pi / box(2)
-    enddo
-
-    call meshgrid2D(qx, qy, qx_vectors, qy_vectors)
-    allocate(q_vectors(2, modes_shape(1), modes_shape(2)))
-    q_vectors(1,:,:) = qx_vectors
-    q_vectors(2,:,:) = qy_vectors
-
-    allocate(Qxy(modes_shape(1)*modes_shape(2),2))
-    do i = 1, modes_shape(1)
-    do j = 1, modes_shape(2)
-        !print*, i,j,j+(i-1)*modes_shape(1), q_vectors(1,i,j), q_vectors(2,i,j)
-        ! Notice we swap the convention here x -> y
-        ! Not sure why (issue with meshgrid?!) but appears to give the right results
-        Qxy(j+(i-1)*modes_shape(2),1) = q_vectors(1,i,j)
-        Qxy(j+(i-1)*modes_shape(2),2) = q_vectors(2,i,j)
-    enddo
-    enddo
-    !Exclude zeroth mode
-    allocate(Q(modes_shape(1)*modes_shape(2)-1))
-    Q = sqrt(Qxy(2:,1)**2 + Qxy(2:,2)**2)
-
-end subroutine compute_q_vectors
-
-
-subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, eps)
-#if USE_LAPACK
-    use lapack_fns, only : pinverse
-#endif
-    implicit none
-
-    integer, intent(in), dimension(2) :: modes_shape
-    double precision, intent(in), optional :: eps
-    double precision, intent(in), dimension(:), allocatable :: Q
-    double precision, intent(in), dimension(:,:), allocatable :: Qxy, points
-    double complex, intent(out), dimension(:,:), allocatable :: modes
-
-    integer :: i, j, n
-    real(kind(0.d0)), parameter :: pi=3.141592653589793d0
-    real(kind(0.d0)) :: az, Lx, Ly
-    real(kind(0.d0)), dimension(:), allocatable :: z, c
-    real(kind(0.d0)), dimension(:,:), allocatable :: xy, QR
-    double complex, dimension(:), allocatable :: s
-    double complex, dimension(:,:), allocatable :: ph, pinv_ph, modesT
-
-    !Make some definitions
-    allocate(xy(size(points,1),2))
-    xy(:,1) = points(:, 1);  xy(:,2) = points(:, 2)
-    allocate(z(size(points,1)))
-    z = points(:, 3)
-    az = sum(z)/size(z)
-    z = z - az
-
-    ! Qx is an unravelled array of modes, we dot each of the x-y parts with a point
-    ! to get the contribution of each point to spectral basis set
-    allocate(QR(size(xy,1), size(Qxy,1)))
-    do i=1,size(QR,1)
-    do j=1,size(QR,2)
-        QR(i,j) = xy(i,1)*Qxy(j,1) + xy(i,2)*Qxy(j,2)
-        !QR(i,j) = dot_product(Qxy(j,:), xy(i,:))
-    enddo
-    enddo
-
-    ! We exclude the zero mode and add the mean back in as zero mode instead
-    allocate(ph(size(QR,1), size(QR,2)-1))
-    do j=1,size(ph,2)
-        ph(:,j) = dcmplx(cos(QR(:,j+1)), sin(QR(:,j+1)))/ Q(j) 
-    enddo
-
-    ! Constraint here Least Squares solution of  
-    ! A = \eps/2 * \sum_i (z_i - ph(x_i,y_i))^2 
-    !   + (Lx*Ly)/2 * \sum_k k^2 | \xi_k |^2 
-    ! min(A) with  k**2 = Q**2
-   if (present(eps)) then
-
-        allocate(c(modes_shape(1)*modes_shape(2)))
-        do i = 1, modes_shape(1)
-        do j = 1, modes_shape(2)
-            n = j+(i-1)*modes_shape(2)
-            c(n) = eps * (i**2 + j**2)*(2.d0*pi)**2
-        enddo
-        enddo
-
-        !print*, "CONSTRAINT APPLIED"
-        !Lx = 2.d0 * pi / Qxy(modes_shape(1)+1,2)    
-        !Ly = 2.d0 * pi / Qxy(2,1)  
-        do j=1,size(ph,2)
-            ph(:,j) = ph(:,j) + dcmplx(c(j+1), c(j+1))
-            !ph(:,j) = ph(:,j) + dcmplx(Q(j), 0.d0)
-            !ph(:,j) = ph(:,j) + eps * dcmplx(Lx*Ly*Q(j), 0.d0)
-            !ph(:,j) = ph(:,j) + eps * dcmplx((2.d0*pi)**2*(j**2), 0.d0)
-        enddo
-    endif
-
-    ! Least square solution solving ph*z = s
-#if USE_LAPACK
-    call pinverse(ph, pinv_ph)
-#else
-    call error_abort("get_surface_modes Error -- build FlowMol version with lapack")
-#endif
-
-    !Multiply inverse with z values to get mode coefficients
-    allocate(s(modes_shape(1)*modes_shape(2)))
-    s(1) = dcmplx(az, 0.d0)
-    do i=2,size(s,1)
-        !s(i) = dot_product(congj(pinv_ph(i-1,:)),z(:))/Q(i-1)
-        s(i) = sum(pinv_ph(i-1,:)*z(:))/Q(i-1)
-    enddo
-
-   !Return modes in right shape (for some reason this needs to be done this way)
-    modesT = reshape(s, (/modes_shape(2), modes_shape(1)/))
-    allocate(modes(modes_shape(1),modes_shape(2))) 
-    modes = transpose(modesT)
-
-end subroutine get_surface_modes
-
-
-!subroutine surface_from_modes(points, box, alpha, modes, elevation)
+!!Function to allow domains where Lx != Ly
+!function check_uv(u, v)
 !    implicit none
 
+!    integer,dimension(:),intent(in)     :: u, v
+
+!    real(kind(0.d0)),dimension(size(u))    :: check_uv
+
+!    integer :: i
+
+!    do i =1,size(u,1)
+!        if ((abs(u(i))+abs(v(i))) .eq. 0) then
+!            check_uv(i) = 4.d0
+!        elseif (u(i)*v(i) .eq. 0) then
+!            check_uv(i) = 2.d0
+!        else
+!            check_uv(i) = 1.d0
+!        endif
+!    enddo
+
+!end function check_uv
+
+
+
+!!Function to get real wave modes
+
+!function wave_function(x, u, Lx)
+!    implicit none
+
+!    integer,intent(in) :: u
+!    real(kind(0.d0)),intent(in) :: Lx
+!    real(kind(0.d0)),intent(in),dimension(:) :: x
+
+!    real(kind(0.d0)),dimension(size(x))    :: wave_function
+!    integer :: i
+
+!    do i =1,size(x,1)
+!        if (u .ge. 0) then
+!            wave_function(i) = cos(2.d0 * pi * u * x(i) / Lx)
+!        else
+!            wave_function(i) = sin(2.d0 * pi * abs(u) * x(i) / Lx)
+!        endif
+!    enddo
+
+!end function wave_function
+
+!! Get coefficients for a fit using real sines/cosines surface, with
+!! qm number of wavevectors and eps the area constraint strength
+!! Where qm is obtained from:
+!!    q_max = 2 * pi
+!!    q_min = 2 * pi / sqrt(box(1) * box(2))
+!!    qm = int(q_max / q_min)
+
+!subroutine fit_real_surface(points, box, normal, qm, eps, coeff)
+!#if USE_LAPACK
+!    use lapack_fns, only : solve, multiply_by_tranpose
+!#endif
+!    implicit none
+
+!    integer, intent(in)           :: normal, qm
+!    double precision, intent(in), optional :: eps
+!    double precision, intent(in), dimension(3) :: box
+!    double precision, intent(in), dimension(:,:), allocatable ::  points
+!    double precision, intent(out), dimension(:), allocatable :: coeff
+
+!    logical :: debug=.false.
+!    integer :: n_waves, n_waves2, i, j, k, ixyz, jxyz, Np, sp, try, maxtry=100
+!    character(200) :: outfile_t
+!    integer, dimension(2) :: modes_shape
+!    integer, dimension(:), allocatable :: u, v, indices, pivots, new_pivots
+!    double precision :: t0, t1
+!    double precision, dimension(:), allocatable :: z, d, surf, diag, b, s, soln, elevation
+!    double precision, dimension(:,:), allocatable :: diag_matrix, A, fuv, invA, T
+
+!    integer :: qu
+
+!    ixyz = mod(normal,3)+1
+!    jxyz = mod(normal+1,3)+1
+
+!    !I think all this can be moved to setup: qvector/diag passed in:
+!    !vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+!    n_waves = 2*qm+1
+!    n_waves2 = n_waves**2
+!    allocate(u(n_waves2), v(n_waves2))
+!    do i=1,n_waves2
+!        u(i) = (i-1) / n_waves - qm
+!        v(i) = modulo((i-1), n_waves) - qm
+!    enddo
+
+!    allocate(diag(n_waves2))
+!    diag = check_uv(u, v) * (  u**2 * box(2) / box(1) & 
+!                             + v**2 * box(1) / box(2))
+!    allocate(diag_matrix(size(diag,1),size(diag,1)))
+!    diag_matrix = 0.d0
+!    do i=1,size(diag,1)
+!    do j=1,size(diag,1)
+!        if (i .eq. j) then
+!            diag_matrix(i,j) = 4.d0 * pi**2 * eps * diag(i)
+!        endif
+!    enddo
+!    enddo
+
+!    !^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+!    !I think all this can be moved to setup qvector/diag passed in:
+
+!    allocate(A(n_waves2,n_waves2))
+!    allocate(b(n_waves2))
+!    allocate(fuv(size(points,1), n_waves2))
+
+!    !do j =1,size(points,1)
+!    !    print*, j, points(j,ixyz), points(j,jxyz)
+!    !enddo
+!    A = 0.d0
+!    b = 0.d0
+!    do j =1, n_waves2
+!        fuv(:,j) = wave_function(points(:,ixyz), u(j), box(ixyz)) & 
+!                  *wave_function(points(:,jxyz), v(j), box(jxyz))
+!        b(j) = b(j) + sum(points(:,normal) * fuv(:,j))
+!    enddo
+
+!    A = 0.d0
+!    !call cpu_time(t0)      
+!    call multiply_by_tranpose(fuv, fuv, A)
+!    !call cpu_time(t1)  
+!    !print*, "Time LAPACK", t1 - t0, sum(A)
+
+!    !This solves Ax = b
+!    A = A + diag_matrix
+!    call solve(A, b, coeff)
+
+!!    do i=1, n_waves2
+!!        print*, "Coeffs = ", i, coeff(i)
+!!    enddo
+
+!!    modes = dot_product(invA, b)
+
+!    if (debug) then
+!        call real_surface_from_modes(points, box, normal, qm, qm, coeff, elevation)
+
+!        do i=1,size(elevation,1)
+!            print*, "Error = ", points(i,:), elevation(i), points(i,3)-elevation(i)
+!        enddo
+!    endif
+
+!end subroutine fit_real_surface
+
+
+
+
+!subroutine real_surface_from_modes(points, box, normal, qm, qu, coeff, elevation)
+!    implicit none
+
+!    integer, intent(in) :: normal, qm, qu
+!    double precision, intent(in), dimension(3) :: box
+!    double precision, intent(in), dimension(:), allocatable :: coeff
+!    double precision, intent(in), dimension(:,:), allocatable ::  points
+!    double precision, intent(out), dimension(:), allocatable :: elevation
+
+!    integer :: i, j, n, u, v, ixyz, jxyz, n_waves, n_waves2
+
+!    double precision, dimension(:), allocatable :: u_array, v_array
+
+!    ixyz = mod(normal,3)+1
+!    jxyz = mod(normal+1,3)+1
+
+!    allocate(elevation(size(points,1)))
+!    elevation = 0.d0
+!    do u = -qu, qu
+!    do v = -qu, qu
+!        j = (2 * qm + 1) * (u + qm) + (v + qm) + 1
+!        !print*, u,v,j
+!        elevation(:) = elevation(:) & 
+!                     + wave_function(points(:,ixyz), u, box(ixyz)) & 
+!                     * wave_function(points(:,jxyz), v, box(jxyz)) * coeff(j)
+!    enddo
+!    enddo
+
+!end subroutine real_surface_from_modes
+
+
+
+
+
+!!Copied from pytim surface code
+!subroutine compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
+!    implicit none
+
+!    double precision, intent(in) :: alpha
+!    double precision, intent(in), dimension(3) :: box
+
+!    integer, intent(out), dimension(2) :: modes_shape
+!    double precision, intent(out), dimension(:), allocatable :: Q
+!    double precision, intent(out), dimension(:,:), allocatable :: Qxy
+!    double precision, intent(out), dimension(:,:,:), allocatable :: q_vectors
+
+!    integer :: i,j
+!    double precision, parameter :: pi=3.141592653589793d0
+!    real(kind(0.d0)), dimension(:), allocatable :: qx, qy
+!    real(kind(0.d0)), dimension(:,:), allocatable :: qx_vectors,  qy_vectors
+
+
+!    !Compute the q-vectors compatible with the current box dimensions.
+
+!    !Inputs:
+!    !box       : List of domain dimensions [Lx, Ly, Lz]
+!    !normal    : Normal to surface x=1, y=2 and z=3
+!    !alpha     : Molecular scale cutoff, default 2.0
+
+!    !Outputs:
+!    !q_vectors : two 2D arrays forming the grid of q-values, similar
+!    !            to a meshgrid
+!    !mode_shape: Number of modes
+!    !Qxy       : array of the different q-vectors
+!    !Q         : squared module of Qxy with the first element missing
+
+!    !Shift to allow normal that is any direction
+!    !box = np.roll(box, 2 - normal)
+!    modes_shape = ceiling(box(1:2) / alpha)
+!    allocate(qx(modes_shape(1)), qy(modes_shape(2)))
+!    do i=1,modes_shape(1)
+!        qx(i) = dble((i-1)) * 2.d0 * pi / box(1)
+!    enddo
+!    do i=1,modes_shape(2)
+!        qy(i) = dble((i-1)) * 2.d0 * pi / box(2)
+!    enddo
+
+!    call meshgrid2D(qx, qy, qx_vectors, qy_vectors)
+!    allocate(q_vectors(2, modes_shape(1), modes_shape(2)))
+!    q_vectors(1,:,:) = qx_vectors
+!    q_vectors(2,:,:) = qy_vectors
+
+!    allocate(Qxy(modes_shape(1)*modes_shape(2),2))
+!    do i = 1, modes_shape(1)
+!    do j = 1, modes_shape(2)
+!        !print*, i,j,j+(i-1)*modes_shape(1), q_vectors(1,i,j), q_vectors(2,i,j)
+!        ! Notice we swap the convention here x -> y
+!        ! Not sure why (issue with meshgrid?!) but appears to give the right results
+!        Qxy(j+(i-1)*modes_shape(2),1) = q_vectors(1,i,j)
+!        Qxy(j+(i-1)*modes_shape(2),2) = q_vectors(2,i,j)
+!    enddo
+!    enddo
+!    !Exclude zeroth mode
+!    allocate(Q(modes_shape(1)*modes_shape(2)-1))
+!    Q = sqrt(Qxy(2:,1)**2 + Qxy(2:,2)**2)
+
+!end subroutine compute_q_vectors
+
+
+!subroutine get_surface_modes(points, Qxy, modes_shape, Q, modes, eps)
+!#if USE_LAPACK
+!    use lapack_fns, only : pinverse
+!#endif
+!    implicit none
+
+!    integer, intent(in), dimension(2) :: modes_shape
+!    double precision, intent(in) :: eps
+!    double precision, intent(in), dimension(:), allocatable :: Q
+!    double precision, intent(in), dimension(:,:), allocatable :: Qxy, points
+!    double complex, intent(out), dimension(:,:), allocatable :: modes
+
+!    integer :: i, j, n
+!    real(kind(0.d0)), parameter :: pi=3.141592653589793d0
+!    real(kind(0.d0)) :: az, Lx, Ly
+!    real(kind(0.d0)), dimension(:), allocatable :: z, c
+!    real(kind(0.d0)), dimension(:,:), allocatable :: xy, QR
+!    double complex, dimension(:), allocatable :: s
+!    double complex, dimension(:,:), allocatable :: ph, pinv_ph, modesT
+
+!    !Make some definitions
+!    allocate(xy(size(points,1),2))
+!    xy(:,1) = points(:, 1);  xy(:,2) = points(:, 2)
+!    allocate(z(size(points,1)))
+!    z = points(:, 3)
+!    az = sum(z)/size(z)
+!    z = z - az
+
+!    ! Qx is an unravelled array of modes, we dot each of the x-y parts with a point
+!    ! to get the contribution of each point to spectral basis set
+!    allocate(QR(size(xy,1), size(Qxy,1)))
+!    do i=1,size(QR,1)
+!    do j=1,size(QR,2)
+!        QR(i,j) = xy(i,1)*Qxy(j,1) + xy(i,2)*Qxy(j,2)
+!        !QR(i,j) = dot_product(Qxy(j,:), xy(i,:))
+!    enddo
+!    enddo
+
+!    ! We exclude the zero mode and add the mean back in as zero mode instead
+!    allocate(ph(size(QR,1), size(QR,2)-1))
+!    do j=1,size(ph,2)
+!        ph(:,j) = dcmplx(cos(QR(:,j+1)), sin(QR(:,j+1)))/ Q(j) 
+!    enddo
+
+!    ! Constraint here Least Squares solution of  
+!    ! A = \eps/2 * \sum_i (z_i - ph(x_i,y_i))^2 
+!    !   + (Lx*Ly)/2 * \sum_k k^2 | \xi_k |^2 
+!    ! min(A) with  k**2 = Q**2
+
+!!        allocate(c(modes_shape(1)*modes_shape(2)))
+!!        do i = 1, modes_shape(1)
+!!        do j = 1, modes_shape(2)
+!!            n = j+(i-1)*modes_shape(2)
+!!            c(n) = eps * (i**2 + j**2)*(2.d0*pi)**2
+!!        enddo
+!!        enddo
+
+!    !print*, "CONSTRAINT APPLIED"
+!    !Lx = 2.d0 * pi / Qxy(modes_shape(1)+1,2)    
+!    !Ly = 2.d0 * pi / Qxy(2,1)  
+!    do j=1,size(ph,2)
+!        !ph(:,j) = ph(:,j) + dcmplx(c(j+1), c(j+1))
+!        !ph(:,j) = ph(:,j) + dcmplx(Q(j), 0.d0)
+!        ph(:,j) = ph(:,j) + eps * dcmplx(Lx*Ly*Q(j), 0.d0)
+!        !ph(:,j) = ph(:,j) + eps * dcmplx((2.d0*pi)**2*(j**2), 0.d0)
+!    enddo
+
+!    ! Least square solution solving ph*z = s
+!#if USE_LAPACK
+!    call pinverse(ph, pinv_ph)
+!#else
+!    call error_abort("get_surface_modes Error -- build FlowMol version with lapack")
+!#endif
+
+!    !Multiply inverse with z values to get mode coefficients
+!    allocate(s(modes_shape(1)*modes_shape(2)))
+!    s(1) = dcmplx(az, 0.d0)
+!    do i=2,size(s,1)
+!        !s(i) = dot_product(congj(pinv_ph(i-1,:)),z(:))/Q(i-1)
+!        s(i) = sum(pinv_ph(i-1,:)*z(:))/Q(i-1)
+!    enddo
+
+!   !Return modes in right shape (for some reason this needs to be done this way)
+!    modesT = reshape(s, (/modes_shape(2), modes_shape(1)/))
+!    allocate(modes(modes_shape(1),modes_shape(2))) 
+!    modes = transpose(modesT)
+
+!end subroutine get_surface_modes
+
+
+!!subroutine surface_from_modes(points, box, alpha, modes, elevation)
+!!    implicit none
+
+!!    double precision, intent(in), dimension(:,:), allocatable ::  points
+!!    double complex, intent(in), dimension(:,:), allocatable :: modes
+!!    double precision, intent(out), dimension(:), allocatable :: elevation
+
+!!    integer,dimension(2) :: modes_shape
+!!    double precision, dimension(:), allocatable :: Q
+!!    double precision, dimension(:,:), allocatable :: Qxy
+!!    double precision, dimension(:,:,:), allocatable :: q_vectors
+
+!!    call compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
+!!    call _surface_from_modes(points, q_vectors, modes, elevation)
+
+!!end subroutine surface_from_modes
+
+!subroutine surface_from_modes(points, normal, q_vectors, modes, elevation)
+!    implicit none
+
+!    integer, intent(in) :: normal
+!    double precision, intent(in), dimension(:,:,:), allocatable :: q_vectors
 !    double precision, intent(in), dimension(:,:), allocatable ::  points
 !    double complex, intent(in), dimension(:,:), allocatable :: modes
 !    double precision, intent(out), dimension(:), allocatable :: elevation
 
-!    integer,dimension(2) :: modes_shape
-!    double precision, dimension(:), allocatable :: Q
-!    double precision, dimension(:,:), allocatable :: Qxy
-!    double precision, dimension(:,:,:), allocatable :: q_vectors
+!    integer :: i, j, n, ixyz, jxyz
 
-!    call compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
-!    call _surface_from_modes(points, q_vectors, modes, elevation)
+!    double precision, dimension(:,:), allocatable :: dotp
+!    double complex, dimension(:,:), allocatable :: phase
+
+!    allocate(elevation(size(points,1)))
+!    allocate(dotp(size(q_vectors,2),size(q_vectors,3)))
+!    allocate(phase(size(q_vectors,2),size(q_vectors,3)))
+
+!    ixyz = mod(normal,3)+1
+!    jxyz = mod(normal+1,3)+1
+!    elevation = 0.d0
+!    do n = 1,size(points,1)
+!    do i = 1,size(q_vectors,2)
+!    do j = 1,size(q_vectors,3)
+!        !dotp(i,j) = dot_product(q_vectors(:,i,j), points(n, :))
+!        dotp(i,j) = q_vectors(1,i,j) * points(n,ixyz) &
+!                  + q_vectors(2,i,j) * points(n,jxyz)
+!        phase(i,j) = dcmplx(cos(dotp(i,j)), sin(dotp(i,j)))
+!        elevation(n) = elevation(n) + real(phase(i,j) * modes(i,j))
+!    enddo
+!    enddo
+!    enddo
 
 !end subroutine surface_from_modes
-
-subroutine surface_from_modes(points, normal, q_vectors, modes, elevation)
-    implicit none
-
-    integer, intent(in) :: normal
-    double precision, intent(in), dimension(:,:,:), allocatable :: q_vectors
-    double precision, intent(in), dimension(:,:), allocatable ::  points
-    double complex, intent(in), dimension(:,:), allocatable :: modes
-    double precision, intent(out), dimension(:), allocatable :: elevation
-
-    integer :: i, j, n, ixyz, jxyz
-
-    double precision, dimension(:,:), allocatable :: dotp
-    double complex, dimension(:,:), allocatable :: phase
-
-    allocate(elevation(size(points,1)))
-    allocate(dotp(size(q_vectors,2),size(q_vectors,3)))
-    allocate(phase(size(q_vectors,2),size(q_vectors,3)))
-
-    ixyz = mod(normal,3)+1
-    jxyz = mod(normal+1,3)+1
-    elevation = 0.d0
-    do n = 1,size(points,1)
-    do i = 1,size(q_vectors,2)
-    do j = 1,size(q_vectors,3)
-        !dotp(i,j) = dot_product(q_vectors(:,i,j), points(n, :))
-        dotp(i,j) = q_vectors(1,i,j) * points(n,ixyz) &
-                  + q_vectors(2,i,j) * points(n,jxyz)
-        phase(i,j) = dcmplx(cos(dotp(i,j)), sin(dotp(i,j)))
-        elevation(n) = elevation(n) + real(phase(i,j) * modes(i,j))
-    enddo
-    enddo
-    enddo
-
-end subroutine surface_from_modes
 
 subroutine get_initial_pivots(points, box, normal, pivots)
     implicit none
@@ -2202,23 +2933,19 @@ subroutine get_initial_pivots(points, box, normal, pivots)
 
 end subroutine get_initial_pivots
 
-subroutine update_pivots(points, q_vectors, modes, pivots, &
-                         normal, alpha, tau, new_pivots)
+subroutine update_pivots(points, ISR, pivots, tau, new_pivots)
+    use intrinsic_module, only : intrinsic_surface_real
     implicit none
 
-    integer, intent(in) :: normal
-    double precision, intent(in) :: alpha, tau
-
-    double precision, intent(in), dimension(:,:), allocatable ::  points
-    double precision, intent(in), dimension(:,:,:), allocatable :: q_vectors
-    double complex, intent(in), dimension(:,:), allocatable :: modes
+	type(intrinsic_surface_real), intent(in) :: ISR	! declare an instance
     integer, intent(in), dimension(:), allocatable ::  pivots
-
+    double precision, intent(in) :: tau
+    double precision, intent(in), dimension(:,:), allocatable ::  points
     integer, intent(out), dimension(:), allocatable ::  new_pivots
 
     logical :: found_range
-    integer :: i, n, ind, nPivots, sp
-    double precision :: z_max, z_min
+    integer :: i, n, ixyz, jxyz, ind, nPivots, sp, qm, qu
+    double precision :: z_max, z_min, area
     integer, dimension(:), allocatable :: candidates, updated_pivots, indices
     double precision, dimension(:), allocatable :: z, surf
     double precision, dimension(:,:), allocatable :: candidates_pos, pivot_pos
@@ -2230,10 +2957,10 @@ subroutine update_pivots(points, q_vectors, modes, pivots, &
     do i =1, sp
         pivot_pos(i,:) = points(pivots(i),:)
     enddo
-    z_max = maxval(pivot_pos(:,normal)) + alpha * 2.d0
-    z_min = minval(pivot_pos(:,normal)) - alpha * 2.d0
+    z_max = maxval(pivot_pos(:,ISR%normal)) + ISR%alpha * 2.d0
+    z_min = minval(pivot_pos(:,ISR%normal)) - ISR%alpha * 2.d0
 
-    z = points(:, normal)
+    z = points(:, ISR%normal)
     allocate(indices(size(points,1))) 
     do ind = 1, size(indices,1)
         indices(ind) = ind
@@ -2263,15 +2990,14 @@ subroutine update_pivots(points, q_vectors, modes, pivots, &
     enddo
 
     !Recalculate surface at candidate pivot locations
-    call surface_from_modes(candidates_pos, normal, q_vectors, modes, surf)
+    call ISR%get_surface(candidates_pos, surf)
 
     nPivots = 0
     allocate(updated_pivots(n))
     do i =1,n
-        if ((surf(i)-candidates_pos(i,normal))**2 .lt. tau**2) then
+        if ((surf(i)-candidates_pos(i,ISR%normal))**2 .lt. tau**2) then
             nPivots = nPivots + 1
             updated_pivots(nPivots) = candidates(i)
-            !print*, i, nPivots, candidates(i), updated_pivots(nPivots)
         endif
     enddo
     allocate(new_pivots(nPivots))
@@ -2285,36 +3011,29 @@ subroutine update_pivots(points, q_vectors, modes, pivots, &
 
 end subroutine update_pivots
 
-subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, & 
-                                       tau, ns, modes, pivots, eps)
+subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
+    use intrinsic_module, only : intrinsic_surface_real
     implicit none
 
-    integer, intent(in) :: normal
-    double precision, intent(in) :: alpha, tau, ns
-    double precision, intent(in), optional :: eps
-    double precision, intent(in), dimension(3) :: box
+	type(intrinsic_surface_real), intent(in) :: ISR	! declare an instance
+
+    double precision, intent(in) :: tau, ns
     double precision, intent(in), dimension(:,:), allocatable ::  points
-    double complex, intent(out), dimension(:,:), allocatable :: modes
     integer, dimension(:), allocatable, intent(inout) :: pivots
 
-    integer :: i, j, ixyz, jxyz, Np, sp, ntarget, try, maxtry=100
+    integer :: i, j, ixyz, jxyz, Np, sp, ntarget, try, maxtry=100, qm, qu
     integer, dimension(2) :: modes_shape
     integer, dimension(:), allocatable :: indices, new_pivots, initial_pivots
     !integer, dimension(:), allocatable, save :: pivots
     double precision :: Error, area, tau_, rand, diff, maxpivot
     double precision, dimension(:), allocatable :: Q, z, d, surf
     double precision, dimension(:,:), allocatable :: Qxy, pivot_pos, initial_pivot_pos
-    double precision, dimension(:,:,:), allocatable :: q_vectors
 
     !Define things
     tau_ = tau
-    ixyz = mod(normal,3)+1
-    jxyz = mod(normal+1,3)+1
-    area = box(ixyz)*box(jxyz)
-    call compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
 
     !Get initial pivots
-    call get_initial_pivots(points, box, normal, initial_pivots)
+    call get_initial_pivots(points, ISR%box, ISR%normal, initial_pivots)
     if (allocated(pivots)) deallocate(pivots)
     pivots = initial_pivots
 
@@ -2326,11 +3045,7 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, &
         !print*, "initial pivot pos = ", i, pivot_pos(i,:)
     enddo
 
-    if (present(eps)) then
-        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
-    else
-        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
-    endif
+    call ISR%update_surface(pivot_pos)
 
 !    do i=1,sp
 !        print*, "Pivot error = ", pivot_pos(i,:), surf(i), pivot_pos(i,3)-surf(i)
@@ -2339,8 +3054,7 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, &
     do try = 1, maxtry
 
         !Get new pivots
-        call update_pivots(points, q_vectors, modes, pivots, &
-                           normal, alpha, tau_, new_pivots)
+        call update_pivots(points, ISR, pivots, tau_, new_pivots)
 
         !Get new positions and new modes
         if (allocated(pivot_pos)) deallocate(pivot_pos)
@@ -2350,19 +3064,16 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, &
             pivot_pos(i,:) = points(new_pivots(i),:)
             !print*, "new pivot pos = ", i, pivot_pos(i,:)
         enddo
-        if (present(eps)) then
-            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
-        else
-            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
-        endif
-
+        !call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
+        call ISR%update_surface(pivot_pos)
 
         !Exit once we have converged to particles on surface / area = ns
-        if (size(new_pivots)/area .gt. ns)  then
+        !print*, size(new_pivots)/area, size(new_pivots), area, ns 
+        if (size(new_pivots)/ISR%area .gt. ns)  then
             deallocate(pivots)
             ! Truncate pivots to give ns as all positions in 
             ! order of increasing distance from max pivot mol
-            ntarget = int(ns*area)
+            ntarget = int(ns*ISR%area)
             allocate(pivots(ntarget))
             pivots = new_pivots(1:ntarget)
 
@@ -2392,8 +3103,9 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, &
 
             !Plot updated surface error
             allocate(d(sp))
-            call surface_from_modes(pivot_pos, normal, q_vectors, modes, surf)
-            d = pivot_pos(:, normal) - surf(:)
+            call ISR%get_surface(pivot_pos, surf)
+
+            d = pivot_pos(:, ISR%normal) - surf(:)
             Error = sqrt(sum(d * d) / size(d))
 
             print*, "Try no. = ", try, "No. pivots = ", size(pivots), & 
@@ -2402,7 +3114,7 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, &
             if (Error .gt. 1e2) then
                 print*, "Solution appears to be diverging, reverting to initial pivots"
                 deallocate(pivots)
-                call get_initial_pivots(points, box, normal, pivots)
+                call get_initial_pivots(points, ISR%box, ISR%normal, pivots)
                 deallocate(pivot_pos)
                 sp = size(pivots,1)
                 allocate(pivot_pos(sp,3))
@@ -2410,169 +3122,13 @@ subroutine fit_intrinsic_surface_modes(points, box, normal, alpha, &
                     pivot_pos(i,:) = points(pivots(i),:)
                     !print*, "initial pivot pos = ", i, pivot_pos(i,:)
                 enddo
-
-                if (present(eps)) then
-                    call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
-                else
-                    call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
-                endif
+                call ISR%update_surface(pivot_pos)
 
             endif
         endif
 
 
     enddo
-
-!    !Define things
-!    tau_ = tau
-!    area = box(ixyz)*box(jxyz)
-!    ixyz = mod(normal,3)+1
-!    jxyz = mod(normal+1,3)+1
-!    call compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
-
-!    !Get initial pivots
-!    call get_initial_pivots(points, box, normal, initial_pivots)
-!    if (allocated(pivots)) deallocate(pivots)
-!    allocate(pivots(9))
-!    pivots = initial_pivots
-
-!    sp = size(pivots,1)
-!    allocate(pivot_pos(sp,3))
-!    do i =1, sp
-!        pivot_pos(i,:) = points(pivots(i),:)
-!        !print*, "initial pivot pos = ", i, pivot_pos(i,:)
-!    enddo
-
-!    if (present(eps)) then
-!        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
-!    else
-!        call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
-!    endif
-
-
-!    !Start from the largest (end) value
-
-
-!    !Test error before update
-!    !call surface_from_modes(pivot_pos, normal, q_vectors, modes, surf)
-!    
-!!    do i=1,sp
-!!        print*, "Pivot error = ", pivot_pos(i,:), surf(i), pivot_pos(i,3)-surf(i)
-!!    enddo
-
-!    !allocate(d(sp))
-!    do try = 1, maxtry
-
-!        !Plot updated surface error
-!        !call surface_from_modes(pivot_pos, normal, q_vectors, modes, surf)
-!        !d = pivot_pos(:, normal) - surf(:)
-!        !Error = sqrt(sum(d * d) / size(d))
-
-!!        do i =1,size(q_vectors,2)
-!!        do j =1,size(q_vectors,3)
-!!            area = area + 0.5*box(ixyz)*box(jxyz)*(q_vectors(1,i,j)+q_vectors(2,i,j)**2)*abs(modes(i,j)*modes(i,j))
-!!        enddo
-!!        enddo
-!        !print*, "Try no. = ", try, "No. pivots = ", size(pivots), "Error=", Error, "Area=", area, size(pivots)/area
-
-
-!!        if (Error .gt. 1e2) then
-!!            print*, "Solution appears to be diverging, reverting to initial pivots"
-!!            deallocate(pivots)
-!!            call get_initial_pivots(points, box, normal, pivots)
-!!            deallocate(pivot_pos)
-!!            sp = size(pivots,1)
-!!            allocate(pivot_pos(sp,3))
-!!            do i =1, sp
-!!                pivot_pos(i,:) = points(pivots(i),:)
-!!                !print*, "initial pivot pos = ", i, pivot_pos(i,:)
-!!            enddo
-
-!!            if (present(eps)) then
-!!                call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
-!!            else
-!!                call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
-!!            endif
-
-!!        endif
-!!        do i =1, size(pivots,1)
-!!            print*, "pivot pos = ", i, pivot_pos(i,:), surf(i)
-!!        enddo
-
-!        !Get new pivots
-!        call update_pivots(points, q_vectors, modes, pivots, &
-!                           normal, alpha, tau_, new_pivots)
-
-!        !Get new positions and new modes
-!        if (allocated(pivot_pos)) deallocate(pivot_pos)
-!        sp = size(new_pivots,1)
-!        allocate(pivot_pos(sp,3))
-!        do i =1, sp
-!            pivot_pos(i,:) = points(new_pivots(i),:)
-!            !print*, "new pivot pos = ", i, pivot_pos(i,:)
-!        enddo
-!        if (present(eps)) then
-!            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
-!        else
-!            call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes)
-!        endif
-
-!        !Exit once we have converged to a fix set of pivots
-!!        if (size(new_pivots,1) .eq. size(pivots,1)) then
-!!            if (all(new_pivots .eq. pivots)) then
-!!                exit
-!!            else
-!!                pivots = new_pivots
-!!            endif
-!        !Convergence if Ns/A0 > 0.8
-!        if (size(new_pivots)/area .gt. 0.8)  then
-!            deallocate(pivots)
-!            ! Truncate pivots to give 0.8 as all posiitons in 
-!            ! order of increasing distance from max pivot mol
-!            ntarget = int(0.8*area)
-!            allocate(pivots(ntarget))
-!            pivots = new_pivots(1:ntarget)
-!!            allocate(initial_pivot_pos(9,3))
-!!            do i =1, 9
-!!                initial_pivot_pos(i,:) = points(initial_pivots(i),:)
-!!            enddo
-!!            maxpivot = maxval(initial_pivot_pos(:,normal))
-!!            do i =1, sp
-!!                diff = maxpivot - pivot_pos(i, normal)
-!!                print'(a,2i5,3f10.5,f18.8)', "new pivot pos = ", i, ntarget, pivot_pos(i,:), diff
-!!            enddo   
-!            exit
-!        elseif (size(new_pivots,1) .eq. size(pivots,1)) then
-!            tau_ = tau_ + 0.01
-!!        elseif (size(new_pivots)/area .gt. 0.81) then
-!!            tau_ = tau_ - 0.1
-!!            !Randomly delete a few, see if we get the same
-!!            deallocate(pivots)
-!!            j = 0
-!!            do i =1, size(new_pivots,1)
-!!                call random_number(rand)
-!!                if (rand .gt. 0.7) cycle
-!!                j = j + 1
-!!                new_pivots(j) = new_pivots(i)
-!!            enddo
-!!            allocate(pivots(j))
-!!            pivots(:) = new_pivots(1:j)
-!!            deallocate(new_pivots)   
-!!            tau_ = tau
-!!        elseif (size(pivots)/area .gt. 0.9) then
-!!            deallocate(pivots)
-!!            sp = int(0.4*area)
-!!            allocate(pivots(sp))
-!!            print*, "reducing pivots", sp
-!!            pivots = new_pivots(1:sp)
-!!            deallocate(new_pivots)
-!        else
-!            deallocate(pivots)
-!            allocate(pivots(size(new_pivots,1)))
-!            pivots = new_pivots
-!            deallocate(new_pivots)
-!        endif
-!    enddo
 
 end subroutine fit_intrinsic_surface_modes
 
@@ -2621,16 +3177,15 @@ subroutine get_surface_bilinear(points, A, elevation)
 end subroutine get_surface_bilinear
 
 
-subroutine modes_surface_to_bilinear_surface(modes, q_vectors, box, nbins, normal, Abilinear)
+subroutine modes_surface_to_bilinear_surface(ISR, nbins, Abilinear)
     !use messenger, only : globalise_bin
+    use intrinsic_module, only : intrinsic_surface_real
     implicit none
 
-    integer,intent(in) ::    normal
+	type(intrinsic_surface_real), intent(in) :: ISR	! declare an instance
+
     integer,intent(in),dimension(3) :: nbins
-    real(kind(0.d0)),intent(in),dimension(3) :: box
     real(kind(0.d0)),intent(out),dimension(:,:,:,:),allocatable ::Abilinear
-    real(kind(0.d0)), intent(in), dimension(:,:,:), allocatable :: q_vectors
-    double complex, intent(in), dimension(:,:), allocatable :: modes
 
     logical          :: debug=.true.
     logical, save    :: first_time = .true.
@@ -2641,31 +3196,32 @@ subroutine modes_surface_to_bilinear_surface(modes, q_vectors, box, nbins, norma
     real(kind(0.d0)), dimension(:,:), allocatable :: points
 
     !Start from the largest (end) value
-    ixyz = mod(normal,3)+1
-    jxyz = mod(normal+1,3)+1
+    ixyz = mod(ISR%normal,3)+1
+    jxyz = mod(ISR%normal+1,3)+1
 
     allocate(Abilinear(2,2,nbins(ixyz), nbins(jxyz)))
     allocate(points(4,2))
 
-    binsize(1) = box(ixyz)/dble(nbins(ixyz))
-    binsize(2) = box(jxyz)/dble(nbins(jxyz))
+    binsize(1) = ISR%box(ixyz)/dble(nbins(ixyz))
+    binsize(2) = ISR%box(jxyz)/dble(nbins(jxyz))
 
     n = 1
     do j = 1,nbins(ixyz)
     do k = 1,nbins(jxyz)
         !gbin = globalise_bin((/ 1, j, k /))
         gbin(1) = j; gbin(2) = k
-        ysb = float(gbin(1)-1)*binsize(1)-0.5d0*box(ixyz)
-        yst = float(gbin(1))*binsize(1)-0.5d0*box(ixyz)
-        zsb = float(gbin(2)-1)*binsize(2)-0.5d0*box(jxyz)
-        zst = float(gbin(2))*binsize(2)-0.5d0*box(jxyz)
+        ysb = float(gbin(1)-1)*binsize(1)-0.5d0*ISR%box(ixyz)
+        yst = float(gbin(1)  )*binsize(1)-0.5d0*ISR%box(ixyz)
+        zsb = float(gbin(2)-1)*binsize(2)-0.5d0*ISR%box(jxyz)
+        zst = float(gbin(2)  )*binsize(2)-0.5d0*ISR%box(jxyz)
 
         points(1,1) = ysb; points(1,2) = zsb
         points(2,1) = yst; points(2,2) = zsb 
         points(3,1) = ysb; points(3,2) = zst 
         points(4,1) = yst; points(4,2) = zst 
 
-        call surface_from_modes(points, 3, q_vectors, modes, elevation)
+        call ISR%get_surface(points, elevation)
+        !call surface_from_modes(points, 3, q_vectors, modes, elevation)
         !print*, "elevation modes", elevation(:)
         P = reshape(elevation, (/2,2/))
         call get_bilinear_surface_coeff((/ysb, yst/), (/zsb, zst/), P, A)
@@ -2694,60 +3250,56 @@ subroutine modes_surface_to_bilinear_surface(modes, q_vectors, box, nbins, norma
 end subroutine modes_surface_to_bilinear_surface
 
 
+!subroutine fit_intrinsic_surface_return_modes(points, ISR, tau, ns, coeff, eps)
+!    implicit none
+
+!    !logical, intent(in), optional :: reuse_pivots
+!    integer, intent(in) :: normal
+!    integer, dimension(3), intent(in) :: nbins
+!    double precision, intent(in) :: alpha, tau, ns
+!    double precision, intent(in), optional :: eps
+!    double precision, intent(in), dimension(3) :: box
+!    double precision, intent(in), dimension(:,:), allocatable ::  points
+!    double precision, intent(out), dimension(:), allocatable :: coeff
+
+!    integer, dimension(:), allocatable, save :: pivots
+!    integer, dimension(2) :: modes_shape
+!    double precision :: eps_
+!    double precision, dimension(:), allocatable :: Q
+!    double precision, dimension(:,:), allocatable :: Qxy
+
+!    if (.not. present(eps)) then
+!        eps_ = 0.d0
+!    else
+!        eps_ = eps
+!    endif
+
+!    call fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
+
+!end subroutine fit_intrinsic_surface_return_modes
 
 
-subroutine fit_intrinsic_surface_return_modes(points, box, normal, nbins, & 
-                                              alpha, tau, ns, q_vectors, modes, eps)
+
+subroutine fit_intrinsic_surface(points, ISR, nbins, tau, ns, Abilinear)
+    use intrinsic_module, only : intrinsic_surface_real
+
     implicit none
 
-    !logical, intent(in), optional :: reuse_pivots
-    integer, intent(in) :: normal
+	type(intrinsic_surface_real), intent(in) :: ISR	! declare an instance
+
     integer, dimension(3), intent(in) :: nbins
-    double precision, intent(in) :: alpha, tau, ns
-    double precision, intent(in), optional :: eps
-    double precision, intent(in), dimension(3) :: box
-    double precision, intent(in), dimension(:,:), allocatable ::  points
-    double precision, intent(out), dimension(:,:,:), allocatable :: q_vectors
-    double complex, intent(out), dimension(:,:), allocatable :: modes
-
-    integer, dimension(:), allocatable, save :: pivots
-    integer, dimension(2) :: modes_shape
-    double precision, dimension(:), allocatable :: Q
-    double precision, dimension(:,:), allocatable :: Qxy
-
-    call compute_q_vectors(box, alpha, q_vectors, modes_shape, Qxy, Q)
-    call fit_intrinsic_surface_modes(points, box, normal, alpha, tau, ns, modes, pivots, eps)
-
-end subroutine fit_intrinsic_surface_return_modes
-
-
-
-subroutine fit_intrinsic_surface(points, box, normal, nbins, & 
-                                 alpha, tau, ns, Abilinear, eps)
-    implicit none
-
-    integer, intent(in) :: normal
-    integer, dimension(3), intent(in) :: nbins
-    double precision, intent(in) :: alpha, tau, ns
-    double precision, intent(in), optional :: eps
-    double precision, intent(in), dimension(3) :: box
+    double precision, intent(in) :: tau, ns
     double precision, intent(in), dimension(:,:), allocatable ::  points
     double precision, intent(out), dimension(:,:,:,:), allocatable :: Abilinear
-
-    double precision, dimension(:), allocatable :: elevation
-    double precision, dimension(:,:,:), allocatable :: q_vectors
-    double complex, dimension(:,:), allocatable :: modes
 
     !Debug
     integer :: ixyz, jxyz, i,j,k
     double precision :: dx, dy
     double precision, allocatable, dimension(:,:) :: checkpoint
+    integer, dimension(:), allocatable ::  pivots
 
-
-    call fit_intrinsic_surface_return_modes(points, box, normal, nbins, & 
-                                            alpha, tau, ns, q_vectors, modes, eps)
-    call surface_from_modes(points, normal, q_vectors, modes, elevation)
-    call modes_surface_to_bilinear_surface(modes, q_vectors, box, nbins, normal, Abilinear)
+    call fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
+    call modes_surface_to_bilinear_surface(ISR, nbins, Abilinear)
 
     !Debug pivot points vs surface
 !    allocate(checkpoint(1,2))
@@ -2776,84 +3328,89 @@ end subroutine fit_intrinsic_surface
 
 
 
-subroutine sample_intrinsic_surface(modes, q_vectors, box, nbins, normal, vertices, writeiter)
-    implicit none
+!subroutine sample_intrinsic_surface(coeff, alpha, box, nbins, normal, vertices, writeiter)
+!    implicit none
 
-    integer,intent(in) ::    normal
-    integer,intent(in),dimension(3) :: nbins
-    real(kind(0.d0)),intent(in),dimension(3) :: box
-    real(kind(0.d0)), intent(in), dimension(:,:,:), allocatable :: q_vectors
-    double complex, intent(in), dimension(:,:), allocatable :: modes
+!    integer,intent(in) ::    normal
+!    integer,intent(in),dimension(3) :: nbins
+!    real(kind(0.d0)),intent(in),dimension(3) :: box
+!    real(kind(0.d0)), intent(in) :: alpha
+!    double precision, intent(in), dimension(:), allocatable :: coeff
 
-    real(kind(0.d0)), dimension(:,:,:),intent(out), allocatable :: vertices
-    integer, intent(in), optional :: writeiter
+!    real(kind(0.d0)), dimension(:,:,:),intent(out), allocatable :: vertices
+!    integer, intent(in), optional :: writeiter
 
 
-    logical          :: debug=.true., writeobj=.false.
-    logical, save    :: first_time = .true.
-    integer          :: i, j, k, n, v, ixyz, jxyz, fileno
-    real(kind(0.d0)) :: ysb, yst, zsb, zst, binsize(2)
-    real(kind(0.d0)), dimension(:), allocatable :: elevation
-    real(kind(0.d0)), dimension(:,:), allocatable :: points
-    character(200) :: outfile_t, filename
+!    logical          :: debug=.true., writeobj=.false.
+!    logical, save    :: first_time = .true.
+!    integer          :: i, j, k, n, v, ixyz, jxyz, fileno, qm, qu
+!    real(kind(0.d0)) :: ysb, yst, zsb, zst, binsize(2), area
+!    real(kind(0.d0)), dimension(:), allocatable :: elevation
+!    real(kind(0.d0)), dimension(:,:), allocatable :: points
+!    character(200) :: outfile_t, filename
 
-    if (present(writeiter)) then      
-        writeobj = .true.
-    else
-        writeobj = .false.
-    endif
+!    if (present(writeiter)) then      
+!        writeobj = .true.
+!    else
+!        writeobj = .false.
+!    endif
 
-    ixyz = mod(normal,3)+1
-    jxyz = mod(normal+1,3)+1
-    binsize(1) = box(ixyz)/dble(nbins(ixyz))
-    binsize(2) = box(jxyz)/dble(nbins(jxyz))
+!    ixyz = mod(normal,3)+1
+!    jxyz = mod(normal+1,3)+1
+!    binsize(1) = box(ixyz)/dble(nbins(ixyz))
+!    binsize(2) = box(jxyz)/dble(nbins(jxyz))
 
-    allocate(points(4,2))
-    allocate(vertices(nbins(ixyz)*nbins(jxyz),4,3))
+!    area = box(ixyz)*box(jxyz)
+!    qm = int(0.5*sqrt(area)/alpha)
+!    qu = qm
 
-    if (writeobj) then
-        fileno = get_new_fileunit() 
-        call get_Timestep_FileName(writeiter,"./results/surface",outfile_t)
-        write(filename,'(a,a4)') trim(outfile_t),'.obj'
-        open(fileno, file=trim(filename))
-    endif
+!    allocate(points(4,2))
+!    allocate(vertices(nbins(ixyz)*nbins(jxyz),4,3))
 
-    n = 1; v = 1
-    do j = 1,nbins(ixyz)
-    do k = 1,nbins(jxyz)
-        ysb = float(j-1)*binsize(1)-0.5d0*box(ixyz)
-        yst = float(j)*binsize(1)-0.5d0*box(ixyz)
-        zsb = float(k-1)*binsize(2)-0.5d0*box(jxyz)
-        zst = float(k)*binsize(2)-0.5d0*box(jxyz)
+!    if (writeobj) then
+!        fileno = get_new_fileunit() 
+!        call get_Timestep_FileName(writeiter,"./results/surface",outfile_t)
+!        write(filename,'(a,a4)') trim(outfile_t),'.obj'
+!        open(fileno, file=trim(filename))
+!    endif
 
-        points(1,1) = ysb; points(1,2) = zsb !Bottom left
-        points(2,1) = yst; points(2,2) = zsb !Bottom right
-        points(3,1) = ysb; points(3,2) = zst !Top left
-        points(4,1) = yst; points(4,2) = zst !Top right
+!    n = 1; v = 1
+!    do j = 1,nbins(ixyz)
+!    do k = 1,nbins(jxyz)
+!        ysb = float(j-1)*binsize(1)-0.5d0*box(ixyz)
+!        yst = float(j)*binsize(1)-0.5d0*box(ixyz)
+!        zsb = float(k-1)*binsize(2)-0.5d0*box(jxyz)
+!        zst = float(k)*binsize(2)-0.5d0*box(jxyz)
 
-        call surface_from_modes(points, 3, q_vectors, modes, elevation)
-        do i =1, 4
-            vertices(v,i,:) = (/ points(i,1), points(i,2), elevation(i) /)
-            !print*, i, j, k, v, vertices(v,i,:)
-        enddo
-       
-        !Write to wavefunction obj format
-        if (writeobj) then
-            !Needs to be clockwise!
-            do i =1, 4
-                write(fileno,'(a1, 3f15.8)') "v", vertices(v,i,:)
-            enddo
-            write(fileno,'(a1, 4i8)') "f", n, n+1, n+3, n+2
-            n = n + 4
-        endif
-        v = v + 1
+!        points(1,1) = ysb; points(1,2) = zsb !Bottom left
+!        points(2,1) = yst; points(2,2) = zsb !Bottom right
+!        points(3,1) = ysb; points(3,2) = zst !Top left
+!        points(4,1) = yst; points(4,2) = zst !Top right
 
-    enddo
-    enddo
+!        call real_surface_from_modes(points, box, 3, qm, qu, coeff, elevation)
+!        !call surface_from_modes(points, 3, q_vectors, modes, elevation)
+!        do i =1, 4
+!            vertices(v,i,:) = (/ points(i,1), points(i,2), elevation(i) /)
+!            !print*, i, j, k, v, vertices(v,i,:)
+!        enddo
+!       
+!        !Write to wavefunction obj format
+!        if (writeobj) then
+!            !Needs to be clockwise!
+!            do i =1, 4
+!                write(fileno,'(a1, 3f15.8)') "v", vertices(v,i,:)
+!            enddo
+!            write(fileno,'(a1, 4i8)') "f", n, n+1, n+3, n+2
+!            n = n + 4
+!        endif
+!        v = v + 1
 
-    if (writeobj) close(fileno)
+!    enddo
+!    enddo
 
-end subroutine sample_intrinsic_surface
+!    if (writeobj) close(fileno)
+
+!end subroutine sample_intrinsic_surface
 
 subroutine write_waveobj(vertices, writeiter)
     implicit none

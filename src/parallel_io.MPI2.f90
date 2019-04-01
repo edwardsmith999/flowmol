@@ -987,6 +987,7 @@ subroutine setup_restart_inputs()
 
     elapsedtime = elapsedtime + delta_t*extrasteps  !Set elapsed time to end of simualtion
     initialstep = Nsteps                            !Set plot count to final plot of last
+    iter = initialstep                              !Set iter to initialstep
     Nsteps = Nsteps + extrasteps                    !Establish final iteration step based on previous
 
 end subroutine setup_restart_inputs
