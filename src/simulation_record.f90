@@ -328,25 +328,75 @@ contains
 
 
 
-    subroutine get_crossings(r1, r2, normal, rc, crossings)
+    subroutine get_crossings(r1, r2, bin1, bin2, n, rc, crossings)
         use computational_constants_MD, only : halfdomain, nhb
         use calculated_properties_MD, only : binsize
         implicit none
 
-        integer, intent(in)                      :: normal
+        integer, intent(in)                      :: n   !normal
+        integer, intent(in), dimension(3) 	     :: bin1, bin2
         real(kind(0.d0)),intent(in),dimension(3) :: r1, r2
         
         logical, intent(out)                    :: crossings
         real(kind(0.d0)),intent(out),dimension(:,:), allocatable :: rc
 
-        integer                 :: t1, t2, i, j, n, maxbin, minbin
-        integer,dimension(3) 	:: bin1, bin2
+        integer                 :: t1, t2, i, j, maxbin, minbin
         double precision        :: pt, r12(3)
 
-	    !Assign to bins before and after using integer division
-        bin1 = get_bin(r1) !ceiling((r1(n)+halfdomain(n))/binsize(n))+nhb(n)
-        bin2 = get_bin(r2) !ceiling((r2(n)+halfdomain(n))/binsize(n))+nhb(n)
-        n = normal
+        if (bin1(n) .eq. bin2(n)) then
+            crossings = .false.
+        else
+            crossings = .true.
+
+            !Tangents
+            t1 = mod(n,3)+1
+            t2 = mod(n+1,3)+1
+            minbin = min(bin1(n), bin2(n))
+            maxbin = max(bin1(n), bin2(n))
+
+	        r12   = r1 - r2							!Molecule i trajectory between t-dt and t
+	        where (r12 .eq. 0.d0) r12 = 0.000001d0
+
+            !print*, "rc size", maxbin-minbin, bin1, bin2
+            allocate(rc(3, maxbin-minbin))
+            j = 1
+            do i = minbin, maxbin-1
+		        pt = (i-1*nhb(n))*binsize(n)-halfdomain(n)
+                rc(n,j) = pt
+                rc(t1,j) = r1(t1)+(r12(t1)/r12(n))*(pt-r1(n))            
+                rc(t2,j) = r1(t2)+(r12(t2)/r12(n))*(pt-r1(n))
+                !if (i .eq. 120) then
+                !    print*, "crossings=", iter, i, rc(:,j)
+                !endif
+                j = j + 1
+            enddo
+
+        endif
+
+    end subroutine get_crossings
+
+    subroutine get_crossings_bilinear(r1, r2, bin1, bin2, n, rc, crossings)
+        use computational_constants_MD, only : halfdomain, nhb
+        use calculated_properties_MD, only : binsize
+        use bilnear_intersect, only : line_plane_intersect
+        implicit none
+
+        integer, intent(in)                      :: n   !normal
+        integer, intent(in), dimension(3) 	     :: bin1, bin2
+        real(kind(0.d0)),intent(in),dimension(3) :: r1, r2
+        
+        logical, intent(out)                    :: crossings
+        real(kind(0.d0)),intent(out),dimension(:,:), allocatable :: rc
+
+        integer                 :: t1, t2, i, j, k, jb, kb, ixyz, maxbin, minbin, minTbin, maxTbin
+        real(kind(0.d0))        :: pt, r12(3)
+
+        integer :: flag
+        real(kind(0.d0)) :: ysb, yst, zsb, zst
+        real(kind(0.d0)) :: y(2,2), z(2,2), P(2,2,3), A(2,2)
+        real(kind(0.d0)), dimension(:), allocatable :: elevation, yt, yb, zt, zb
+        real(kind(0.d0)),dimension(3,2)  :: intersect, normal
+        real(kind(0.d0)),dimension(:,:), allocatable  :: points, temp
 
         if (bin1(n) .eq. bin2(n)) then
             crossings = .false.
@@ -357,30 +407,99 @@ contains
             t1 = mod(n,3)+1
             t2 = mod(n+1,3)+1
 
-            !Ideally we have directional functions
-            !bin1(:) =  get_bin_component(r1, n)
-            !bin2(:) =  get_bin_component(r2, n)
             minbin = min(bin1(n), bin2(n))
             maxbin = max(bin1(n), bin2(n))
 
-	        r12   = r1 - r2							!Molecule i trajectory between t-dt and t
+	        r12   = r2 - r1  !Molecule i trajectory between t-dt and t
 	        where (r12 .eq. 0.d0) r12 = 0.000001d0
 
-            allocate(rc(3, maxbin-minbin))
+            !Factor of two as can be maximum of two per surface
+            allocate(points(4,2))
+            allocate(elevation(4))
+            allocate(temp(3, 2*sum(abs(bin1-bin2))))
             j = 1
             do i = minbin, maxbin-1
-		        pt = (i-1*nhb(n))*binsize(n)-halfdomain(n)
-                !rc(:,j) = (/ pt, r1(t1)+(r12(t1)/r12(n))*(pt-r1(n)), & 
-                !                 r1(t2)+(r12(t2)/r12(n))*(pt-r1(n)) /)
-                rc(n,j) = pt
-                rc(t1,j) = r1(t1)+(r12(t1)/r12(n))*(pt-r1(n))            
-                rc(t2,j) = r1(t2)+(r12(t2)/r12(n))*(pt-r1(n))
-                j = j + 1
-            enddo
 
+                !Check all intermediate bins in y and z
+                minTbin = min(bin1(t1), bin2(t1))
+                maxTbin = max(bin1(t1), bin2(t1))
+                allocate(yb(maxTbin-minTbin+1))
+                allocate(yt(maxTbin-minTbin+1))
+                j = 1
+                do jb = minTbin, maxTbin
+                    yb(j) = (jb-nhb(t1)-1)*binsize(t1)-0.5d0*ISR%box(t1)
+                    yt(j) = (jb-nhb(t1)  )*binsize(t1)-0.5d0*ISR%box(t1)
+!                    if (i .eq. 120) then
+!                        print*, "jcross", bin1, bin2, minTbin, maxTbin, jb, yb(j), yt(j)
+!                    endif
+                    j = j + 1
+                enddo
+
+                minTbin = min(bin1(t2), bin2(t2))
+                maxTbin = max(bin1(t2), bin2(t2))
+                allocate(zb(maxTbin-minTbin+1))
+                allocate(zt(maxTbin-minTbin+1))
+                j = 1
+                do kb = minTbin, maxTbin
+                    zb(j) = (kb-nhb(t2)-1)*binsize(t2)-0.5d0*ISR%box(t2)
+                    zt(j) = (kb-nhb(t2)  )*binsize(t2)-0.5d0*ISR%box(t2)
+!                    if (i .eq. 120) then
+!                        print*, "kcross", bin1, bin2, minTbin, maxTbin, kb, zb(j), zt(j)
+!                    endif
+                    j = j + 1
+                enddo
+
+                j = 1
+                do jb = 1, size(yb,1)
+                do kb = 1, size(zb,1)
+
+                    points(1,1) = yb(jb); points(1,2) = zb(kb)
+                    points(2,1) = yb(jb); points(2,2) = zt(kb) 
+                    points(3,1) = yt(jb); points(3,2) = zb(kb) 
+                    points(4,1) = yt(jb); points(4,2) = zt(kb) 
+
+                    !This will be bilinear version I think so consistent
+                    !call ISR%get_surface(points, elevation)
+                    !Debug, set to flat surface
+                    elevation(:) = (i-1*nhb(n))*binsize(n)-0.5d0*ISR%box(n)
+                    P(:,:,1) = reshape(elevation, (/2,2/))
+                    P(:,:,2) = reshape(points(:,1), (/2,2/))
+                    P(:,:,3) = reshape(points(:,2), (/2,2/))
+                    call line_plane_intersect(r1, r12, P, intersect, normal, flag)
+
+                    !print*, i, r1, elevation(1), r2!, yb, yt, zb, zt, intersect
+                    !Loop over intersects and add to temp
+                    do ixyz=1,size(intersect,2)
+                        !if (size(intersect,2) .ne. 1) print*, ixyz, i, jb, kb, j, temp(:,j-1), r1, intersect
+                        if (all(abs(intersect(:,ixyz)+666) .gt. 1e-7)) then
+                            temp(:,j) = intersect(:,ixyz)
+                            j = j + 1
+                        endif
+                    enddo
+
+!                    if (i .eq. 120) then
+ !                       print*, "crossings=", iter, i, temp(:,j-1) !yb(jb), zb(kb), yt(jb), zt(kb),
+                        !stop
+ !                   endif
+
+                enddo
+                enddo
+            enddo
+            !Copy array of intersects to rc
+            
+            if (j .gt. 1) then
+                allocate(rc(3, j-1))
+                rc = temp(:,1:j-1)
+            else
+                print*, j, temp(:,j)
+                stop "Error get_crossings_bilinear - interactions must be missed"
+            endif
         endif
 
-    end subroutine get_crossings
+    end subroutine get_crossings_bilinear
+
+
+
 
 
 end module module_record
@@ -3906,10 +4025,17 @@ subroutine mass_flux_averaging(flag)
 	integer, save	                :: sample_count = 0
     integer,dimension(3):: skipbinstop,skipbinsbot
 
+    double precision :: t1, t2
+    double precision, save :: tsum=0.d0
+
 	!Only average if mass averaging turned on
 	if (flag .eq. 0) return
 
+    !call cpu_time(t1)
 	call cumulative_mass_flux_opt()
+    !call cpu_time(t2)
+    !tsum = tsum + (t2-t1)
+    !print*, "Tsum = ", iter, tsum
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nmflux_ave) then
 		if (CV_debug .ne. 0) then
@@ -3971,9 +4097,6 @@ subroutine cumulative_mass_flux
 		!Assign to bins before and after using integer division
         ibin1(:) =  get_bin(ri1)
         ibin2(:) =  get_bin(ri2)
-
-!		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
-!		ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb(:)
 
 		!Replace Signum function with this functions which gives a
 		!check for plane crossing and the correct sign 
@@ -4154,7 +4277,7 @@ subroutine cumulative_momentum_flux(r_,v_,momentum_flux_,notcrossing)
 			!Get velocity at v_(t+dt/2) from v_(t-dt/2)
 			velvect(:) = v_(:,n)
 			ri1(:) = r_(:,n) 							!Molecule i at time t
-			ri2(:) = r_(:,n)	- delta_t*velvect			!Molecule i at time t-dt
+			ri2(:) = r_(:,n) - delta_t*velvect			!Molecule i at time t-dt
 			ri12   = ri1 - ri2							!Molecule i trajectory between t-dt and t
 			where (ri12 .eq. 0.d0) ri12 = 0.000001d0
 
@@ -5758,11 +5881,6 @@ contains
         call build_from_cellandneighbour_lists(self, cell, neighbour, rd,  & 
                                                r, np, skipwalls_=.true.)
 
-        ! If number of checked molecules greater than minimum 
-        ! used in definitions of cluster list 
-        ! (1 by Stillinger, 3 Braga et al 2018)
-        !if (min_ngbr .ne. 0) call StripClusterSubNgbr(self, min_ngbr)
-  
         !Remove all empty cluster references
         call CompressClusters(self)
 
@@ -7394,7 +7512,7 @@ contains
             !If no neighbours, add molecule to its own cluster list
             if (Nchecked .eq. 0) then
                 call AddBondedPair(self, molnoi, molnoi)
-                Nchecked = Nchecked + 1
+                Nchecked = 1
             endif
 
             !Store number of clusterable molecules close to each molecule
@@ -8684,122 +8802,166 @@ subroutine cumulative_mass_flux_opt!(quantity, fluxes)
 !	real(kind(0.d0)),dimension(1), intent(in)	    :: quantity
 !	real(kind(0.d0)),dimension(1,6), intent(inout)	:: fluxes
 
+    logical, save                   :: first_time=.true.
+
+
     logical                         :: crossings
-	integer							:: jxyz,i,j,k,n
-	integer		,dimension(3)		:: ibin1,ibin2,cbin
+	integer							:: jxyz,i,j,k,n,normal
+	integer		,dimension(3)		:: bin1,bin2,cbin,bs
 	real(kind(0.d0)),parameter		:: eps = 1e-9
 	real(kind(0.d0))        		:: crossdir
-	real(kind(0.d0)),dimension(3)	:: ri1,ri2,ri12, rc
+	real(kind(0.d0)),dimension(3)	:: ri1,ri2,ri12, rci
 
-    real(kind(0.d0)),dimension(:,:), allocatable :: rcx, rcy, rcz
+    real(kind(0.d0)),dimension(:,:), allocatable :: rc, rcx, rcy, rcz
 
 	do n = 1,np
 
 		ri1(:) = r(:,n) 							!Molecule i at time t
 		ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
-        !quantity(1) = mass(n)
+        bin1 = get_bin(ri1)
+        bin2 = get_bin(ri2)
 
-        ! fluxes  -- Additional fluxes over surfaces of CV
-        !       1) xbinbot, 2) ybinbot, 3) zbinbot
-        !       4) xbintop, 5) ybintop, 6) zbintop
-        call get_crossings(ri1, ri2, 1, rcx, crossings)
-        if (crossings) then
-            do i =1,size(rcx,2)
-                rc = (/ rcx(1,i)+eps, rcx(2,i), rcx(3,i) /)
-                cbin(:) =  get_bin(rc)
-                if (any(cbin .gt. (/size(mass_flux,1), & 
-                                    size(mass_flux,2), & 
-                                    size(mass_flux,3) /))) cycle
-                if (any(cbin .le. 1)) cycle
-
-                if (cbin(1) .ge. 210 .and. cbin(1) .le. 215 .and. & 
-                    cbin(2) .eq. 2 .and. &
-                    cbin(3) .eq. 2) then 
-                        print'(a,2i5,3f10.5,9i5)', "xcross", i, n, ri1(1), ri2(1), rcx(1, i), &
-                                                               get_bin(ri1), get_bin(ri2), cbin(:)
+        do normal=1,3
+            if (normal .eq. 1) then
+                ! DEBUG DEBUG DEBUG DEBUG
+                if (first_time) then
+                    call ISR%initialise((/globaldomain(1), & 
+                                          globaldomain(2), & 
+                                          globaldomain(3)/), 1, 0.5d0, 0.00000001d0)
+                    first_time = .false.
                 endif
+                ! DEBUG DEBUG DEBUG DEBUG
 
-			    !Add Mass flux over face
-                crossdir  = sign(1.d0, ri1(1)-ri2(1))
-                !if (cbin(1) .gt. 1) then
-                !    mass_flux(cbin(1),cbin(2),cbin(3),1) = & 
-                !        mass_flux(cbin(1),cbin(2),cbin(3),1) + crossdir*mass(n)
-                !    mass_flux(cbin(1)-1,cbin(2),cbin(3),4) = & 
-                !        mass_flux(cbin(1)-1,cbin(2),cbin(3),4) + crossdir*mass(n)
-                !else if (cbin(1) .eq. 1) then
-                    mass_flux(cbin(1),cbin(2),cbin(3),1) = & 
-                        mass_flux(cbin(1),cbin(2),cbin(3),1) + crossdir*mass(n)
-                !endif
+                call get_crossings_bilinear(ri1, ri2, bin1, bin2, normal, rc, crossings)
+            else 
+                call get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings)
+            endif
+            if (crossings) then
+                bs = 0
+                bs(normal) = 1
+                !print'(a,i9,8i5,9f10.5)', "Ncrossings ", iter, normal, bin1, bin2, size(rc,2), ri1, rc(:,1), ri2
+                !print'(a,i9,8i5,12f10.5)', "Ncrossings ", iter, normal, bin1, bin2, size(rc,2), ri1, rc(:,1), rc(:,2), ri2
+                do i =1,size(rc,2)
+                    rci = rc(:,i)
+                    rci(normal) = rci(normal) + eps 
+                    cbin(:) =  get_bin(rci)
+                    !if (any(cbin .gt. (/size(mass_flux,1), & 
+                    !                    size(mass_flux,2), & 
+                    !                    size(mass_flux,3) /))) cycle
+                    !if (any(cbin .le. 1)) cycle
 
-                !print*, "cumulative_mass_flux_opt Error in sum of mflux to do with adding to top and bottom"
-                mass_flux(cbin(1)-1,cbin(2),cbin(3),4) = mass_flux(cbin(1),cbin(2),cbin(3),1)
+	                !Add Mass flux over face
+                    !       1) xbinbot, 2) ybinbot, 3) zbinbot
+                    !       4) xbintop, 5) ybintop, 6) zbintop
+                    crossdir  = sign(1.d0, ri1(normal)-ri2(normal))
+                    mass_flux(cbin(1),cbin(2),cbin(3),normal) = & 
+                        mass_flux(cbin(1),cbin(2),cbin(3),normal) + crossdir*mass(n)
+                    mass_flux(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),normal+3) = & 
+                        mass_flux(cbin(1),cbin(2),cbin(3),normal)
 
-            enddo
-        endif
+                enddo
+                deallocate(rc)
+            endif
+        enddo
+
+!        call get_crossings(ri1, ri2, 1, rcx, crossings)
+!        if (crossings) then
+!            do i =1,size(rcx,2)
+!                rci = (/ rcx(1,i)+eps, rcx(2,i), rcx(3,i) /)
+!                cbin(:) =  get_bin(rci)
+!                if (any(cbin .gt. (/size(mass_flux,1), & 
+!                                    size(mass_flux,2), & 
+!                                    size(mass_flux,3) /))) cycle
+!                if (any(cbin .le. 1)) cycle
+
+!                if (cbin(1) .ge. 210 .and. cbin(1) .le. 215 .and. & 
+!                    cbin(2) .eq. 2 .and. &
+!                    cbin(3) .eq. 2) then 
+!                        print'(a,2i5,3f10.5,9i5)', "xcross", i, n, ri1(1), ri2(1), rcx(1, i), &
+!                                                               get_bin(ri1), get_bin(ri2), cbin(:)
+!                endif
+
+!			    !Add Mass flux over face
+!                crossdir  = sign(1.d0, ri1(1)-ri2(1))
+!                !if (cbin(1) .gt. 1) then
+!                !    mass_flux(cbin(1),cbin(2),cbin(3),1) = & 
+!                !        mass_flux(cbin(1),cbin(2),cbin(3),1) + crossdir*mass(n)
+!                !    mass_flux(cbin(1)-1,cbin(2),cbin(3),4) = & 
+!                !        mass_flux(cbin(1)-1,cbin(2),cbin(3),4) + crossdir*mass(n)
+!                !else if (cbin(1) .eq. 1) then
+!                    mass_flux(cbin(1),cbin(2),cbin(3),1) = & 
+!                        mass_flux(cbin(1),cbin(2),cbin(3),1) + crossdir*mass(n)
+!                !endif
+
+!                !print*, "cumulative_mass_flux_opt Error in sum of mflux to do with adding to top and bottom"
+!                mass_flux(cbin(1)-1,cbin(2),cbin(3),4) = mass_flux(cbin(1),cbin(2),cbin(3),1)
+
+!            enddo
+!        endif
 
 
-        call get_crossings(ri1, ri2, 2, rcy, crossings)
-        if (crossings) then
-            do i =1,size(rcy,2)
-                rc = (/ rcy(1,i), rcy(2,i)+eps, rcy(3,i) /)
-                cbin(:) =  get_bin(rc)
-                if (any(cbin .gt. (/size(mass_flux,1), & 
-                                    size(mass_flux,2), & 
-                                    size(mass_flux,3) /))) cycle
-                if (any(cbin .le. 1)) cycle
+!        call get_crossings(ri1, ri2, 2, rcy, crossings)
+!        if (crossings) then
+!            do i =1,size(rcy,2)
+!                rci = (/ rcy(1,i), rcy(2,i)+eps, rcy(3,i) /)
+!                cbin(:) =  get_bin(rci)
+!                if (any(cbin .gt. (/size(mass_flux,1), & 
+!                                    size(mass_flux,2), & 
+!                                    size(mass_flux,3) /))) cycle
+!                if (any(cbin .le. 1)) cycle
 
 
-                if (cbin(1) .eq. 127 .and. &
-                    cbin(2) .eq. 2 .and. &
-                    cbin(3) .eq. 2) print'(a,i5,9f10.5,3i5)', "ycross", i, ri1, ri2, rcy(:, i), cbin(:)
+!                if (cbin(1) .eq. 127 .and. &
+!                    cbin(2) .eq. 2 .and. &
+!                    cbin(3) .eq. 2) print'(a,i5,9f10.5,3i5)', "ycross", i, ri1, ri2, rcy(:, i), cbin(:)
 
-			    !Add Mass flux over face
-                crossdir  = sign(1.d0, ri1(2)-ri2(2))
-                !if (cbin(2) .gt. 1) then
-                !    mass_flux(cbin(1),cbin(2),cbin(3),2) = & 
-                !        mass_flux(cbin(1),cbin(2),cbin(3),2) + crossdir*mass(n)
-                !    mass_flux(cbin(1),cbin(2)-1,cbin(3),5) = & 
-                !        mass_flux(cbin(1),cbin(2)-1,cbin(3),5) + crossdir*mass(n)
-                !else if (cbin(2) .eq. 1) then
-                    mass_flux(cbin(1),cbin(2),cbin(3),2) = & 
-                        mass_flux(cbin(1),cbin(2),cbin(3),2) + crossdir*mass(n)
-                !endif
+!			    !Add Mass flux over face
+!                crossdir  = sign(1.d0, ri1(2)-ri2(2))
+!                !if (cbin(2) .gt. 1) then
+!                !    mass_flux(cbin(1),cbin(2),cbin(3),2) = & 
+!                !        mass_flux(cbin(1),cbin(2),cbin(3),2) + crossdir*mass(n)
+!                !    mass_flux(cbin(1),cbin(2)-1,cbin(3),5) = & 
+!                !        mass_flux(cbin(1),cbin(2)-1,cbin(3),5) + crossdir*mass(n)
+!                !else if (cbin(2) .eq. 1) then
+!                    mass_flux(cbin(1),cbin(2),cbin(3),2) = & 
+!                        mass_flux(cbin(1),cbin(2),cbin(3),2) + crossdir*mass(n)
+!                !endif
 
-                mass_flux(cbin(1),cbin(2)-1,cbin(3),5) = mass_flux(cbin(1),cbin(2),cbin(3),2)
-            enddo
-        endif
+!                mass_flux(cbin(1),cbin(2)-1,cbin(3),5) = mass_flux(cbin(1),cbin(2),cbin(3),2)
+!            enddo
+!        endif
 
-        call get_crossings(ri1, ri2, 3, rcz, crossings)
-        if (crossings) then
-            do i =1,size(rcz,2)
-                rc = (/ rcz(1,i), rcz(2,i), rcz(3,i)+eps /)
-                cbin(:) =  get_bin(rc)
-                if (any(cbin .gt. (/size(mass_flux,1), & 
-                                    size(mass_flux,2), & 
-                                    size(mass_flux,3) /))) cycle
-                if (any(cbin .le. 1)) cycle
+!        call get_crossings(ri1, ri2, 3, rcz, crossings)
+!        if (crossings) then
+!            do i =1,size(rcz,2)
+!                rci = (/ rcz(1,i), rcz(2,i), rcz(3,i)+eps /)
+!                cbin(:) =  get_bin(rci)
+!                if (any(cbin .gt. (/size(mass_flux,1), & 
+!                                    size(mass_flux,2), & 
+!                                    size(mass_flux,3) /))) cycle
+!                if (any(cbin .le. 1)) cycle
 
 
-                if (cbin(1) .eq. 127 .and. &
-                    cbin(2) .eq. 2 .and. &
-                    cbin(3) .eq. 2) print'(a,i5,9f10.5,3i5)', "zcross", i, ri1, ri2, rcz(:, i), cbin(:)
+!                if (cbin(1) .eq. 127 .and. &
+!                    cbin(2) .eq. 2 .and. &
+!                    cbin(3) .eq. 2) print'(a,i5,9f10.5,3i5)', "zcross", i, ri1, ri2, rcz(:, i), cbin(:)
 
-			    !Add Mass flux over face
-                crossdir  = sign(1.d0, ri1(3)-ri2(3))
-                !if (cbin(3) .gt. 1) then
-                !    mass_flux(cbin(1),cbin(2),cbin(3),3) = & 
-                !        mass_flux(cbin(1),cbin(2),cbin(3),3) + crossdir*mass(n)
-                !    mass_flux(cbin(1),cbin(2),cbin(3)-1,6) = & 
-                !        mass_flux(cbin(1),cbin(2),cbin(3)-1,6) + crossdir*mass(n)
-                !else if (cbin(3) .eq. 1) then
-                    mass_flux(cbin(1),cbin(2),cbin(3),3) = & 
-                        mass_flux(cbin(1),cbin(2),cbin(3),3) + crossdir*mass(n)
-                !endif
+!			    !Add Mass flux over face
+!                crossdir  = sign(1.d0, ri1(3)-ri2(3))
+!                !if (cbin(3) .gt. 1) then
+!                !    mass_flux(cbin(1),cbin(2),cbin(3),3) = & 
+!                !        mass_flux(cbin(1),cbin(2),cbin(3),3) + crossdir*mass(n)
+!                !    mass_flux(cbin(1),cbin(2),cbin(3)-1,6) = & 
+!                !        mass_flux(cbin(1),cbin(2),cbin(3)-1,6) + crossdir*mass(n)
+!                !else if (cbin(3) .eq. 1) then
+!                    mass_flux(cbin(1),cbin(2),cbin(3),3) = & 
+!                        mass_flux(cbin(1),cbin(2),cbin(3),3) + crossdir*mass(n)
+!                !endif
 
-                mass_flux(cbin(1),cbin(2),cbin(3)-1,6) = mass_flux(cbin(1),cbin(2),cbin(3),3)
-            enddo
-        endif
-            
+!                mass_flux(cbin(1),cbin(2),cbin(3)-1,6) = mass_flux(cbin(1),cbin(2),cbin(3),3)
+!            enddo
+!        endif
+!            
 	enddo
 
 end subroutine cumulative_mass_flux_opt
