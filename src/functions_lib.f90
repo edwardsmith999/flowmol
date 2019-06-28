@@ -986,6 +986,21 @@ module intrinsic_module
 
     double precision, parameter :: pi=3.141592653589793d0
 
+    type :: intrinsic_surface_mock
+
+        integer      :: normal, ixyz, jxyz
+        integer, dimension(2)  :: modes_shape
+        double precision  :: alpha, eps
+        double precision, dimension(3) :: box
+
+	    contains
+		    procedure :: initialise  => initialise_mock
+		    procedure :: update_surface => update_surface_mock
+		    procedure :: get_surface => get_surface_mock
+
+    end type intrinsic_surface_mock
+
+
     type :: intrinsic_surface_complex
 
         integer      :: normal, ixyz, jxyz
@@ -1012,13 +1027,15 @@ module intrinsic_module
 
         double precision  :: alpha, eps, area
         double precision, dimension(3) :: box
-        double precision, dimension(:), allocatable     :: diag, coeff
+        double precision, dimension(:), allocatable     :: diag, coeff, coeff_mdt
         double precision, dimension(:,:), allocatable   :: diag_matrix
 
 	    contains
 		    procedure :: initialise  => initialise
 		    procedure :: update_surface => update_real_surface
 		    procedure :: get_surface => get_real_surface
+		    procedure :: get_surface_derivative => get_real_surface_derivative
+            procedure :: get_bin => get_bin_from_surface
 !		    procedure :: sample_surface => sample_intrinsic_surface
 
     end type intrinsic_surface_real
@@ -1073,6 +1090,81 @@ function wave_function(x, u, Lx)
 
 end function wave_function
 
+
+function derivative_wave_function(x, u, Lx)
+    implicit none
+
+    integer,intent(in) :: u
+    real(kind(0.d0)),intent(in) :: Lx
+    real(kind(0.d0)),intent(in),dimension(:) :: x
+
+    real(kind(0.d0)),dimension(size(x))    :: derivative_wave_function
+    integer :: i
+
+    do i =1,size(x,1)
+        if (u .ge. 0) then
+            derivative_wave_function(i) = - (2.d0 * pi * u / Lx) & 
+                                        *sin(2.d0 * pi * u * x(i) / Lx)
+        else
+            derivative_wave_function(i)=   (2.d0 * pi * abs(u) / Lx) & 
+                                       *cos(2.d0 * pi * abs(u) * x(i) / Lx)
+        endif
+    enddo
+
+end function derivative_wave_function
+
+
+subroutine initialise_mock(self, box, normal, alpha, eps)
+    implicit none
+
+	class(intrinsic_surface_mock) :: self
+
+    integer, intent(in)         :: normal
+    double precision, intent(in) :: alpha, eps
+    double precision, intent(in), dimension(3) :: box
+
+    integer :: i, j
+
+    self%normal = normal
+    self%box = box
+    self%alpha = alpha
+    self%eps = eps
+    self%ixyz = mod(normal,3)+1
+    self%jxyz = mod(normal+1,3)+1
+
+end subroutine initialise_mock
+
+
+subroutine update_surface_mock(self, points)
+    implicit none
+
+	class(intrinsic_surface_mock) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+
+end subroutine update_surface_mock
+
+
+
+
+subroutine get_surface_mock(self, points, elevation)
+    use computational_constants_MD, only : nhb
+    use calculated_properties_MD, only : binsize
+    implicit none
+
+	class(intrinsic_surface_mock) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(out), dimension(:), allocatable :: elevation
+
+    allocate(elevation(size(points,1)))
+    elevation = 0.d0
+   ! elevation(:) = (i-1*nhb(n))*binsize(n)-0.5d0*self%box(n)
+
+end subroutine get_surface_mock
+
+
+
 subroutine initialise(self, box, normal, alpha, eps)
     implicit none
 
@@ -1103,8 +1195,8 @@ subroutine initialise(self, box, normal, alpha, eps)
 
     allocate(self%diag(self%n_waves2))
     self%diag = check_uv(self%u, self%v) & 
-                 * (  self%u**2 * box(2) / box(1) & 
-                    + self%v**2 * box(1) / box(2))
+                 * (  self%u**2 * box(self%jxyz) / box(self%ixyz) & 
+                    + self%v**2 * box(self%ixyz) / box(self%jxyz))
     allocate(self%diag_matrix(size(self%diag,1),size(self%diag,1)))
     self%diag_matrix = 0.d0
     do i=1,size(self%diag,1)
@@ -1137,6 +1229,10 @@ subroutine update_real_surface(self, points)
     allocate(A(self%n_waves2, self%n_waves2))
     allocate(b(self%n_waves2))
     allocate(fuv(size(points,1), self%n_waves2))
+
+    !Save Previous solution
+    !if (.not. allocated(self%coeff_mdt)) allocate(self%coeff_mdt)
+    !self%coeff_mdt = self%coeff
 
     A = 0.d0
     b = 0.d0
@@ -1193,7 +1289,6 @@ subroutine get_real_surface(self, points, elevation, qu)
     do ui = -qu_, qu_
     do vi = -qu_, qu_
         j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
-        !print*, u,v,j
         elevation(:) = elevation(:) + self%coeff(j) & 
                      * wave_function(points(:,self%ixyz), ui, self%box(self%ixyz)) & 
                      * wave_function(points(:,self%jxyz), vi, self%box(self%jxyz)) 
@@ -1201,6 +1296,117 @@ subroutine get_real_surface(self, points, elevation, qu)
     enddo
 
 end subroutine get_real_surface
+
+subroutine get_real_surface_derivative(self, points, dSdr, qu)
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(in), optional ::  qu
+    double precision, intent(out), dimension(:,:), allocatable :: dSdr
+
+    integer :: j, ui, vi, qu_
+
+    if (present(qu)) then
+        qu_ = qu
+    else
+        qu_ = self%qm
+    endif
+
+    allocate(dSdr(size(points,1),2))
+    dSdr = 0.d0
+    do ui = -qu_, qu_
+    do vi = -qu_, qu_
+        j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
+        dSdr(:,1) = dSdr(:,1) + self%coeff(j) & 
+                   * derivative_wave_function(points(:,self%ixyz), ui, & 
+                                              self%box(self%ixyz)) & 
+                   * wave_function(points(:,self%jxyz), vi, & 
+                                   self%box(self%jxyz)) 
+        dSdr(:,2) = dSdr(:,2) + self%coeff(j) & 
+                  * wave_function(points(:,self%ixyz), ui, & 
+                                  self%box(self%ixyz)) & 
+                  * derivative_wave_function(points(:,self%jxyz), vi, & 
+                                             self%box(self%jxyz))
+    enddo
+    enddo
+
+end subroutine get_real_surface_derivative
+
+
+!A version getting the explicit location from the intrinsic surface
+!function get_bin_from_surface(self, r, binsize, nbins, nhb) result(bin)
+function get_bin_from_surface(self, r, binsize) result(bin)
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    real(kind(0.d0)),intent(in),dimension(3) :: r, binsize
+    integer,dimension(3) 					 :: bin
+
+    integer :: n, i, j
+    real(kind(0.d0)), dimension(3) :: halfdomain
+    real(kind(0.d0)), allocatable, dimension(:) :: elevation
+    real(kind(0.d0)), allocatable, dimension(:,:) :: points
+
+    allocate(points(1,3))
+    points(1,:) = r(:)
+    call self%get_surface(points, elevation)
+
+    halfdomain = 0.5*self%box
+    n = self%normal; i=self%ixyz; j=self%jxyz
+    bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1))/binsize(n))!+nhb(n)
+    bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))!+nhb(i)
+    bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))!+nhb(j)
+
+!	if (bin(n) > nbins(n)+nhb(n)) then
+!        bin(n) = nbins(n)+nhb(n)
+!    elseif (bin(n) < 1 ) then
+!        bin(n) = 1   
+!    endif
+
+end function get_bin_from_surface
+
+!subroutine get_real_surface_derivative(self, points, dir, dSdr, qu)
+!    implicit none
+
+!	class(intrinsic_surface_real) :: self
+
+!    integer, intent(in) :: dir
+!    double precision, intent(in), dimension(:,:), allocatable ::  points
+!    double precision, intent(in), optional ::  qu
+!    double precision, intent(out), dimension(:), allocatable :: dSdr
+
+!    integer :: j, ui, vi, qu_
+
+!    if (present(qu)) then
+!        qu_ = qu
+!    else
+!        qu_ = self%qm
+!    endif
+
+!    allocate(dSdr(size(points,1)))
+!    dSdr = 0.d0
+!    do ui = -qu_, qu_
+!    do vi = -qu_, qu_
+!        j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
+
+!        if (dir .eq. self%ixyz) then
+!            dSdr(:) = dSdr(:) + self%coeff(j) & 
+!                      * derivative_wave_function(points(:,self%ixyz), ui, self%box(self%ixyz)) & 
+!                      * wave_function(points(:,self%jxyz), vi, self%box(self%jxyz)) 
+!        elseif (dir .eq. self%jxyz) then
+!            dSdr(:) = dSdr(:) + self%coeff(j) & 
+!                      * wave_function(points(:,self%ixyz), ui, self%box(self%ixyz)) & 
+!                      * derivative_wave_function(points(:,self%jxyz), vi, self%box(self%jxyz))
+!        else 
+!            stop "Error in get_surface_derivative - normal direction requested"
+!        endif
+!    enddo
+!    enddo
+
+!end subroutine get_real_surface_derivative
 
 
 subroutine meshgrid2D(x, y, xgrid, ygrid)

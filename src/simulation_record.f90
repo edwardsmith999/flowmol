@@ -67,7 +67,7 @@ module module_record
 	use arrays_MD
 	use calculated_properties_MD
 	use polymer_info_MD
-    use intrinsic_module, only : intrinsic_surface_real
+    use intrinsic_module, only : intrinsic_surface_real, intrinsic_surface_mock
 
 #if __INTEL_COMPILER > 1200
     use boundary_MD, only: bforce_pdf_measure
@@ -76,7 +76,8 @@ module module_record
 #endif
 	real(kind(0.d0)) :: vel
     integer :: qm, qu
-	type(intrinsic_surface_real)		:: ISR	! declare an instance
+	type(intrinsic_surface_real)		:: ISR, ISR_mdt	! declare an instance
+	type(intrinsic_surface_mock)		:: ISR_m	! declare an instance
 	!real(kind(0.d0)), dimension(:,:,:), allocatable :: q_vectors
 	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: Abilinear
 
@@ -214,7 +215,7 @@ contains
         !bin(2) = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
         !bin(3) = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
 
-        bin = bin_from_integer_division(r)
+        !bin = bin_from_integer_division(r)
 
         !if (bin(1) .lt. 300 .or. bin(1) .gt. 400) return
 
@@ -226,21 +227,30 @@ contains
         !box = (/globaldomain(2), globaldomain(3), globaldomain(1)/)
         call ISR%get_surface(points, elevation)
 
+        bin(1) = ceiling((r(1)+halfdomain(1)-elevation(1))/binsize(1))+nhb(1)
+        bin(2) = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
+        bin(3) = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
+
         !Add a shift by half a bin here to put in centre (otherwise on edge and switches between)
         !bin(1) = ceiling(((r(1)-elevation(1)+0.5*binsize(1))+halfdomain(1))/binsize(1))+nhb(1)
 
         !If we shift bin after, then can skip points further away from surface
-        binshift = ceiling(elevation(1)/binsize(1))
-        bin(1) = bin(1) - binshift
+        !binshift = ceiling(elevation(1)/binsize(1))
+        !bin(1) = bin(1) - binshift
+
+!        print*, 'get bins', bin(1), (r(1)+halfdomain(1)-elevation(1))/binsize(1)+nhb(1), &
+!                 elevation(1), r(1), (bin(1)-1-nhb(1))*binsize(1)-halfdomain(1), &
+!                (bin(1)-1-nhb(1))*binsize(1)+elevation(1)-halfdomain(1)
 
         !Prevents out of range values
-        do ixyz=1,3
-    		if (bin(ixyz) > nbins(ixyz)+nhb(ixyz)) then
-                bin(ixyz) = nbins(ixyz)+nhb(ixyz)
-            elseif (bin(ixyz) < 1 ) then
-                bin(ixyz) = 1   
-            endif
-        enddo
+        !do ixyz=1,3
+        ixyz = 1
+		if (bin(ixyz) > nbins(ixyz)+nhb(ixyz)) then
+            bin(ixyz) = nbins(ixyz)+nhb(ixyz)
+        elseif (bin(ixyz) < 1 ) then
+            bin(ixyz) = 1   
+        endif
+        !enddo
 
     end function bin_from_full_intrinsic
 
@@ -257,17 +267,22 @@ contains
 
         integer :: ixyz
 
-        bin = bin_from_integer_division(r(:,n))
-        bin(1) = bin(1) - intnscshift(n)
+        bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n))/binsize(1))+nhb(1)
+        bin(2) = ceiling((r(2,n)+halfdomain(2))/binsize(2))+nhb(2)
+        bin(3) = ceiling((r(3,n)+halfdomain(3))/binsize(3))+nhb(3)
+
+        !bin = bin_from_integer_division(r(:,n))
+        !bin(1) = bin(1) - intnscshift(n)
 
         !Prevents out of range values
-        do ixyz=1,3
-    		if (bin(ixyz) > nbins(ixyz)+nhb(ixyz)) then
-                bin(ixyz) = nbins(ixyz)+nhb(ixyz)
-            elseif (bin(ixyz) < 1 ) then
-                bin(ixyz) = 1   
-            endif
-        enddo
+        !do ixyz=1,3
+        ixyz = 1
+		if (bin(ixyz) > nbins(ixyz)+nhb(ixyz)) then
+            bin(ixyz) = nbins(ixyz)+nhb(ixyz)
+        elseif (bin(ixyz) < 1 ) then
+            bin(ixyz) = 1   
+        endif
+        !enddo
 
     end function bin_molno_from_full_intrinsic
 
@@ -375,7 +390,7 @@ contains
 
     end subroutine get_crossings
 
-    subroutine get_crossings_bilinear(r1, r2, bin1, bin2, n, rc, crossings)
+    subroutine get_crossings_bilinear(r1, r2, bin1, bin2, n, rc, crossings, cbins)
         use computational_constants_MD, only : halfdomain, nhb
         use calculated_properties_MD, only : binsize
         use bilnear_intersect, only : line_plane_intersect
@@ -386,13 +401,17 @@ contains
         real(kind(0.d0)),intent(in),dimension(3) :: r1, r2
         
         logical, intent(out)                    :: crossings
+        integer,intent(out), optional, dimension(:), allocatable :: cbins
         real(kind(0.d0)),intent(out),dimension(:,:), allocatable :: rc
 
-        integer                 :: t1, t2, i, j, k, jb, kb, ixyz, maxbin, minbin, minTbin, maxTbin
+        integer                 :: t1, t2, i, j, k, jb, kb, ixyz
+        integer                 :: maxbin, minbin, minTbin, maxTbin
         real(kind(0.d0))        :: pt, r12(3)
 
         integer :: flag
-        real(kind(0.d0)) :: ysb, yst, zsb, zst
+        integer, dimension(:), allocatable :: cbinstemp
+
+        real(kind(0.d0)) :: yrb, yrt, zrb, zrt
         real(kind(0.d0)) :: y(2,2), z(2,2), P(2,2,3), A(2,2)
         real(kind(0.d0)), dimension(:), allocatable :: elevation, yt, yb, zt, zb
         real(kind(0.d0)),dimension(3,2)  :: intersect, normal
@@ -413,66 +432,109 @@ contains
 	        r12   = r2 - r1  !Molecule i trajectory between t-dt and t
 	        where (r12 .eq. 0.d0) r12 = 0.000001d0
 
-            !Factor of two as can be maximum of two per surface
+            !Get distance between molecules
+            yrb = min(r1(t1), r2(t1))
+            yrt = max(r1(t1), r2(t1))
+            zrb = min(r1(t2), r2(t2))
+            zrt = max(r1(t2), r2(t2))
+
             allocate(points(4,2))
             allocate(elevation(4))
+            !Factor of two as can be maximum of two per surface
             allocate(temp(3, 2*sum(abs(bin1-bin2))))
-            j = 1
+            if (present(cbins)) allocate(cbinstemp(abs(bin1(n)-bin2(n))))
             do i = minbin, maxbin-1
 
-                !Check all intermediate bins in y and z
-                minTbin = min(bin1(t1), bin2(t1))
-                maxTbin = max(bin1(t1), bin2(t1))
-                allocate(yb(maxTbin-minTbin+1))
-                allocate(yt(maxTbin-minTbin+1))
-                j = 1
-                do jb = minTbin, maxTbin
-                    yb(j) = (jb-nhb(t1)-1)*binsize(t1)-0.5d0*ISR%box(t1)
-                    yt(j) = (jb-nhb(t1)  )*binsize(t1)-0.5d0*ISR%box(t1)
-!                    if (i .eq. 120) then
-!                        print*, "jcross", bin1, bin2, minTbin, maxTbin, jb, yb(j), yt(j)
-!                    endif
-                    j = j + 1
-                enddo
+                !Use either distance between molecules or binside
+                !to create a bilinear patch
+                if (binsize(t1) .gt. yrt-yrb) then 
+                    allocate(yb(1), yt(1))
+                    yb(1) = yrb
+                    yt(1) = yrt
+                else
+                    !Check all intermediate bins in y and z
+                    minTbin = min(bin1(t1), bin2(t1))
+                    maxTbin = max(bin1(t1), bin2(t1))
+                    allocate(yb(maxTbin-minTbin+1))
+                    allocate(yt(maxTbin-minTbin+1))
+                    j = 1
+                    do jb = minTbin, maxTbin
+                        yb(j) = (jb-nhb(t1)-1)*binsize(t1)-0.5d0*ISR%box(t1)
+                        yt(j) = (jb-nhb(t1)  )*binsize(t1)-0.5d0*ISR%box(t1)
+                        j = j + 1
+                    enddo
+                endif
 
-                minTbin = min(bin1(t2), bin2(t2))
-                maxTbin = max(bin1(t2), bin2(t2))
-                allocate(zb(maxTbin-minTbin+1))
-                allocate(zt(maxTbin-minTbin+1))
-                j = 1
-                do kb = minTbin, maxTbin
-                    zb(j) = (kb-nhb(t2)-1)*binsize(t2)-0.5d0*ISR%box(t2)
-                    zt(j) = (kb-nhb(t2)  )*binsize(t2)-0.5d0*ISR%box(t2)
-!                    if (i .eq. 120) then
-!                        print*, "kcross", bin1, bin2, minTbin, maxTbin, kb, zb(j), zt(j)
-!                    endif
-                    j = j + 1
-                enddo
+                !Use either distance between molecules or binside
+                !to create a bilinear patch
+                if (binsize(t2) .gt. zrt-zrb) then 
+                    allocate(zb(1), zt(1))
+                    zb(1) = zrb
+                    zt(1) = zrt
+                else
+                    minTbin = min(bin1(t2), bin2(t2))
+                    maxTbin = max(bin1(t2), bin2(t2))
+                    allocate(zb(maxTbin-minTbin+1))
+                    allocate(zt(maxTbin-minTbin+1))
+                    j = 1
+                    do kb = minTbin, maxTbin
+                        zb(j) = (kb-nhb(t2)-1)*binsize(t2)-0.5d0*ISR%box(t2)
+                        zt(j) = (kb-nhb(t2)  )*binsize(t2)-0.5d0*ISR%box(t2)
+                        j = j + 1
+                    enddo
+                endif
 
                 j = 1
                 do jb = 1, size(yb,1)
                 do kb = 1, size(zb,1)
+
+                    !DEBUG DEBUG DEBUG DEBUG DEBUG 
+!                    points(1,1) = r1(2); points(1,2) = r1(3)
+!                    points(2,1) = r2(2); points(2,2) = r2(3)
+!                    points(3,1) = r1(2); points(3,2) = r1(3)
+!                    points(4,1) = r2(2); points(4,2) = r2(3)
+                    !DEBUG DEBUG DEBUG DEBUG DEBUG 
 
                     points(1,1) = yb(jb); points(1,2) = zb(kb)
                     points(2,1) = yb(jb); points(2,2) = zt(kb) 
                     points(3,1) = yt(jb); points(3,2) = zb(kb) 
                     points(4,1) = yt(jb); points(4,2) = zt(kb) 
 
-                    !This will be bilinear version I think so consistent
-                    !call ISR%get_surface(points, elevation)
-                    !Debug, set to flat surface
-                    elevation(:) = (i-1*nhb(n))*binsize(n)-0.5d0*ISR%box(n)
+                    !Get surface in x as a function of y and z
+                    elevation = 0.d0
+                    call ISR%get_surface(points, elevation)
+
+                    !print*, bin1, bin2, min(r1(2), r2(2)), max(r1(2), r2(2)), &
+                    !                    min(r1(3), r2(3)), max(r1(3), r2(3)), points
+                    !print*, "cross bilinear", i, r1(:), elevation(1), r2(:)
+
+!                    print*, i, bin1, bin2, r1(1), elevation(1), & 
+!                            elevation(:)+(i-1*nhb(n))*binsize(n)-0.5d0*ISR%box(3), & 
+!                            ceiling(elevation(1)/binsize(1)),r2(1)
+
+!                    bin = ceiling((r+halfdomain)/binsize)+nhb
+!                    binshift = ceiling(elevation(1)/binsize(1))
+!                    bin(1) = bin(1) - binshift
+
+                    !Shift by current bin
+                    elevation(:) = elevation(:) + (i-1*nhb(n))*binsize(n)-0.5d0*ISR%box(ISR%normal)
+
+                    !Get a patch of P values to use in bilinear patch - line calculation
                     P(:,:,1) = reshape(elevation, (/2,2/))
                     P(:,:,2) = reshape(points(:,1), (/2,2/))
                     P(:,:,3) = reshape(points(:,2), (/2,2/))
+
+                    !print*, i, p(1,1,:), P(1,2,:), P(2,1,:), p(2,2,:), r1(:), r12(:)
+
                     call line_plane_intersect(r1, r12, P, intersect, normal, flag)
 
-                    !print*, i, r1, elevation(1), r2!, yb, yt, zb, zt, intersect
+                    !print*, i, r1(1), elevation(1), r2(1), bin1(1)-nhb(1)!, yb, yt, zb, zt, intersect
                     !Loop over intersects and add to temp
                     do ixyz=1,size(intersect,2)
                         !if (size(intersect,2) .ne. 1) print*, ixyz, i, jb, kb, j, temp(:,j-1), r1, intersect
                         if (all(abs(intersect(:,ixyz)+666) .gt. 1e-7)) then
                             temp(:,j) = intersect(:,ixyz)
+                            if (present(cbins)) cbinstemp(j) = i
                             j = j + 1
                         endif
                     enddo
@@ -486,10 +548,13 @@ contains
                 enddo
             enddo
             !Copy array of intersects to rc
-            
             if (j .gt. 1) then
                 allocate(rc(3, j-1))
                 rc = temp(:,1:j-1)
+                if (present(cbins)) then
+                    allocate(cbins(j-1))
+                    cbins = cbinstemp(j-1)
+                endif
             else
                 print*, j, temp(:,j)
                 stop "Error get_crossings_bilinear - interactions must be missed"
@@ -4163,6 +4228,8 @@ subroutine mass_snapshot
 	!Reset Control Volume momentum 
 	volume_mass_temp = 0
 	do n = 1,np
+
+        !if (all(get_bin_molno(n) .ne. get_bin(r(:,n)))) stop "Error in mass snapshot"
 		!Add up current volume momentum densities
 		ibin(:) = get_bin_molno(n)
 		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
@@ -5988,7 +6055,7 @@ contains
                                fit_intrinsic_surface_modes!fit_intrinsic_surface_return_modes, sample_intrinsic_surface, &
                                !get_new_fileunit, get_Timestep_FileName, real_surface_from_modes
         use calculated_properties_MD, only : nbins, binsize
-        use module_record, only : Abilinear, ISR
+        use module_record, only : Abilinear, ISR, ISR_mdt
         use interfaces, only : error_abort
         implicit none
 
@@ -5996,7 +6063,7 @@ contains
         integer, intent(in)                :: min_ngbr
         double precision, intent(in)       :: rd
 
-        logical                         :: first_time=.true.
+        logical,save                    :: first_time=.true., first_time_coeff=.true.
         character(32)                   :: filename, debug_outfile
         integer                         :: n,i,j,ixyz, jxyz,resolution,fittype,normal, clustNo, bins(3)
         integer, dimension(:), allocatable :: pivots
@@ -6004,7 +6071,8 @@ contains
         double precision, dimension(3)  :: bintop, binbot, box !Used in CV
         double precision,dimension(6)   :: extents
         double precision,dimension(4)   :: ptin, pbin
-        double precision,dimension(:),allocatable :: x,y,z,f,pt,pb, elevation, coeff
+        double precision,dimension(:),allocatable :: x,y,z,f,pt,pb, elevation
+        double precision,dimension(:),allocatable,save :: coeffmdt
         double precision,dimension(:,:),allocatable :: rnp, extents_grid
         double precision,dimension(:,:),allocatable, save :: points
         double precision,dimension(:,:,:),allocatable :: vertices
@@ -6039,6 +6107,7 @@ contains
 
             if (first_time) then
                 call ISR%initialise(box, normal, alpha, eps)   ! initialise
+                call ISR_mdt%initialise(box, normal, alpha, eps)   ! initialise
                 first_time = .false.
             endif
 
@@ -6064,8 +6133,36 @@ contains
 
                 if (intrinsic_interface_outflag .eq. 1) then
 
+                    !Copy previous object before updating
+                    if (.not. first_time_coeff) then
+                        ISR_mdt%coeff = ISR%coeff 
+                    endif
+
+                    !Fit intrinsic surface to next timestep
                     call fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
-    
+
+                    print*, "DEBUG in get_cluster_properties, setting coeff to zero"
+                    print*, "coeff    ", maxval(abs(ISR%coeff(1:310))), maxval(abs(ISR%coeff(315:)))
+                    if (.not. first_time_coeff) then
+                        print*, "coeff mdt", maxval(abs(ISR_mdt%coeff(1:310))), maxval(abs(ISR_mdt%coeff(315:)))
+                    endif
+
+                    if (first_time_coeff) then
+                        allocate(coeffmdt(size(ISR%coeff,1)))
+                        coeffmdt(:) = ISR%coeff(:)
+                        first_time_coeff = .false.
+                        print*, "coeffmdt", maxval(abs(coeffmdt(1:310))), maxval(abs(coeffmdt(315:)))
+                    endif
+!                    else
+!                        ISR%coeff=coeffmdt
+!                    endif
+                    !ISR%coeff = 0.d0
+                    !ISR%coeff(313)=0.d0  !shift from sin(0) mode
+                    !ISR%coeff(312)=0.4d0 !sin (2*pi/Lx)
+                    !ISR%coeff(314)=0.1d0 !sin (2*pi/Lx)
+                    ISR%coeff(:)=coeffmdt(:)  !Set to fixed initial value
+                    print*, "DEBUG in get_cluster_properties, setting coeff to zero"
+
                     !Get shift for intrinsic surface for each molecule
                     deallocate(points)
                     allocate(points(np, nd))
@@ -6075,7 +6172,8 @@ contains
                     call ISR%get_surface(points, elevation)
                     !call real_surface_from_modes(points, box, normal, qm, qu, coeff, elevation)
                     !call surface_from_modes(points, 3, q_vectors, modes, elevation)
-                    intnscshift(1:np) = ceiling(elevation(1:np)/binsize(1))
+                    !intnscshift(1:np) = ceiling(elevation(1:np)/binsize(1))
+                    intnscshift(1:np) = elevation(1:np)
 
 !                    area = 0.d0 ! box(2)*box(3)
 !                    do i =1,size(q_vectors,2)
@@ -6203,6 +6301,119 @@ contains
 
 
     end subroutine get_cluster_properties
+
+
+
+
+    subroutine get_intrinsic_clustCV_out(ISRb, ISRt, bintop, binbot, &
+                                         clustCV_out, nvals, &
+                                         cnsvtype, write_debug)
+        use physical_constants_MD, only : np, halo_np
+        use computational_constants_MD, only : iter, delta_t
+        use librarymod, only : get_Timestep_FileName, get_new_fileunit
+        use arrays_MD, only : r, v, a
+        use module_set_parameters, only : mass, potenergymol
+        use intrinsic_module, only : intrinsic_surface_real
+        implicit none
+
+        logical, intent(in)                              :: write_debug
+        integer, intent(in)                              :: nvals, cnsvtype
+        double precision, dimension(3),intent(in)        :: bintop, binbot
+    	type(intrinsic_surface_real), intent(in)	     :: ISRb, ISRt
+        double precision, dimension(nvals), intent(out)  :: clustCV_out
+
+        integer                            :: n, pid
+        integer, parameter                 :: ct_mass=1, ct_momentum=2, ct_energy=3
+        character(33)                      :: filename, debug_outfile
+        double precision                   :: energy, theta_i
+        double precision, dimension(3)     :: ri, velvect
+        double precision, dimension(nvals) :: clustCV, qnty
+
+        !Save previous timestep clustCV and reset
+        clustCV = 0.d0
+
+        !Plot all molecules inside the liquid cluster control volume
+        if (write_debug) then
+            debug_outfile = './results/CV_mols'
+            pid = get_new_fileunit()
+            call get_Timestep_FileName(iter,debug_outfile,filename)
+            open(unit=pid,file=trim(filename),status='replace')
+        endif
+
+        !Loop over all molecules and halos
+        do n =1,np+halo_np
+
+            ri(:) = r(:,n)
+            if (cnsvtype .eq. ct_mass) then
+                qnty = mass(n)
+            elseif (cnsvtype .eq. ct_momentum) then
+                qnty = v(:,n)
+            elseif (cnsvtype .eq. ct_energy) then
+		        velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
+		        energy = 0.5d0 * ( mass(n)*dot_product(velvect,velvect) + potenergymol(n))
+                qnty = energy
+            endif
+
+            call CV_intrinsic_cluster(ISRb, ISRt, bintop, binbot, ri, theta_i)
+            clustCV = clustCV + qnty * theta_i
+
+            if (write_debug) then
+                if (theta_i .eq. 1.d0) then
+                    write(pid,'(i10,6f18.9)') n, ri, 0.d0, 0.d0, 0.d0
+                else
+                    write(pid,'(i10,6f18.9)') n, 0.d0, 0.d0, 0.d0, ri
+                endif
+            endif
+
+        enddo
+        if (write_debug) then
+            close(pid,status='keep')
+        endif
+
+        clustCV_out = clustCV
+
+    end subroutine get_intrinsic_clustCV_out
+
+
+! A control volume with two intrinsic surfaces in the x directions
+! and flat surfaces in the y and z directions
+subroutine CV_intrinsic_cluster(ISRb, ISRt, bintop, binbot, ri, theta_i)
+    use librarymod, only : heaviside  =>  heaviside_a1
+    use intrinsic_module, only : intrinsic_surface_real
+    implicit none
+
+    double precision, dimension(3), intent(in)  :: ri
+    double precision, dimension(3), intent(in)  :: bintop, binbot
+	type(intrinsic_surface_real), intent(in)	:: ISRb, ISRt
+    double precision, intent(out)               :: theta_i
+
+    double precision, dimension(3)              :: top, bot
+    double precision,dimension(:),allocatable   :: surfb, surft
+    double precision,dimension(:,:),allocatable :: points
+
+    !Left/Right cluster based surfaces in x {xsurf = f(yi)}
+    top = bintop; bot = binbot
+
+    allocate(points(1, 3))
+    points(1,1) = ri(2)
+    points(1,2) = ri(3)
+    points(1,3) = ri(1)
+    call ISRb%get_surface(points, surfb)
+    call ISRt%get_surface(points, surft)
+
+    !Use bintop and binbot to contain cell shift 
+    bot(1) = bot(1) + surfb(1)
+    top(1) = top(1) + surft(1)
+
+    !Use CV function
+    theta_i = dble(( heaviside(top(1)-ri(1))   & 
+                    -heaviside(bot(1)-ri(1)))* & 
+               	   ( heaviside(top(2)-ri(2))   &
+                    -heaviside(bot(2)-ri(2)))* & 
+              	   ( heaviside(top(3)-ri(3))   & 
+                    -heaviside(bot(3)-ri(3))))
+
+end subroutine CV_intrinsic_cluster
 
 
 
@@ -6672,7 +6883,6 @@ contains
     end subroutine CV_cluster
 
     ! Add up surface crossings for cubic surfaces and flat surfaces
-
     subroutine get_all_surface_crossings(pt, pb, bintop, binbot, & 
                                          surfacecross_out, nvals, & 
                                          cnsvtype, write_debug)
@@ -8805,14 +9015,23 @@ subroutine cumulative_mass_flux_opt!(quantity, fluxes)
     logical, save                   :: first_time=.true.
 
 
-    logical                         :: crossings
+    logical                         :: crossings, use_bilinear
 	integer							:: jxyz,i,j,k,n,normal
 	integer		,dimension(3)		:: bin1,bin2,cbin,bs
-	real(kind(0.d0)),parameter		:: eps = 1e-9
+	real(kind(0.d0)),parameter		:: eps = 1e-12
 	real(kind(0.d0))        		:: crossdir
 	real(kind(0.d0)),dimension(3)	:: ri1,ri2,ri12, rci
 
-    real(kind(0.d0)),dimension(:,:), allocatable :: rc, rcx, rcy, rcz
+    integer, dimension(:), allocatable :: cbins
+    real(kind(0.d0)),dimension(:,:),allocatable :: points
+    real(kind(0.d0)),dimension(:,:), allocatable :: rc, rcx, rcy, rcz, dSdr
+
+    if (cluster_analysis_outflag .eq. 1 .and.  & 
+        any(intrinsic_interface_outflag .eq. (/1,2/))) then
+        use_bilinear = .true.
+    else
+        use_bilinear = .false.
+    endif
 
 	do n = 1,np
 
@@ -8822,29 +9041,55 @@ subroutine cumulative_mass_flux_opt!(quantity, fluxes)
         bin2 = get_bin(ri2)
 
         do normal=1,3
-            if (normal .eq. 1) then
+            if (normal .eq. 1 .and. use_bilinear) then
                 ! DEBUG DEBUG DEBUG DEBUG
-                if (first_time) then
-                    call ISR%initialise((/globaldomain(1), & 
-                                          globaldomain(2), & 
-                                          globaldomain(3)/), 1, 0.5d0, 0.00000001d0)
-                    first_time = .false.
-                endif
+!                if (first_time) then
+!                    call ISR_m%initialise((/globaldomain(1), & 
+!                                            globaldomain(2), & 
+!                                            globaldomain(3)/), 1, 0.5d0, 0.00000001d0)
+!                    first_time = .false.
+!                endif
                 ! DEBUG DEBUG DEBUG DEBUG
 
-                call get_crossings_bilinear(ri1, ri2, bin1, bin2, normal, rc, crossings)
+                call get_crossings_bilinear(ri1, ri2, bin1, bin2, normal, rc, crossings, cbins)
             else 
                 call get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings)
             endif
             if (crossings) then
                 bs = 0
                 bs(normal) = 1
-                !print'(a,i9,8i5,9f10.5)', "Ncrossings ", iter, normal, bin1, bin2, size(rc,2), ri1, rc(:,1), ri2
+
+	            ri12   = ri1 - ri2		        !Molecule i trajectory between t-dt and t
+	            where (ri12 .eq. 0.d0) ri12 = 0.000001d0
+
+                if (allocated(points)) deallocate(points)
+                allocate(points(size(rc,2), nd))
+                points(:,1) = rc(2,:)
+                points(:,2) = rc(3,:)
+                points(:,3) = rc(1,:)
+                call ISR%get_surface_derivative(points, dSdr)
+
+                !print'(a,i9,10i5,9f10.5)', "Ncrossings ", iter, nhb(1), bin1, cbin, bin2, ri1(:), rc(:,1), ri2(:)
                 !print'(a,i9,8i5,12f10.5)', "Ncrossings ", iter, normal, bin1, bin2, size(rc,2), ri1, rc(:,1), rc(:,2), ri2
                 do i =1,size(rc,2)
                     rci = rc(:,i)
                     rci(normal) = rci(normal) + eps 
                     cbin(:) =  get_bin(rci)
+
+                    if (normal .eq. 1) then
+                        cbin(normal) = cbins(1)+1
+                        crossdir = sign(1.d0,(ri12(1) - ri12(2)*dSdr(i,1) - ri12(3)*dSdr(i,2)))
+                        !print*, "Ncrossings ", iter, crossdir, cbins(:), bin1, cbin, bin2, ri1(:), rc(:,1), ri2(:)
+!                        if (.not. allocated(cbins)) stop "Not allocated"
+!                        if (cbin(normal) .ne. cbins(1)+1) then
+!                            print*, "Ncrossings ", iter, cbins(:), bin1, cbin, bin2, ri1(:), rc(:,1), ri2(:)
+!                        endif
+                    else
+                        crossdir  = sign(1.d0, ri12(normal))
+                    endif
+
+                    !print'(a,i9,10i5,9f10.5)', "Ncrossings ", iter, cbins(1), bin1, cbin, bin2, ri1(:), rc(:,1), ri2(:)
+                    !cbin(1) = cbin(1) + 1
                     !if (any(cbin .gt. (/size(mass_flux,1), & 
                     !                    size(mass_flux,2), & 
                     !                    size(mass_flux,3) /))) cycle
@@ -8853,7 +9098,13 @@ subroutine cumulative_mass_flux_opt!(quantity, fluxes)
 	                !Add Mass flux over face
                     !       1) xbinbot, 2) ybinbot, 3) zbinbot
                     !       4) xbintop, 5) ybintop, 6) zbintop
-                    crossdir  = sign(1.d0, ri1(normal)-ri2(normal))
+!                    if (sign(1.d0, ri12(normal)) .ne. crossdir) then
+!                        print*, "surface cross", iter, crossdir, cbin, dSdr(i,:), & 
+!                             ri12(1), ri12(2)*dSdr(i,1), ri12(3)*dSdr(i,2)
+!                        !stop
+!                    endif
+                    !crossdir  = sign(1.d0, ri12(normal))
+                    !crossdir  = sign(1.d0, ri1(normal)-ri2(normal))
                     mass_flux(cbin(1),cbin(2),cbin(3),normal) = & 
                         mass_flux(cbin(1),cbin(2),cbin(3),normal) + crossdir*mass(n)
                     mass_flux(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),normal+3) = & 

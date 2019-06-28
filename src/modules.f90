@@ -336,8 +336,7 @@ module arrays_MD
 	integer,          dimension(:),   allocatable, target	:: & 
         tag,     &   !Mol tags
         moltype, &   !Type used for interactions
-        glob_no, &   !Global molecular number
-        intnscshift  !Intrinsic surface binshift
+        glob_no      !Global molecular number
 
 	integer, 	  	  dimension(:,:), allocatable, target	:: fix  !Fixed molecules
 	real(kind(0.d0)), dimension(:),   allocatable, target 	:: &
@@ -346,7 +345,9 @@ module arrays_MD
 		potenergymol_POLY,	&		!FENE Potential energy of each molecule
 		potenergymol_mdt,	&		!Potential energy of each molecule at previous timestep
 		virialmol,			&		!Virial of each molecule
-		recvbuffer
+		recvbuffer,         &       !buffer of recieved data
+        intnscshift                 !Intrinsic surface binshift
+
 	real(kind(0.d0)), dimension(:,:),   allocatable			:: &
 		rtrue, 		&      			!Positions with no period BC
 		vtrue,      &               !Corresponding velocities
