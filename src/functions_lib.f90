@@ -1036,7 +1036,7 @@ module intrinsic_module
 		    procedure :: get_surface => get_real_surface
 		    procedure :: get_surface_derivative => get_real_surface_derivative
             procedure :: get_bin => get_bin_from_surface
-!		    procedure :: sample_surface => sample_intrinsic_surface
+		    procedure :: sample_surface => sample_intrinsic_surface
 
     end type intrinsic_surface_real
 
@@ -1148,8 +1148,6 @@ end subroutine update_surface_mock
 
 
 subroutine get_surface_mock(self, points, elevation)
-    use computational_constants_MD, only : nhb
-    use calculated_properties_MD, only : binsize
     implicit none
 
 	class(intrinsic_surface_mock) :: self
@@ -1159,7 +1157,6 @@ subroutine get_surface_mock(self, points, elevation)
 
     allocate(elevation(size(points,1)))
     elevation = 0.d0
-   ! elevation(:) = (i-1*nhb(n))*binsize(n)-0.5d0*self%box(n)
 
 end subroutine get_surface_mock
 
@@ -1323,7 +1320,7 @@ subroutine get_real_surface_derivative(self, points, dSdr, qu)
                    * derivative_wave_function(points(:,self%ixyz), ui, & 
                                               self%box(self%ixyz)) & 
                    * wave_function(points(:,self%jxyz), vi, & 
-                                   self%box(self%jxyz)) 
+                                   self%box(self%jxyz))
         dSdr(:,2) = dSdr(:,2) + self%coeff(j) & 
                   * wave_function(points(:,self%ixyz), ui, & 
                                   self%box(self%ixyz)) & 
@@ -1336,7 +1333,6 @@ end subroutine get_real_surface_derivative
 
 
 !A version getting the explicit location from the intrinsic surface
-!function get_bin_from_surface(self, r, binsize, nbins, nhb) result(bin)
 function get_bin_from_surface(self, r, binsize) result(bin)
     implicit none
 
@@ -1355,10 +1351,18 @@ function get_bin_from_surface(self, r, binsize) result(bin)
     call self%get_surface(points, elevation)
 
     halfdomain = 0.5*self%box
-    n = self%normal; i=self%ixyz; j=self%jxyz
+    n=self%normal
+    i=self%ixyz
+    j=self%jxyz
     bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1))/binsize(n))!+nhb(n)
     bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))!+nhb(i)
     bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))!+nhb(j)
+
+!    bin(1) = ceiling((r(1)+halfdomain(1)-elevation(1))/binsize(1))+nhb(1)
+!    bin(2) = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
+!    bin(3) = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
+
+    !print*, bin(n), (r(n)+halfdomain(n)-elevation(1))/binsize(n)
 
 !	if (bin(n) > nbins(n)+nhb(n)) then
 !        bin(n) = nbins(n)+nhb(n)
@@ -1623,24 +1627,25 @@ end subroutine get_surface
 
 
 
-!subroutine sample_intrinsic_surface(self, nbins, vertices, writeiter)
-!    implicit none
+subroutine sample_intrinsic_surface(self, nbins, vertices)!, writeiter)
+    !use librarymod, only : get_new_fileunit, get_Timestep_FileName
+    implicit none
 
-!	class(intrinsic_surface) :: self
+	class(intrinsic_surface_real) :: self
 
-!    integer,intent(in),dimension(3) :: nbins
+    integer,intent(in),dimension(3) :: nbins
 
-!    real(kind(0.d0)), dimension(:,:,:),intent(out), allocatable :: vertices
+    real(kind(0.d0)), dimension(:,:,:),intent(out), allocatable :: vertices
 !    integer, intent(in), optional :: writeiter
 
 
-!    logical          :: debug=.true., writeobj=.false.
-!    logical, save    :: first_time = .true.
-!    integer          :: i, j, k, n, v, ixyz, jxyz, fileno, qm, qu
-!    real(kind(0.d0)) :: ysb, yst, zsb, zst, binsize(2), area
-!    real(kind(0.d0)), dimension(:), allocatable :: elevation
-!    real(kind(0.d0)), dimension(:,:), allocatable :: points
-!    character(200) :: outfile_t, filename
+    logical          :: debug=.true., writeobj=.false.
+    logical, save    :: first_time = .true.
+    integer          :: i, j, k, n, v, ixyz, jxyz, fileno, qm, qu
+    real(kind(0.d0)) :: ysb, yst, zsb, zst, binsize(2), area
+    real(kind(0.d0)), dimension(:), allocatable :: elevation
+    real(kind(0.d0)), dimension(:,:), allocatable :: points
+    character(200) :: outfile_t, filename
 
 !    if (present(writeiter)) then      
 !        writeobj = .true.
@@ -1648,11 +1653,11 @@ end subroutine get_surface
 !        writeobj = .false.
 !    endif
 
-!    binsize(1) = self%box(self%ixyz)/dble(nbins(self%ixyz))
-!    binsize(2) = self%box(self%jxyz)/dble(nbins(self%jxyz))
+    binsize(1) = self%box(self%ixyz)/dble(nbins(self%ixyz))
+    binsize(2) = self%box(self%jxyz)/dble(nbins(self%jxyz))
 
-!    allocate(points(4,2))
-!    allocate(vertices(nbins(self%ixyz)*nbins(self%jxyz),4,3))
+    allocate(points(4,2))
+    allocate(vertices(nbins(self%ixyz)*nbins(self%jxyz),4,3))
 
 !    if (writeobj) then
 !        fileno = get_new_fileunit() 
@@ -1661,26 +1666,26 @@ end subroutine get_surface
 !        open(fileno, file=trim(filename))
 !    endif
 
-!    n = 1; v = 1
-!    do j = 1,nbins(self%ixyz)
-!    do k = 1,nbins(self%jxyz)
-!        ysb = float(j-1)*binsize(1)-0.5d0*self%box(self%ixyz)
-!        yst = float(j  )*binsize(1)-0.5d0*self%box(self%ixyz)
-!        zsb = float(k-1)*binsize(2)-0.5d0*self%box(self%jxyz)
-!        zst = float(k  )*binsize(2)-0.5d0*self%box(self%jxyz)
+    n = 1; v = 1
+    do j = 1,nbins(self%ixyz)
+    do k = 1,nbins(self%jxyz)
+        ysb = float(j-1)*binsize(1)-0.5d0*self%box(self%ixyz)
+        yst = float(j  )*binsize(1)-0.5d0*self%box(self%ixyz)
+        zsb = float(k-1)*binsize(2)-0.5d0*self%box(self%jxyz)
+        zst = float(k  )*binsize(2)-0.5d0*self%box(self%jxyz)
 
-!        points(1,1) = ysb; points(1,2) = zsb !Bottom left
-!        points(2,1) = yst; points(2,2) = zsb !Bottom right
-!        points(3,1) = ysb; points(3,2) = zst !Top left
-!        points(4,1) = yst; points(4,2) = zst !Top right
+        points(1,1) = ysb; points(1,2) = zsb !Bottom left
+        points(2,1) = yst; points(2,2) = zsb !Bottom right
+        points(3,1) = ysb; points(3,2) = zst !Top left
+        points(4,1) = yst; points(4,2) = zst !Top right
 
-!        call self%get_surface(points, elevation)
-!        !call surface_from_modes(points, 3, q_vectors, modes, elevation)
-!        do i =1, 4
-!            vertices(v,i,:) = (/ points(i,1), points(i,2), elevation(i) /)
-!            !print*, i, j, k, v, vertices(v,i,:)
-!        enddo
-!       
+        call self%get_surface(points, elevation)
+        !call surface_from_modes(points, 3, q_vectors, modes, elevation)
+        do i = 1, 4
+            vertices(v,i,:) = (/ points(i,1), points(i,2), elevation(i) /)
+            !print*, i, j, k, v, vertices(v,i,:)
+        enddo
+       
 !        !Write to wavefunction obj format
 !        if (writeobj) then
 !            !Needs to be clockwise!
@@ -1690,14 +1695,14 @@ end subroutine get_surface
 !            write(fileno,'(a1, 4i8)') "f", n, n+1, n+3, n+2
 !            n = n + 4
 !        endif
-!        v = v + 1
+        v = v + 1
 
-!    enddo
-!    enddo
+    enddo
+    enddo
 
-!    if (writeobj) close(fileno)
+    !if (writeobj) close(fileno)
 
-!end subroutine sample_intrinsic_surface
+end subroutine sample_intrinsic_surface
 
 !subroutine write_waveobj(vertices, writeiter)
 !    implicit none

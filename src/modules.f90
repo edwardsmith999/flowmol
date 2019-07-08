@@ -723,6 +723,7 @@ module calculated_properties_MD
 	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: volume_mass_pdt		!Mass in a control volume at time t - dt
 	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: dmdt				!Mass change in control volume from t-dt to t
 	real(kind(0.d0)),dimension(:,:,:,:), allocatable :: mass_flux  			!Flow of mass over a control volume surface
+	real(kind(0.d0)),dimension(:,:,:,:), allocatable :: mass_surface_flux   !Mass change due to surface movement
 	real(kind(0.d0)),dimension(:,:,:,:), allocatable :: surface_density  	!Mass located on a control volume surface
 
 	real(kind(0.d0)) :: 	&
