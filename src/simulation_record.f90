@@ -219,9 +219,9 @@ contains
         !if (bin(1) .lt. 300 .or. bin(1) .gt. 400) return
 
         allocate(points(1,3))
-        points(1,1) = r(2)
-        points(1,2) = r(3)
-        points(1,3) = r(1)
+        points(1,1) = r(1)
+        points(1,2) = r(2)
+        points(1,3) = r(3)
         !call surface_from_modes(points, 3, q_vectors, coeff, elevation)
         !box = (/globaldomain(2), globaldomain(3), globaldomain(1)/)
         call ISR%get_surface(points, elevation)
@@ -576,8 +576,11 @@ contains
             crossings = .true.
 
             !Tangents
-            t1 = mod(n,3)+1
-            t2 = mod(n+1,3)+1
+            if (ISR_mdt%normal .ne. n) stop "Error in get_crossings_bilinear, normal not consistent with surface"
+            if (ISR_mdt%ixyz .ne. mod(n,3)+1) stop "Error in get_crossings_bilinear, normal not consistent with surface"
+            if (ISR_mdt%jxyz .ne. mod(n+1,3)+1) stop "Error in get_crossings_bilinear, normal not consistent with surface"
+            t1 = ISR_mdt%ixyz !mod(n,3)+1
+            t2 = ISR_mdt%jxyz !mod(n+1,3)+1
 
             minbin = min(bin1(n), bin2(n))
             maxbin = max(bin1(n), bin2(n))
@@ -585,13 +588,14 @@ contains
 	        r12   = r2 - r1  !Molecule i trajectory between t-dt and t
 	        where (abs(r12) .lt. 0.000001d0) r12 = 0.000001d0
 
-            !Get distance between molecules
+            !Get positions of molecules which
+            !describe a bounding box
             yrb = min(r1(t1), r2(t1))
             yrt = max(r1(t1), r2(t1))
             zrb = min(r1(t2), r2(t2))
             zrt = max(r1(t2), r2(t2))
 
-            allocate(points(4,2))
+            allocate(points(4,3))
             allocate(elevation(4))
             !Factor of two as can be maximum of two per surface
             allocate(temp(3, 2*sum(abs(bin1-bin2))))
@@ -614,8 +618,8 @@ contains
                     allocate(yt(maxTbin-minTbin+1))
                     j = 1
                     do jb = minTbin, maxTbin
-                        yb(j) = (jb-nhb(t1)-1)*binsize(t1)-0.5d0*ISR%box(t1)
-                        yt(j) = (jb-nhb(t1)  )*binsize(t1)-0.5d0*ISR%box(t1)
+                        yb(j) = (jb-nhb(t1)-1)*binsize(t1)-0.5d0*ISR_mdt%box(t1)
+                        yt(j) = (jb-nhb(t1)  )*binsize(t1)-0.5d0*ISR_mdt%box(t1)
                         j = j + 1
                     enddo
                 endif
@@ -633,8 +637,8 @@ contains
                     allocate(zt(maxTbin-minTbin+1))
                     j = 1
                     do kb = minTbin, maxTbin
-                        zb(j) = (kb-nhb(t2)-1)*binsize(t2)-0.5d0*ISR%box(t2)
-                        zt(j) = (kb-nhb(t2)  )*binsize(t2)-0.5d0*ISR%box(t2)
+                        zb(j) = (kb-nhb(t2)-1)*binsize(t2)-0.5d0*ISR_mdt%box(t2)
+                        zt(j) = (kb-nhb(t2)  )*binsize(t2)-0.5d0*ISR_mdt%box(t2)
                         j = j + 1
                     enddo
                 endif
@@ -643,45 +647,38 @@ contains
                 do jb = 1, size(yb,1)
                 do kb = 1, size(zb,1)
 
-                    !DEBUG DEBUG DEBUG DEBUG DEBUG 
-!                    points(1,1) = r1(2); points(1,2) = r1(3)
-!                    points(2,1) = r2(2); points(2,2) = r2(3)
-!                    points(3,1) = r1(2); points(3,2) = r1(3)
-!                    points(4,1) = r2(2); points(4,2) = r2(3)
-                    !DEBUG DEBUG DEBUG DEBUG DEBUG 
-
-                    points(1,1) = yb(jb); points(1,2) = zb(kb)
-                    points(2,1) = yb(jb); points(2,2) = zt(kb) 
-                    points(3,1) = yt(jb); points(3,2) = zb(kb) 
-                    points(4,1) = yt(jb); points(4,2) = zt(kb) 
+                    points(:,n) = 0.d0 !Not used
+                    points(1,t1) = yb(jb); points(1,t2) = zb(kb)
+                    points(2,t1) = yb(jb); points(2,t2) = zt(kb) 
+                    points(3,t1) = yt(jb); points(3,t2) = zb(kb) 
+                    points(4,t1) = yt(jb); points(4,t2) = zt(kb) 
 
                     !Get surface in x as a function of y and z
                     elevation = 0.d0
-                    call ISR%get_surface(points, elevation)
-
-                    !print*, bin1, bin2, min(r1(2), r2(2)), max(r1(2), r2(2)), &
-                    !                    min(r1(3), r2(3)), max(r1(3), r2(3)), points
-                    !print*, "cross bilinear", i, r1(:), elevation(1), r2(:)
-
-!                    print*, i, bin1, bin2, r1(1), elevation(1), & 
-!                            elevation(:)+(i-1*nhb(n))*binsize(n)-0.5d0*ISR%box(3), & 
-!                            ceiling(elevation(1)/binsize(1)),r2(1)
-
-!                    bin = ceiling((r+halfdomain)/binsize)+nhb
-!                    binshift = ceiling(elevation(1)/binsize(1))
-!                    bin(1) = bin(1) - binshift
+                    call ISR_mdt%get_surface(points, elevation)
 
                     !Shift by current bin
-                    elevation(:) = elevation(:) + (i-1*nhb(n))*binsize(n)-0.5d0*ISR%box(ISR%normal)
+                    elevation(:) = elevation(:) + (i-1*nhb(n))*binsize(n)-0.5d0*ISR_mdt%box(ISR_mdt%normal)
+                    points(:,n) = elevation(:)  !Not necessarily used but for completeness
 
                     !Get a patch of P values to use in bilinear patch - line calculation
-                    P(:,:,1) = reshape(elevation, (/2,2/))
-                    P(:,:,2) = reshape(points(:,1), (/2,2/))
-                    P(:,:,3) = reshape(points(:,2), (/2,2/))
+                    P(:,:,1) = reshape(points(:,n ), (/2,2/))
+                    P(:,:,2) = reshape(points(:,t1), (/2,2/))
+                    P(:,:,3) = reshape(points(:,t2), (/2,2/))
 
                     !print*, i, p(1,1,:), P(1,2,:), P(2,1,:), p(2,2,:), r1(:), r12(:)
-
-                    call line_plane_intersect(r1, r12, P, intersect, normal, flag)
+                    !Special case of flat surface causes problems
+                    if (P(1,1,1) .eq. P(2,1,1) .and. &
+                        P(2,1,1) .eq. P(1,2,1) .and. &
+                        P(1,2,1) .eq. P(2,2,1)) then
+                        intersect = -666
+	                    intersect(1,1) = P(1,1,1)
+                        intersect(2,1) = r1(t1)+(r12(t1)/r12(n))*(intersect(1,1)-r1(n))            
+                        intersect(3,1) = r1(t2)+(r12(t2)/r12(n))*(intersect(1,1)-r1(n))
+                        flag = 1
+                    else
+                        call line_plane_intersect(r1, r12, P, intersect, normal, flag)
+                    endif
 
                     !print*, i, r1(1), elevation(1), r2(1), bin1(1)-nhb(1)!, yb, yt, zb, zt, intersect
                     !Loop over intersects and add to temp
@@ -4271,6 +4268,7 @@ subroutine mass_flux_averaging(flag)
             !     "call CVcheck_mass%check_error( ... "   
             !     with 
             !     "check_error_mass(CVcheck_mass, ... "
+            print*, 1+nhb(1)+skipbinsbot(1),nbins(1)+nhb(1)-skipbinstop(1), skipbinstop(1)
             call check_error_mass(CVcheck_mass, &
                                   1+nhb(1)+skipbinsbot(1),nbins(1)+nhb(1)-skipbinstop(1), & 
 								  1+nhb(2)+skipbinsbot(2),nbins(2)+nhb(2)-skipbinstop(2), & 
@@ -4369,10 +4367,6 @@ subroutine mass_snapshot()
 	integer										    :: n
 	integer		,dimension(3)					    :: ibin
 	real(kind(0.d0)),dimension(:,:,:)  ,allocatable	:: volume_mass_temp
-	!real(kind(0.d0)),dimension(3)				    :: mbinsize
-
-	!Determine bin size
-	!mbinsize(:) = domain(:) / nbins(:)
 
 	!Allocate temporary array for mass and momentum in volume
 	allocate(volume_mass_temp(nbinso(1),nbinso(2),nbinso(3)))
@@ -4391,9 +4385,10 @@ subroutine mass_snapshot()
 	call mass_bin_io(volume_mass_temp,'snap')
 
 	!Create copy of previous timestep Control Volume mass and calculate time evolution
-!	if (CV_debug .ne. 0) then
-!		call CVcheck_mass%update_dXdt(volume_mass_temp)
-!	endif
+	if (CV_debug .ne. 0) then
+		call CVcheck_mass%update_dXdt(volume_mass_temp)
+		!call CV_sphere_mass%update_dXdt(CV_sphere_mass%Xtemp)
+	endif
 
 	deallocate(volume_mass_temp)
 
@@ -6050,6 +6045,1066 @@ end module module_record_external_forces
 
 
 
+
+module cubic_surface_CV
+
+    contains
+
+
+!========================================================================================================
+!    !CV objects
+!========================================================================================================
+!
+!    type :: CV_object
+!	    integer						 			    :: N_ave, Nvals
+!        integer, parameter                          :: ct_mass=1, ct_momentum=2, ct_energy=3
+!	    real(kind(0.d0))						    :: delta_t
+!        real(kind(0.d0)), dimension(4)              :: pb, pt, pb_mdt, pt_mdt
+!	    real(kind(0.d0)),dimension(:),allocatable	:: dXdt, X, X_mdt, X_oldvol
+!	    real(kind(0.d0)),dimension(:),allocatable	:: dsurf_top, dsurf_bot
+!	    real(kind(0.d0)),dimension(:,:),allocatable :: flux, stress
+!	    contains
+!		    procedure :: initialise    => initialise_CV
+!		    procedure :: update_X      => update_X_CV
+!		    procedure :: update_flux   => update_flux_CV
+!		    procedure :: update_stress => update_stress_CV
+!		    procedure :: update_dXdt   => update_dXdt_CV
+!		    procedure :: update_pbpt   => update_pbpt_CV
+!		    procedure :: conservation  => conservation_CV
+!    end type CV_object
+
+
+!    subroutine initialise_CV(self, pt, pb, bintop, binbot, cnsvtype, write_debug=.false.)
+!        use computational_constants_MD, only : iter
+!        implicit none
+
+!		class(CV_object) :: self
+
+!        integer, intent(in)                           :: cnsvtype
+!        logical, intent(in), optional                 :: write_debug
+!        double precision, dimension(4), intent(in)    :: pt, pb
+!        double precision, dimension(3), intent(in)    :: bintop, binbot
+
+!        integer                                       :: i
+
+!        self%pt = pt; self%pb = pb
+!        self%pt_mdt = pt; self%pb_mdt = pb
+!        self%bintop = bintop
+!        self%binbot = binbot
+!        self%cnsvtype = cnsvtype
+!        self%write_debug = write_debug
+
+!        !Select type of averaging
+!        if (cnsvtype .eq. self%ct_mass) then
+!            self%Nvals = 1
+!        elseif (cnsvtype .eq. self%ct_momentum) then
+!            self%Nvals = 3
+!        elseif (cnsvtype .eq. self%ct_energy) then
+!	        self%Nvals = 1
+!        endif
+
+!        !Select type of averaging
+!        if (cnsvtype .eq. ct_mass) then
+!            Nvals = 1
+!        elseif (cnsvtype .eq. ct_momentum) then
+!            Nvals = 3
+!        elseif (cnsvtype .eq. ct_energy) then
+!	        Nvals = 1
+!        endif
+!        allocate(self%X_oldvol(self%Nvals))
+!        allocate(self%X_mdt(self%Nvals))
+!        allocate(self%dX_dt(self%Nvals))
+!        allocate(self%dsurf_top(self%Nvals))
+!        allocate(self%dsurf_bot(self%Nvals))
+!        allocate(self%X_stress(self%Nvals,6))
+!        allocate(self%X_flux(self%Nvals,6))
+!        allocate(self%X(self%Nvals))
+
+!    end subroutine initialise_CV
+
+!    subroutine update_X_CV()
+!        implicit none
+
+!        ! Get all molecules in single CV for whole cluster
+!        self%X_mdt = self%X
+!        call get_clustCV_out(self%pt, self%pb, self%X, self%nvals, self%cnsvtype, self%write_debug)
+
+!    end subroutine update_X_CV
+
+
+!    subroutine update_ptpb_CV(pt, pb)
+!        implicit none
+
+!        self%pb_mdt = self%pb
+!        self%pt_mdt = self%pt
+!        self%pb = pb; self%pt = pt
+!        
+!        ! Assume molecules are fixed and surface is evolving to work out which molecules 
+!        ! are now outside/inside per surface. This is done here by defining a 
+!        ! CV function based on the volume described as the surface moves from 
+!        ! old position to its new position (Negative values are possible here
+!        ! and count as molecules which have left in the book keeping).
+!        call get_clustCV_out(self%pt, self%pt_mdt, self%dsurf_top, self%nvals, self%cnsvtype, self%write_debug)
+!        call get_clustCV_out(self%pb, self%pb_mdt, self%dsurf_bot, self%nvals, self%cnsvtype, self%write_debug)
+
+!    end subroutine update_ptpb_CV
+
+!    subroutine update_flux()
+!        implicit none
+
+!        ! Get all surface crossings over all CV surfaces
+!        call get_all_surface_crossings(self%pt_mdt, self%pb_mdt,   self%X_cross, & 
+!                                       self%nvals,  self%cnsvtype, self%write_debug)
+
+!    end subroutine update_flux
+
+!    subroutine conservation_CV()
+!        implicit none
+
+!        ! CV time evolution is equal to molecules crossing surface and molecule change
+!        ! due to movement of surface
+!        if (abs(sum(self%dX_dt - sum(self%X_cross,2) - (self%dsurf_top-self%dsurf_bot))) .gt. 1e-8) then
+!            select case (self%cnsvtype)
+!            case(self%ct_mass)
+!                print*, "ERROR IN CV FUNCTION FOR MASS CLUSTER"
+!            case(self%ct_momentum)
+!                print*, "ERROR IN CV FUNCTION FOR MOMENTUM CLUSTER"
+!            case(self%ct_energy)
+!                print*, "ERROR IN CV FUNCTION FOR ENERGY CLUSTER"
+!            case default
+!                stop "ERROR in CLUSTER CV, UNKNOWN cnsvtype TYPE"
+!            end select
+!            !call get_clustCV_out(pt_mdt, pb_mdt, X, nvals, cnsvtype, write_debug=.true.)
+!            !call get_all_surface_crossings(pt_mdt, pb_mdt, X_cross, nvals, cnsvtype, write_debug=.true.)
+!            do i =1,self%nvals
+!                print'(a,2i8,8f13.5)', 'cluster_CV =', iter, i, self%X(i), self%X_cross(i,:), & 
+!                                                       self%X(i)-self%X_mdt(i)
+!                print'(a,2i8,4f10.5)', 'dsurf', iter, i, self%X_oldvol(i)-self%X(i), & 
+!                                    self%dsurf_top(i)-self%dsurf_bot(i), & 
+!                                    self%dsurf_top(i), self%dsurf_bot(i)
+!            enddo
+!            !Calculate new number of molecules in CV for new surfaces
+!            !X_oldvol = X
+!            !call get_clustCV_out(pt, pb, X, nvals, cnsvtype, write_debug=.false.)
+!        else
+!            do i =1,self%nvals
+!                write(586482,'(i12,i4,10f18.8)'), iter,i, self%X(i), self%X(i)-self%X_mdt(i), & 
+!                                                self%X_cross(i,:), -self%dsurf_top(i), self%dsurf_bot(i)
+!            enddo
+!        endif
+
+!    end subroutine conservation_CV
+
+!========================================================================================================
+
+    ! Calculates change of mass in a control volume and flux over surfaces, then checks the balance is exact.
+    ! This is calculated in seperate parts instead of working out the time  
+    ! of crossing of each molecule on a moving surface (which is mathematically required/correct).
+    ! In practice, determining the moving surface/molecule crossing time is complex 
+    ! and would require iteration to find the time of crossing over up to 3 changing surfaces (cubic sides, 
+    ! flat faces and the varying intersection between these two).
+    ! Instead, the assumption here is:
+    ! 1) The surface is fixed and molecule move. 
+    ! 2) The molecules are fixed and the surface moves.
+    ! Time change in mass is then the sum of both of these seperate contributions
+    ! This is assumed to be reasonable as it is not explicitly determined when the surface changes
+    ! or if this time evolution is physically meaningful.
+
+    subroutine cluster_CV_fn(pt, pb, bintop, binbot, cnsvtype)
+        use computational_constants_MD, only : iter, irank, delta_t
+        use librarymod, only : get_new_fileunit, get_Timestep_FileName
+        implicit none
+
+        integer, intent(in)                            :: cnsvtype
+        double precision, dimension(3), intent(in)     :: bintop, binbot
+        double precision, dimension(4), intent(in)     :: pt, pb
+
+        integer                                        :: i, nvals, pid
+        integer, parameter                             :: ct_mass=1, ct_momentum=2, ct_energy=3
+        character(33)                                  :: filename, debug_outfile
+        double precision                               :: conserved
+        double precision,dimension(:),allocatable      :: X_mdt, dX_dt
+        double precision,dimension(:),allocatable      :: X_oldvol, dsurf_top, dsurf_bot 
+        double precision,dimension(:,:),allocatable    :: X_cross, X_stress
+        double precision,dimension(:),allocatable,save :: X, CVcount
+        logical                                        :: first_time=.true.
+        double precision, dimension(4), save           :: pt_mdt, pb_mdt
+
+        !Select type of averaging
+        select case (cnsvtype)
+        case(ct_mass)
+            Nvals = 1
+        case(ct_momentum)
+            Nvals = 3
+        case(ct_energy)
+            Nvals = 1
+        case default
+            stop "ERROR in CLUSTER CV, UNKNOWN cnsvtype TYPE"
+        end select
+
+        allocate(X_oldvol(Nvals))
+        allocate(X_mdt(Nvals))
+        allocate(dX_dt(Nvals))
+        allocate(dsurf_top(Nvals))
+        allocate(dsurf_bot(Nvals))
+        allocate(X_stress(Nvals,6)); X_stress = 0.d0
+        allocate(X_cross(Nvals,6))
+
+        if (first_time .eqv. .true.) then
+            pt_mdt = pt; pb_mdt = pb
+            allocate(X(Nvals))
+            first_time = .false.
+        endif
+
+        ! Get all molecules in single CV for whole cluster
+        X_mdt = X
+        call get_clustCV_out(pt_mdt, pb_mdt, bintop, binbot, &
+                             X, nvals, cnsvtype, write_debug=.false.)
+
+        ! Get all surface crossings over all CV surfaces
+        call get_all_surface_crossings(pt_mdt, pb_mdt, bintop, binbot, &
+                                       X_cross, nvals, cnsvtype, write_debug=.false.)
+
+        ! Get all stresses acting over CV surface
+        if (cnsvtype .eq. ct_momentum) then
+            call get_all_surface_stresses_cells(pt_mdt, pb_mdt, bintop, binbot, &
+                                                X_stress, 3, cnsvtype, write_debug=.false.)
+            X_stress = X_stress * delta_t
+        endif
+
+        !Calculate new number of molecules in CV for new surfaces
+        X_oldvol = X
+        call get_clustCV_out(pt, pb, bintop, binbot, & 
+                             X, nvals, cnsvtype, write_debug=.false.)
+
+        ! Assume molecules are fixed and surface is evolving to work out which molecules 
+        ! are now outside/inside per surface. This is done here by defining a 
+        ! CV function based on the volume described as the surface moves from 
+        ! old position to its new position (Negative values are possible here
+        ! and count as molecules which have left in the book keeping).
+        call get_clustCV_out(pt, pt_mdt, bintop, binbot, &
+                             dsurf_top, nvals, cnsvtype, write_debug=.false.)
+        call get_clustCV_out(pb, pb_mdt, bintop, binbot, &
+                             dsurf_bot, nvals, cnsvtype, write_debug=.false.)
+
+        !Check for error and write out detail
+        dX_dt = X-X_mdt
+
+        ! CV time evolution is equal to molecules crossing surface and molecule change
+        ! due to movement of surface
+        conserved = abs(sum(dX_dt - sum(X_cross,2) - sum(X_stress,2) - (dsurf_top-dsurf_bot)))
+        if (conserved .gt. 1e-8) then
+            select case (cnsvtype)
+            case(ct_mass)
+                print*, "ERROR IN CV FUNCTION FOR MASS CLUSTER"
+                do i =1,nvals
+				    print'(a,i8,2i4,7f11.5)','Error_clustCV_mass', iter,irank, i, & 
+					    conserved, 0.d0, sum(X_cross(i,:)), dX_dt(i), 0.d0, X_mdt(i), X(i)                
+                    print'(a,2i8,4f10.5)', 'dsurf', iter, i, X_oldvol(i)-X(i), & 
+                                        dsurf_top(i)-dsurf_bot(i), dsurf_top(i), dsurf_bot(i)
+                enddo
+            case(ct_momentum)
+                print*, "ERROR IN CV FUNCTION FOR MOMENTUM CLUSTER"
+                do i =1,nvals
+				    print'(a,i8,2i4,8f11.5)','Error_clustCV_mom', iter,irank, i, & 
+					    conserved, sum(X_stress(i,:)), sum(X_cross(i,:)), dX_dt(i), 0.d0, X_mdt(i), X(i)
+				    print'(a,3i8,6f11.5)','clustCV_stresses',iter,irank, i,X_stress(i,:) 
+                    print'(a,2i8,4f10.5)', 'dsurf', iter, i, X_oldvol(i)-X(i), &
+                                        dsurf_top(i)-dsurf_bot(i), dsurf_top(i), dsurf_bot(i)
+                enddo
+            case(ct_energy)
+                print*, "ERROR IN CV FUNCTION FOR ENERGY CLUSTER"
+            case default
+                stop "ERROR in CLUSTER CV, UNKNOWN cnsvtype TYPE"
+            end select
+            !call get_clustCV_out(pt_mdt, pb_mdt, X, nvals, cnsvtype, write_debug=.true.)
+            call get_all_surface_crossings(pt_mdt, pb_mdt, bintop, binbot, &
+                                           X_cross, nvals, cnsvtype, write_debug=.true.)
+
+            call get_all_surface_stresses_cells(pt_mdt, pb_mdt, bintop, binbot, &
+                                                X_stress, 3, cnsvtype, write_debug=.true.)
+
+            !Calculate new number of molecules in CV for new surfaces
+            !X_oldvol = X
+            !call get_clustCV_out(pt, pb, X, nvals, cnsvtype, write_debug=.false.)
+        else
+            do i =1,nvals
+				!print'(a,i8,i4,7f11.5)','clustCV_mass', iter,irank, & 
+				!	conserved, 0.d0, sum(X_cross,2), dX_dt, 0.d0, X_mdt, X
+                write(586482,'(i12,i4,11f18.8)') iter,i, conserved, X(i), dX_dt(i), X_cross(i,:), -dsurf_top(i), dsurf_bot(i)
+            enddo
+        endif
+
+        !===================================
+        !TEMP outputting routine
+        !===================================
+
+        debug_outfile = './results/clust_CV_dXdt'
+        pid = get_new_fileunit()
+        call get_Timestep_FileName(iter,debug_outfile,filename)
+        open(unit=pid,file=trim(filename),status='replace')
+        write(pid,'(i12,6f18.8)') iter, X,X_mdt
+        close(pid,status='keep')
+
+        debug_outfile = './results/clust_CV_stress'
+        pid = get_new_fileunit()
+        call get_Timestep_FileName(iter,debug_outfile,filename)
+        open(unit=pid,file=trim(filename),status='replace')
+        write(pid,'(i12,18f18.8)') iter, X_stress
+        close(pid,status='keep')
+
+        debug_outfile = './results/clust_CV_flux'
+        pid = get_new_fileunit()
+        call get_Timestep_FileName(iter,debug_outfile,filename)
+        open(unit=pid,file=trim(filename),status='replace')
+        write(pid,'(i12,18f18.8)') iter, X_cross
+        close(pid,status='keep')
+
+        debug_outfile = './results/clust_CV_surf'
+        pid = get_new_fileunit()
+        call get_Timestep_FileName(iter,debug_outfile,filename)
+        open(unit=pid,file=trim(filename),status='replace')
+        write(pid,'(i12,6f18.8)') iter, dsurf_top, dsurf_bot
+        close(pid,status='keep')
+
+        !===================================
+        !TEMP outputting routine
+        !===================================
+
+        !Save Control Volume's previous surfaces for next timestep
+        pt_mdt = pt; pb_mdt = pb
+
+    end subroutine cluster_CV_fn
+
+! To get the volume of the CV we need integration under curve
+!    function int_surface_fn(p0, y)
+!        implicit none
+
+!        double precision :: y, int_surface_fn
+!        double precision,dimension(4) :: p0
+
+!        int_surface_fn =  (1.d0/4.d0)*p0(4)*y**4 + (1.d0/3.d0)*p0(3)*y**3 &
+!                        + (1.d0/2.d0)*p0(2)*y**2 + p0(1)*y
+
+!    end function int_surface_fn
+
+!    function surface_fn_volume(pt, pb, yt, yb)
+!        implicit none
+
+!        double precision :: yt, yb
+!        double precision,dimension(4) :: pt, pb
+
+!        volume =  int_surface_fn(pt,yt)-int_surface_fn(pt,yb) &
+!                 +int_surface_fn(pb,yt)-int_surface_fn(pb,yb) 
+
+!    end function surface_fn_volume
+
+    function surface_fn(p0, yi)
+        implicit none
+
+        double precision :: yi, surface_fn
+        double precision,dimension(4) :: p0
+
+        surface_fn = p0(4)*yi**3 + p0(3)*yi**2 + p0(2)*yi + p0(1)
+
+    end function surface_fn
+
+    function dsurface_fndyi(p0, yi)
+        implicit none
+
+        double precision :: yi, dsurface_fndyi
+        double precision,dimension(4) :: p0
+
+        dsurface_fndyi = 3.d0*p0(4)*yi**2 + 2.d0*p0(3)*yi + p0(2)
+
+    end function dsurface_fndyi
+
+
+    subroutine get_clustCV_out(pt, pb, bintop, binbot, &
+                               clustCV_out, nvals, &
+                               cnsvtype, write_debug)
+        use physical_constants_MD, only : np, halo_np
+        use computational_constants_MD, only : iter, delta_t
+        use librarymod, only : get_Timestep_FileName, get_new_fileunit
+        use arrays_MD, only : r, v, a
+        use module_set_parameters, only : mass, potenergymol
+        implicit none
+
+        logical, intent(in)                        :: write_debug
+        integer, intent(in)                        :: nvals, cnsvtype
+        double precision, dimension(3)             :: bintop, binbot
+        double precision, dimension(4), intent(in) :: pt, pb
+        double precision, dimension(nvals), intent(out)  :: clustCV_out
+
+        integer                            :: n, pid
+        integer, parameter                 :: ct_mass=1, ct_momentum=2, ct_energy=3
+        character(33)                      :: filename, debug_outfile
+        double precision                   :: energy, theta_i
+        double precision, dimension(3)     :: ri, velvect
+        double precision, dimension(nvals) :: clustCV, qnty
+
+        !Save previous timestep clustCV and reset
+        clustCV = 0.d0
+
+        !Plot all molecules inside the liquid cluster control volume
+        if (write_debug) then
+            debug_outfile = './results/CV_mols'
+            pid = get_new_fileunit()
+            call get_Timestep_FileName(iter,debug_outfile,filename)
+            open(unit=pid,file=trim(filename),status='replace')
+        endif
+
+        !Loop over all molecules and halos
+        do n =1,np+halo_np
+
+            ri(:) = r(:,n)
+            if (cnsvtype .eq. ct_mass) then
+                qnty = mass(n)
+            elseif (cnsvtype .eq. ct_momentum) then
+                qnty = v(:,n)
+            elseif (cnsvtype .eq. ct_energy) then
+		        velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
+		        energy = 0.5d0 * ( mass(n)*dot_product(velvect,velvect) + potenergymol(n))
+                qnty = energy
+            endif
+
+            call CV_cluster(pt, pb, bintop, binbot, ri, theta_i)
+            clustCV = clustCV + qnty * theta_i
+
+            if (write_debug) then
+                if (theta_i .eq. 1.d0) then
+                    write(pid,'(i10,6f18.9)') n, ri, 0.d0, 0.d0, 0.d0
+                else
+                    write(pid,'(i10,6f18.9)') n, 0.d0, 0.d0, 0.d0, ri
+                endif
+            endif
+
+        enddo
+        if (write_debug) then
+            close(pid,status='keep')
+        endif
+
+        clustCV_out = clustCV
+
+    end subroutine get_clustCV_out
+
+    ! A control volume with two intrinsic surfaces in the x directions
+    ! and flat surfaces in the y and z directions
+    subroutine CV_cluster(pt, pb, bintop, binbot, ri, theta_i)
+        use librarymod, only : heaviside  =>  heaviside_a1
+        implicit none
+
+        double precision, dimension(3), intent(in)  :: ri
+        double precision, dimension(4), intent(in)  :: pt, pb
+        double precision, dimension(3), intent(in)  :: bintop, binbot
+        double precision, intent(out)               :: theta_i
+
+        double precision, dimension(3)              :: top, bot        
+
+        !Left/Right cluster based surfaces in x {xsurf = f(yi)}
+        top = bintop; bot = binbot
+        top(1) = surface_fn(pt, ri(2))
+        bot(1) = surface_fn(pb, ri(2))
+
+        !Use CV function
+        theta_i = dble(( heaviside(top(1)-ri(1))   & 
+                        -heaviside(bot(1)-ri(1)))* & 
+	               	   ( heaviside(top(2)-ri(2))   &
+                        -heaviside(bot(2)-ri(2)))* & 
+	              	   ( heaviside(top(3)-ri(3))   & 
+                        -heaviside(bot(3)-ri(3))))
+
+    end subroutine CV_cluster
+
+    ! Add up surface crossings for cubic surfaces and flat surfaces
+    subroutine get_all_surface_crossings(pt, pb, bintop, binbot, & 
+                                         surfacecross_out, nvals, & 
+                                         cnsvtype, write_debug)
+        use computational_constants_MD, only : iter, delta_t
+        use physical_constants_MD, only : np, halo_np
+        use arrays_MD, only : r, v, a
+        use module_set_parameters, only : mass, potenergymol
+        use librarymod, only : get_Timestep_FileName, get_new_fileunit
+        implicit none
+
+        logical, intent(in)                         :: write_debug
+        integer, intent(in)                         :: nvals, cnsvtype
+        double precision, dimension(3),intent(in)   :: bintop, binbot
+        double precision, dimension(4), intent(in)  :: pt, pb
+        double precision, dimension(nvals,6), intent(out) :: surfacecross_out
+
+        integer                             :: n, pid
+        integer, parameter                  :: ct_mass=1, ct_momentum=2, ct_energy=3
+        character(33)                       :: filename, debug_outfile
+        double precision                    :: energy
+        double precision,dimension(nvals)   :: Ncross, qnty
+        double precision,dimension(3)       :: ri1, ri2, vi, velvect
+        double precision,dimension(nvals,4) :: Ncross4
+        double precision,dimension(nvals,6) :: sc, sc_
+
+        if (write_debug) then
+            debug_outfile = './results/CV_surface_mols'
+            pid = get_new_fileunit()
+            call get_Timestep_FileName(iter,debug_outfile,filename)
+            open(unit=pid,file=trim(filename),status='replace')
+        endif
+
+        !Loop over all molecules and halos
+        sc = 0.d0  
+        do n =1,np+halo_np
+            !Get position and velocity for molecule
+            ri1 = r(:,n);  vi = v(:,n); 
+    	    ri2(:) = ri1(:) - delta_t*vi(:)	!Molecule i at time t-dt
+            if (cnsvtype .eq. ct_mass) then
+                qnty = mass(n)
+            elseif (cnsvtype .eq. ct_momentum) then
+                qnty = v(:,n)
+            elseif (cnsvtype .eq. ct_energy) then
+		        velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
+		        energy = 0.5d0 * ( mass(n)*dot_product(velvect,velvect) + potenergymol(n))
+                qnty = energy
+            endif
+            ! A function with uses position 1, 2 and qnty to update the array sc which
+            ! contains all surface crossings
+            call get_all_surface_crossings_r12(pt, pb, bintop, binbot, &
+                                               ri1, ri2, qnty, nvals, & 
+                                               sc_, write_debug)
+            sc = sc + sc_
+    
+        enddo
+
+        if (write_debug) then
+            if (sum(sc(:,2)+sc(:,3)+sc(:,5)+sc(:,6)) .ne. 0) then
+                print*, 'Total crossing in y and z is not zero = ',  sc
+            endif
+            close(pid,status='keep')
+        endif
+
+        surfacecross_out = sc
+
+    end subroutine get_all_surface_crossings
+
+    ! Add up stresses of all crossings for cubic surfaces and flat surfaces
+
+    subroutine get_all_surface_stresses(pt, pb, bintop, binbot, & 
+                                        surfacecross_out, nvals, & 
+                                        cnsvtype, write_debug)
+        use computational_constants_MD, only : iter, delta_t, pass_vhalo
+        use physical_constants_MD, only : np, halo_np, rcutoff2
+        use arrays_MD, only : r, v, a
+        use module_set_parameters, only : mass, potenergymol, get_accijmag
+        use librarymod, only : get_Timestep_FileName, get_new_fileunit
+        use linked_list, only : neighbour, node
+        implicit none
+
+        logical, intent(in)                         :: write_debug
+        integer, intent(in)                         :: nvals, cnsvtype
+        double precision, dimension(3),intent(in)   :: bintop, binbot
+        double precision, dimension(4), intent(in)  :: pt, pb
+        double precision, dimension(nvals,6), intent(out) :: surfacecross_out
+
+        integer                             :: n, pid
+        integer							    :: molnoi, molnoj
+        integer							    :: noneighbrs
+        type(node), pointer		            :: old, current
+        character(33)                       :: filename, debug_outfile
+        double precision                    :: rij2, invrij2, accijmag 
+        double precision,dimension(3)       :: ri, rj, rij, fij
+        double precision,dimension(nvals,6) :: sc_, sc
+
+        !Loop over all molecules and halos
+        if (pass_vhalo .eq. 0) stop "ERROR in get_all_surface_stresses -- pass_vhalo should be on for CV cluster"
+        sc = 0.d0  
+        do molnoi =1,np
+
+            noneighbrs = neighbour%Nlist(molnoi)	!Determine number of elements in neighbourlist
+		    old => neighbour%head(molnoi)%point			!Set old to head of neighbour list
+		    ri(:) = r(:,molnoi) - delta_t*v(:,molnoi)	!Retrieve ri
+
+            do n = 1,noneighbrs							!Step through all pairs of neighbours molnoi and j
+
+			    molnoj = old%molno						!Number of molecule j
+    		    rj(:) = r(:,molnoj) - delta_t*v(:,molnoj)	!Retrieve rj (note VHALOS MUST BE PASSED!!!)
+    			!rj(:) = r(:,molnoj)						!Retrieve rj
+			    rij(:) = ri(:) - rj(:)   				!Evaluate distance between particle i and j
+			    rij2 = dot_product(rij,rij)				!Square of vector calculated
+
+			    if (rij2 < rcutoff2) then
+				    invrij2  = 1.d0/rij2                !Invert value
+                    accijmag = get_accijmag(invrij2, molnoi, molnoj)
+
+                    ! A function with uses position 1, 2 and qnty to update the array sc which
+                    ! contains all surface crossings
+					if (molnoj .gt. np) then
+    				    fij(:) = accijmag*rij(:)
+                        PRINT*, "THIS USED TO INCLUDE A HALF IN THE NON HALO VALUES BUT THAT WAS ALWAYS WRONG."
+                        PRINT*, "THE DXDT = STRESS OVER CUBIC SURFACES BUT THE OTHER SURFACES DO NOT BALANCE"
+                        PRINT*, "THIS APPEARS TO BE AN ISSUE WITH MOLECULAR INTERACTIONS WHICH CROSS FROM HALOS"
+                        PRINT*, "PERHAPS WE NEED TO LOOP THROUGH HALO MOLECULES TO GET INTERACTIONS WITH HERE"
+                        stop "Error in get_all_surface_stresses -- Change this routine for cell list with all halo molecules"
+                    else
+						fij(:) = accijmag*rij(:)
+                    endif
+                    call get_all_surface_crossings_r12(pt, pb, bintop, binbot, &
+                                                       ri, rj, fij, nvals, sc_, write_debug)
+
+                    sc = sc + sc_
+					!if ((molnoj .gt. np) .and. (any(abs(sc_) .gt. 1e-8))) then
+                    !    print'(l, 2i8,18f10.5)', any(abs(sc) .gt. 1e-8), molnoi, molnoj, sc
+                    !endif
+
+                endif
+			    current => old
+			    old => current%next !Use pointer in datatype to obtain next item in list
+            enddo
+        enddo
+
+    	nullify(old)      		!Nullify as no longer required
+    	nullify(current)      	!Nullify as no longer required
+
+!        if (write_debug) then
+!            if (sum(sc(:,2)+sc(:,3)+sc(:,5)+sc(:,6)) .ne. 0) then
+!                print*, 'Total crossing in y and z is not zero = ',  sc
+!            endif
+!            close(pid,status='keep')
+!        endif
+
+        surfacecross_out = sc
+
+    end subroutine get_all_surface_stresses
+
+
+
+
+    subroutine get_all_surface_stresses_cells(pt, pb, bintop, binbot, & 
+                                              surfacecross_out, nvals, & 
+                                              cnsvtype, write_debug)
+        use computational_constants_MD, only : iter, delta_t, pass_vhalo, & 
+                                               binspercell, ncells
+        use physical_constants_MD, only : np, halo_np, rcutoff2
+        use arrays_MD, only : r, v, a
+        use module_set_parameters, only : get_accijmag
+        use librarymod, only : get_Timestep_FileName, get_new_fileunit
+        use linked_list, only : cell
+        use linked_list, only : node
+        implicit none
+
+        logical, intent(in)                         :: write_debug
+        integer, intent(in)                         :: nvals, cnsvtype
+        double precision, dimension(3),intent(in)   :: bintop, binbot
+        double precision, dimension(4), intent(in)  :: pt, pb
+        double precision, dimension(nvals,6), intent(out) :: surfacecross_out
+
+        integer                             :: n, pid
+        integer							    :: molnoi, molnoj
+	    integer                             :: i, j, ixyz !Define dummy index
+	    integer							    :: icell, jcell, kcell
+	    integer                             :: icellshift, jcellshift, kcellshift
+	    integer                             :: cellnp, adjacentcellnp 
+	    integer 							:: icellmin,jcellmin,kcellmin
+	    integer 							:: icellmax,jcellmax,kcellmax
+        integer, parameter                  :: ct_mass=1, ct_momentum=2, ct_energy=3
+	    type(node), pointer 	            :: oldi, currenti, oldj, currentj
+        character(33)                       :: filename, debug_outfile
+        double precision                    :: rij2, invrij2, accijmag
+        double precision,dimension(nvals)   :: qnty
+        double precision,dimension(3)       :: ri, rj, rij, fij
+        double precision,dimension(nvals,6) :: sc_, sc
+
+	    real(kind(0.d0)),dimension(3)	:: vi_t, cellsperbin
+	    real(kind(0.d0)), dimension(:,:), allocatable :: rF
+	    real(kind(0.d0)), dimension(3,1):: rFv
+
+        if (pass_vhalo .eq. 0) stop "ERROR in get_all_surface_stresses -- pass_vhalo should be on for CV cluster"
+        sc = 0.d0  
+
+	    !Calculate bin to cell ratio
+	    cellsperbin = 1.d0/binspercell !ceiling(ncells(1)/dble(nbins(1)))
+
+        ! Still need to loop over every cell (i.e. get all interactions) if
+        ! bins are bigger than cells
+	    where (cellsperbin .ge. 1.d0) cellsperbin = 1.d0
+
+        icellmin = 1; icellmax = ncells(1) + 2
+        jcellmin = 1; jcellmax = ncells(2) + 2
+        kcellmin = 1; kcellmax = ncells(3) + 2
+
+	    do kcell=kcellmin, kcellmax
+	    do jcell=jcellmin, jcellmax 
+	    do icell=icellmin, icellmax 
+
+		    cellnp = cell%cellnp(icell,jcell,kcell)
+		    oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
+
+		    do i = 1,cellnp					!Step through each particle in list 
+			    molnoi = oldi%molno 	 	!Number of molecule
+	   		    ri(:) = r(:,molnoi) - delta_t*v(:,molnoi)	!Retrieve ri
+			    do kcellshift = -1,1
+			    do jcellshift = -1,1
+			    do icellshift = -1,1
+
+				    !Prevents out of range values in i
+				    if (icell+icellshift .lt. icellmin) cycle
+				    if (icell+icellshift .gt. icellmax) cycle
+				    !Prevents out of range values in j
+				    if (jcell+jcellshift .lt. jcellmin) cycle
+				    if (jcell+jcellshift .gt. jcellmax) cycle
+				    !Prevents out of range values in k
+				    if (kcell+kcellshift .lt. kcellmin) cycle
+				    if (kcell+kcellshift .gt. kcellmax) cycle
+
+				    oldj => cell%head(icell+icellshift,jcell+jcellshift,kcell+kcellshift)%point
+				    adjacentcellnp = cell%cellnp(icell+icellshift,jcell+jcellshift,kcell+kcellshift)
+
+				    do j = 1,adjacentcellnp          !Step through all j for each i
+
+					    molnoj = oldj%molno 	 !Number of molecule
+            		    rj(:) = r(:,molnoj) - delta_t*v(:,molnoj)	!Retrieve rj (note VHALOS MUST BE PASSED!!!)
+
+					    currentj => oldj
+					    oldj => currentj%next    !Use pointer in datatype to obtain next item in list
+
+					    if(molnoi==molnoj) cycle !Check to prevent interaction with self
+
+					    rij2=0                   !Set rij^2 to zero
+					    rij(:) = ri(:) - rj(:)   !Evaluate distance between particle i and j
+					    rij2 = dot_product(rij,rij)	!Square of vector calculated
+
+					    if (rij2 < rcutoff2) then
+				            invrij2  = 1.d0/rij2                !Invert value
+                            accijmag = get_accijmag(invrij2, molnoi, molnoj)
+
+                            ! A function with uses position 1, 2 and qnty to update the array sc which
+                            ! contains all surface crossings
+            			    fij(:) = 0.5d0*accijmag*rij(:)
+                            if (cnsvtype .eq. ct_momentum) then
+                                qnty(:) = fij(:)
+                            elseif (cnsvtype .eq. ct_energy) then
+                                vi_t = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
+                                qnty = dot_product(fij, vi_t)
+                            endif
+                            call get_all_surface_crossings_r12(pt, pb, bintop, binbot, &
+                                                               ri, rj, qnty, nvals, sc_, write_debug)
+
+                            sc = sc + sc_
+					    endif
+				    enddo
+			    enddo
+			    enddo
+			    enddo
+			    currenti => oldi
+			    oldi => currenti%next !Use pointer in datatype to obtain next item in list
+		    enddo
+	    enddo
+	    enddo
+	    enddo
+
+        surfacecross_out = sc
+
+	    nullify(oldi)      	!Nullify as no longer required
+	    nullify(oldj)      	!Nullify as no longer required
+	    nullify(currenti)      	!Nullify as no longer required
+	    nullify(currentj)      	!Nullify as no longer required
+
+    end subroutine get_all_surface_stresses_cells
+
+    subroutine get_all_surface_crossings_r12(pt, pb, bintop, binbot, & 
+                                             ri1, ri2, qnty, nvals, & 
+                                             sc, write_debug)
+        implicit none
+
+        logical, intent(in)                        :: write_debug
+        integer, intent(in)                        :: nvals
+        double precision, dimension(3),intent(in)  :: ri1, ri2
+        double precision, dimension(3),intent(in)  :: bintop, binbot
+        double precision, dimension(4),intent(in)  :: pt, pb
+        double precision, dimension(nvals),intent(in)  :: qnty
+        double precision,dimension(nvals,6),intent(out) :: sc
+
+        double precision, dimension(nvals)   :: Ncross
+        double precision, dimension(nvals,4) :: Ncross4
+
+        !Top cubic surface crossing
+        call get_cubic_surface_crossing(pt, bintop, binbot, &
+                                        ri1, ri2, nvals, qnty, &
+                                        Ncross, write_debug)
+        sc(:,1) = + Ncross(:)
+        !Bottom cubic surface crossing
+        call get_cubic_surface_crossing(pb, bintop, binbot, &
+                                        ri1, ri2, nvals, qnty, &
+                                        Ncross, write_debug)
+        sc(:,4) = - Ncross(:)
+        !periodic boundries and tethered molecule surface crossing
+        !Note sign convention seems wrong here, opposite of curved surfaces...
+        call get_plane_surface_crossing(pt, pb, bintop, binbot, & 
+                                        ri1, ri2, nvals, qnty, &
+                                        Ncross4, write_debug)
+        sc(:,2) = - Ncross4(:,1)
+        sc(:,3) = - Ncross4(:,2)
+        sc(:,5) = + Ncross4(:,3)
+        sc(:,6) = + Ncross4(:,4)
+
+    end subroutine get_all_surface_crossings_r12
+
+    ! Crossings over cubic surface
+
+    subroutine get_cubic_surface_crossing(p0, bintop, binbot, & 
+                                          ri1, ri2, N, qnty, &
+                                          Ncross, write_debug)
+        use computational_constants_MD, only : iter
+        use librarymod, only : heaviside  =>  heaviside_a1
+        use PolynomialRoots, only : QuadraticRoots, LinearRoot, cubicroots, SolvePolynomial
+        implicit none
+
+        integer, intent(in)                        :: N
+        logical, intent(in)                        :: write_debug
+        double precision, dimension(N),intent(in)  :: qnty
+        double precision, dimension(3),intent(in)  :: ri1, ri2
+        double precision, dimension(3),intent(in)  :: bintop, binbot
+        double precision, dimension(4),intent(in)  :: p0
+        double precision, dimension(N),intent(out) :: Ncross
+
+        integer                           :: i, pid, code, crossings
+        double precision, parameter       :: tol=1e-14
+        double precision                  :: dS_i, tcross, m,c,crosssign, dsdy
+        double precision, dimension(4)    :: p0l
+        double precision, dimension(3)    :: vi, ri12, rcross
+        complex(KIND(1.0D0))              :: temp
+        complex(KIND(1.0D0)),dimension(3) :: z
+
+        !reset surface crossing
+        Ncross = 0
+
+        !Get intersection of moving molecule and current surface
+	    ri12   = ri1 - ri2		        !Molecule i trajectory between t-dt and t
+        if (abs(ri12(2)) .gt. tol) then
+            m = ri12(1)/ri12(2)
+        else
+            m = ri12(1)/tol
+        endif
+        c = ri1(1)-ri1(2)*m
+
+        ! Solution of cubic and line:
+        ! p0(4)*x**3 + p0(3)*x**2 + p0(2)*x + p0(1) = (mx + c) 
+        ! p0(4)*x**3 + p0(3)*x**2 + (p0(2)-m)*x + p0(1)-c = 0
+        ! then find roots to determine points of crossing
+        p0l(:) = p0(:)
+        p0l(1) = p0(1) - c
+        p0l(2) = p0(2) - m
+
+        code = 0
+!        call SolvePolynomial(0.d0, p0l(4), p0l(3), p0l(2),p0l(1), &
+!                             code, z(1),z(2),z(3),temp)
+        if (abs(p0l(2)) .lt. tol .and. abs(p0l(3)) .lt. tol .and.  & 
+            abs(p0l(4)) .lt. tol) then
+            !flat (and line is exactly parallel?)
+            z(1) = cmplx(0.d0, 1.d0, kind(1.d0))
+            z(2) = cmplx(0.d0, 1.d0, kind(1.d0))
+            z(3) = cmplx(0.d0, 1.d0, kind(1.d0))
+        elseif (abs(p0l(3)) .lt. tol .and. abs(p0l(4)) .lt. tol) then
+            !Linear
+            z(1) = cmplx(-p0l(1)/p0l(2), 0.d0, kind(1.d0))
+            z(2) = cmplx(0.d0, 1.d0, kind(1.d0))
+            z(3) = cmplx(0.d0, 1.d0, kind(1.d0))
+        elseif (abs(p0l(4)) .lt. tol) then
+            !Quadratic
+            call QuadraticRoots(p0l(1:3), z)
+            z(3) = cmplx(0.d0, 1.d0, kind(1.d0))
+        else
+            !Cubic
+            call CubicRoots(p0l, z)
+        endif
+
+        !Check if any roots are real
+        crossings = 0
+        do i = 1, size(z)
+            if (abs(imag(z(i))) .lt. tol) then
+
+                !Get time of crossing
+                if (abs(ri12(2)) .gt. tol) then
+                    tcross = (ri1(2) - dble(z(i))) / ri12(2)
+                else
+                    tcross = (ri1(2) - dble(z(i))) / tol
+                endif
+                rcross = (/ ri1(1)-ri12(1)*tcross, & 
+                            ri1(2)-ri12(2)*tcross, & 
+                            ri1(3)-ri12(3)*tcross /)
+
+                !Get surface crossing function
+                dS_i = dble((heaviside( tcross )           -heaviside(tcross - 1.d0))* & 
+                            (heaviside(bintop(2)-rcross(2))-heaviside(binbot(2)-rcross(2)))* & 
+                      	    (heaviside(bintop(3)-rcross(3))-heaviside(binbot(3)-rcross(3))))
+
+!                if (iter .eq. 62 .and. i .ge. 2 .and. abs(real(z(i))) .lt. 1.d0) then
+!                    print'(i4, 13f10.5)', iter, z(i), ri1, ri2, dS_i, tcross, rcross
+!                endif
+
+                if (abs(dS_i) .gt. tol) then
+
+                    !Get surface crossing direction
+                    dsdy = dsurface_fndyi(p0, rcross(2))
+                    crosssign = sign(1.d0,(-ri12(1) + ri12(2)*dsdy))
+                    !Get normal and tangent of surface
+                    !norm => x - surface_fn(rcross(2)) = -(1.d0/dsdy)*(y - rcross(2))
+                    !tang => x - surface_fn(rcross(2)) = dsdy * (y - rcross(2))
+                    ! and project qnty (if mom vector only) along normal and tangent 
+                    ! using qnty = (/ dot_product(qnty, (/norm, tang, z/), & 
+                    !                 dot_product(qnty, (/tang, norm, z/))
+                    Ncross(:) = Ncross(:) + qnty(:) * crosssign * dS_i
+                    if (write_debug) then
+                        crossings = crossings + 1
+                        print('(a,3i6,2f6.2,10f10.5)'), 'xing', iter, i, crossings, & 
+                                                         dS_i, crosssign, tcross, & 
+                                                         ri1(:), ri2(:), rcross(:)
+                        !It seems to be possible to get real roots which 
+                        !don't actually give a zero value in the original function!?
+                        if (surface_fn(p0, rcross(2)) .gt. 1e-8) then
+                            print'(a,f15.10,7f12.3)', "root isn't a zero of function", & 
+                                                      surface_fn(p0, rcross(2)), z, tcross
+                            !stop 'ERROR -- root not zero'
+                        endif
+                    endif
+
+                    if (crossings .eq. 3) print'(a,2i4,6f10.5)', 'three roots', iter, i,  ri1(:), ri2(:)
+
+                endif
+
+            endif
+        enddo
+
+    end subroutine get_cubic_surface_crossing
+
+    !crossings for all other flat surfaces
+
+    subroutine get_plane_surface_crossing(pt, pb, bintop, binbot, & 
+                                          ri1, ri2, nvals, qnty, &
+                                          Ncross, write_debug)
+        use computational_constants_MD, only : iter, delta_t
+        use librarymod, only : heaviside  =>  heaviside_a1
+        implicit none
+
+        integer, intent(in)                           :: nvals
+        logical, intent(in)                           :: write_debug
+        double precision, dimension(nvals), intent(in):: qnty
+        double precision, dimension(3),intent(in)     :: ri1, ri2
+        double precision, dimension(3),intent(in)     :: bintop, binbot
+        double precision, dimension(4),intent(in)     :: pt, pb
+        double precision, dimension(nvals,4), intent(out) :: Ncross
+
+        integer                         :: i
+        double precision, dimension(3)  :: ri12, rcross, top, bot
+        double precision, dimension(3)  :: Pxt,Pxb,Pyt,Pyb,Pzt,Pzb
+        real(kind(0.d0))				:: onfacext,onfacexb,onfaceyt,onfaceyb,onfacezt,onfacezb
+        complex(kind(0.d0))             :: z
+        double precision, parameter     :: tol=1e-8
+
+        !Copy to variable to define polynomial surfaces as bintop/binbot intent in 
+        top = bintop; bot = binbot
+
+        !reset surface crossing
+        Ncross = 0.d0
+
+        !Get intersection of moving molecule and plane surfaces
+	    ri12   = ri1 - ri2		        !Molecule i trajectory between t-dt and t
+	    where (abs(ri12) .lt. 0.000001d0) ri12 = 0.000001d0
+
+		Pyt=(/	ri1(1)+(ri12(1)/ri12(2))*(top(2)-ri1(2)), & 
+					top(2), 		     & 
+				ri1(3)+(ri12(3)/ri12(2))*(top(2)-ri1(2))  	/)
+		Pyb=(/	ri1(1)+(ri12(1)/ri12(2))*(bot(2)-ri1(2)), &
+					bot(2), 		     & 
+				ri1(3)+(ri12(3)/ri12(2))*(bot(2)-ri1(2))  	/)
+		Pzt=(/	ri1(1)+(ri12(1)/ri12(3))*(top(3)-ri1(3)), & 
+				ri1(2)+(ri12(2)/ri12(3))*(top(3)-ri1(3)), &
+					top(3) 			/)
+		Pzb=(/	ri1(1)+(ri12(1)/ri12(3))*(bot(3)-ri1(3)), &
+				ri1(2)+(ri12(2)/ri12(3))*(bot(3)-ri1(3)), & 
+					bot(3) 			/)
+
+        !Get x value of top and bottom surfaces
+
+        !Y TOP SURFACE
+        top(1) = surface_fn(pt, Pyt(2))
+        bot(1) = surface_fn(pb, Pyt(2))
+		onfaceyt =0.5d0*(sign(1.d0,top(2) - ri2(2))   &
+				       - sign(1.d0,top(2) - ri1(2)))* &
+						(heaviside(top(1) - Pyt(1))   &
+				       - heaviside(bot(1) - Pyt(1)))* &
+						(heaviside(top(3) - Pyt(3))   &
+				       - heaviside(bot(3) - Pyt(3)))
+
+        !Y BOTTOM SURFACE
+        top(1) = surface_fn(pt, Pyb(2))
+        bot(1) = surface_fn(pb, Pyb(2))
+		onfaceyb =0.5d0*(sign(1.d0,bot(2) - ri2(2))   &
+				       - sign(1.d0,bot(2) - ri1(2)))* &
+						(heaviside(top(1) - Pyb(1))   &
+				       - heaviside(bot(1) - Pyb(1)))* &
+						(heaviside(top(3) - Pyb(3))   &
+				       - heaviside(bot(3) - Pyb(3)))
+
+        !Z TOP SURFACE
+        top(1) = surface_fn(pt, Pzt(2))
+        bot(1) = surface_fn(pb, Pzt(2))
+		onfacezt =0.5d0*(sign(1.d0,top(3) - ri2(3))   &
+				       - sign(1.d0,top(3) - ri1(3)))* &
+						(heaviside(top(1) - Pzt(1))   &
+					   - heaviside(bot(1) - Pzt(1)))* &
+						(heaviside(top(2) - Pzt(2))   &
+				       - heaviside(bot(2) - Pzt(2)))
+
+        !Z BOTTOM SURFACE
+        top(1) = surface_fn(pt, Pzb(2))
+        bot(1) = surface_fn(pb, Pzb(2))
+		onfacezb =0.5d0*(sign(1.d0,bot(3) - ri2(3))   &
+				       - sign(1.d0,bot(3) - ri1(3)))* &
+						(heaviside(top(1) - Pzb(1))   &
+				       - heaviside(bot(1) - Pzb(1)))* &
+						(heaviside(top(2) - Pzb(2))   &
+				       - heaviside(bot(2) - Pzb(2)))
+
+        !Ncross(1) = Ncross(1) + int(onfaceyt - onfaceyb + onfacezt - onfacezb)
+        Ncross(:,1) = Ncross(:,1) + qnty(:)*onfaceyt
+        Ncross(:,2) = Ncross(:,2) + qnty(:)*onfacezt
+        Ncross(:,3) = Ncross(:,3) + qnty(:)*onfaceyb
+        Ncross(:,4) = Ncross(:,4) + qnty(:)*onfacezb
+
+        if (write_debug) then
+!            if (onfaceyt .ne. 0.d0) then
+!                print('(a,4f6.2,i4,9f8.3)'), 'yplanet xing',  &
+!                    onfaceyt, onfaceyb, onfacezt, onfacezb, &
+!                    int(onfaceyt - onfaceyb + onfacezt - onfacezb), &
+!                    ri1, ri2, Pyt
+!            endif
+!            if (onfaceyb .ne. 0.d0) then
+!                print('(a,4f6.2,i4,9f8.3)'), 'yplaneb xing',  &
+!                    onfaceyt, onfaceyb, onfacezt, onfacezb, &
+!                    int(onfaceyt - onfaceyb + onfacezt - onfacezb), &
+!                    ri1, ri2, Pyb
+!            endif
+!            if (onfacezt .ne. 0.d0) then
+!                print('(a,4f6.2,i4,9f8.3)'), 'zplanet xing',  &
+!                    onfaceyt, onfaceyb, onfacezt, onfacezb, &
+!                    int(onfaceyt - onfaceyb + onfacezt - onfacezb), &
+!                    ri1, ri2, Pzt
+!            endif
+!            if (onfacezb .ne. 0.d0) then
+!                print('(a,4f6.2,i4,9f8.3)'), 'zplaneb xing',  & 
+!                     onfaceyt, onfaceyb, onfacezt, onfacezb, & 
+!                    int(onfaceyt - onfaceyb + onfacezt - onfacezb), &
+!                    ri1, ri2, Pzb
+!                !write(pid,'(2i6,f6.2,7f10.5,3f18.12)'), n, i, dS_i, tcross, ri(:), ri(:)-vi(:)*delta_t, rcross(:)
+!            endif
+
+        endif
+
+    end subroutine get_plane_surface_crossing
+
+end module cubic_surface_CV
+
+
+
+
 !=======================================================================
 !
 !   C L U S T E R   A N A L Y S I S
@@ -6207,7 +7262,7 @@ contains
         use calculated_properties_MD, only : nbins, nbinso, binsize, mass_surface_flux
         use module_record, only : Abilinear, ISR, ISR_mdt
         use interfaces, only : error_abort
-        use cluster_CV_objects, only : cluster_CV_fn
+        use cubic_surface_CV, only : cluster_CV_fn
         implicit none
 
         type(clusterinfo),intent(inout)    :: self
@@ -6248,8 +7303,8 @@ contains
             tau =  II_tau ! 1.d0
             eps =  II_eps !0.00000001d0
             ns =  II_ns !0.8d0
-            box = (/globaldomain(2), globaldomain(3), globaldomain(1)/)
-            bins = (/nbins(2), nbins(3), nbins(1)/)
+            !box = (/globaldomain(2), globaldomain(3), globaldomain(1)/)
+            !bins = (/nbins(2), nbins(3), nbins(1)/)
             !ixyz = mod(normal,3)+1
             !jxyz = mod(normal+1,3)+1
             !area = box(ixyz)*box(jxyz)
@@ -6257,8 +7312,8 @@ contains
             !qu = qm
 
             if (first_time) then
-                call ISR%initialise(box, normal, alpha, eps)   ! initialise
-                call ISR_mdt%initialise(box, normal, alpha, eps)   ! initialise
+                call ISR%initialise(globaldomain, normal, alpha, eps)   ! initialise
+                call ISR_mdt%initialise(globaldomain, normal, alpha, eps)   ! initialise
                 allocate(mass_surface_flux(nbinso(1),nbinso(2),nbinso(3),6))
                 first_time = .false.
             endif
@@ -6276,9 +7331,9 @@ contains
                 allocate(points(size(rnp,2), size(rnp,1)))
                 points = 0.d0
                 do i =1, size(rnp,2)
-                    points(i,1) = rnp(2,i)
-                    points(i,2) = rnp(3,i)
-                    points(i,3) = rnp(1,i)
+                    points(i,1) = rnp(1,i)
+                    points(i,2) = rnp(2,i)
+                    points(i,3) = rnp(3,i)
                 enddo
 
                 !Get surface in terms of modes
@@ -6293,11 +7348,13 @@ contains
                     call fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
 
                     !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
-                    print*, "DEBUG in get_cluster_properties coeff ", & 
-                            maxval(abs(ISR%coeff(1:310))), maxval(abs(ISR%coeff(315:)))
                     if (first_time_coeff) then
-                        !allocate(coeffmdt(size(ISR%coeff,1)))
-                        !coeffmdt(:) = ISR%coeff(:)
+                        !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
+                        !ISR%coeff = 0.d0 
+                        !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
+                        !ISR_mdt%coeff = ISR%coeff
+                        allocate(coeffmdt(size(ISR%coeff,1)))
+                        coeffmdt(:) = ISR%coeff(:)
                         first_time_coeff = .false.
 
 !                        do i =1, size(rnp,2)
@@ -6306,10 +7363,16 @@ contains
 
                         !print*, "coeffmdt", maxval(abs(coeffmdt(1:310))), maxval(abs(coeffmdt(315:)))
                     else
+!                        print*, mod(iter,10)
+!                        if (mod(iter,10) .eq. 0) then
+!                            print*, "DEBUG in get_cluster_properties coeff ", & 
+!                                    maxval(abs(ISR%coeff(1:310))), maxval(abs(ISR%coeff(315:)))
+!                            coeffmdt(:) = ISR_mdt%coeff(:) 
+!                        endif
                         !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
-                        !ISR%coeff(:)=coeffmdt(:)
-                        ISR%coeff = 0.d0 
-                        ISR%coeff(313)= 0.1*sin((iter-100000)/1000.d0) !shift from sin(0) mode
+!                        ISR%coeff(:)=coeffmdt(:)
+                        !ISR%coeff = 0.d0 
+                        !ISR%coeff(313)=ISR%coeff(313)+ 1.0*sin((iter-100000)/100.d0) !shift from sin(0) mode
                         !ISR_mdt%coeff = ISR%coeff
                         !ISR_mdt%coeff = 0.d0 
                         !ISR_mdt%coeff(313)= 0.1*sin((iter-100000-1)/1000.d0) !shift from sin(0) mode
@@ -6344,9 +7407,9 @@ contains
                     !Get shift for intrinsic surface for each molecule
                     deallocate(points)
                     allocate(points(np, nd))
-                    points(:,1) = r(2,1:np)
-                    points(:,2) = r(3,1:np)
-                    points(:,3) = r(1,1:np)
+                    points(:,1) = r(1,1:np)
+                    points(:,2) = r(2,1:np)
+                    points(:,3) = r(3,1:np)
                     call ISR%get_surface(points, elevation)
                     !call real_surface_from_modes(points, box, normal, qm, qu, coeff, elevation)
                     !call surface_from_modes(points, 3, q_vectors, modes, elevation)
@@ -6538,12 +7601,8 @@ contains
 !            endif
 
             !Get bins, only normal part can be different
-            rc = (/ri(2), ri(3), ri(1)/)
-            bs = (/binsize(2), binsize(3), binsize(1)/)
-            temp = ISR%get_bin(rc, bs)
-            bin(:) = (/temp(3),temp(1),temp(2)/)+nhb
-            temp = ISR_mdt%get_bin(rc, bs)
-            bin_mdt(:) = (/temp(3),temp(1),temp(2)/)+nhb
+            bin(:) = ISR%get_bin(ri, nbins, nhb)
+            bin_mdt(:) = ISR_mdt%get_bin(ri, nbins, nhb)
 
 !            if (bin(1) .eq. 163 .or. bin_mdt(1) .eq. 164 .or. &
 !                bin_mdt(1) .eq. 163 .or. bin(1) .eq. 164) then
@@ -6606,17 +7665,17 @@ contains
             close(pid,status='keep')
         endif
 
-        do ib = 1+nhb(1),nbins(1)+nhb(1) !1,size(mass_surface_flux,1)
-        do jb = 1+nhb(2),nbins(2)+nhb(2) !1,size(mass_surface_flux,2)
-        do kb = 1+nhb(3),nbins(3)+nhb(3) !1,size(mass_surface_flux,3)
-        !do n  = 1,6
-            if (any(abs(mass_surface_flux(ib, jb, kb, :)) .gt. 1e-6)) then
-                print'(a,4i6,6f10.5)', "mass surf", iter, ib, jb, kb, mass_surface_flux(ib, jb, kb, :)
-            endif
-        !enddo
-        enddo
-        enddo
-        enddo
+!        do ib = 1+nhb(1),nbins(1)+nhb(1) !1,size(mass_surface_flux,1)
+!        do jb = 1+nhb(2),nbins(2)+nhb(2) !1,size(mass_surface_flux,2)
+!        do kb = 1+nhb(3),nbins(3)+nhb(3) !1,size(mass_surface_flux,3)
+!        !do n  = 1,6
+!            if (any(abs(mass_surface_flux(ib, jb, kb, :)) .gt. 1e-6)) then
+!                print'(a,4i6,6f10.5)', "mass surf", iter, ib, jb, kb, mass_surface_flux(ib, jb, kb, :)
+!            endif
+!        !enddo
+!        enddo
+!        enddo
+!        enddo
 
         if (CV_debug .ne. 0) call CVcheck_mass%update_surface(mass_surface_flux)
 
@@ -6642,9 +7701,9 @@ contains
         top = bintop; bot = binbot
 
         allocate(points(1,3))
-        points(1,1) = ri(2)
-        points(1,2) = ri(3)
-        points(1,3) = ri(1)
+        points(1,1) = ri(1)
+        points(1,2) = ri(2)
+        points(1,3) = ri(3)
         call ISR%get_surface(points, s)
         call ISR_mdt%get_surface(points, smdt)
 
@@ -6665,6 +7724,9 @@ contains
         !if (cross(2) .ne. 0) print*, "surface moving cross = ", bot, ri(1), botmdt, s(1), smdt(1)
 
     end subroutine CV_cluster_time
+
+
+
 
     !Plot density in a number of fluid bins aligned with the CV surface
 
@@ -8234,46 +9296,52 @@ subroutine cumulative_mass_flux_opt!(quantity, fluxes)
         use_bilinear = .false.
     endif
 
-	do n = 1,np
+	do n = 1,np!+halo_np
 
 		ri1(:) = r(:,n) 							!Molecule i at time t
 		ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
-        bin1 = get_bin(ri1)
-        bin2 = get_bin(ri2)
+
+        if (use_bilinear) then
+            bin1(:) = ISR_mdt%get_bin(ri1, nbins, nhb)
+            bin2(:) = ISR_mdt%get_bin(ri2, nbins, nhb)
+        else
+            bin1 = get_bin(ri1)
+            bin2 = get_bin(ri2)
+        endif
 
         do normal=1,3
-                
             if (use_bilinear .and. normal .eq. 1) then
+                !Redefine bins here
                 call get_crossings_bilinear(ri1, ri2, bin1, bin2, normal, rc, crossings, cbins)
-            else 
+            else
                 call get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings)
             endif
             if (crossings) then
                 bs = 0
                 bs(normal) = 1
-
 	            ri12   = ri1 - ri2		        !Molecule i trajectory between t-dt and t
 	            where (abs(ri12) .lt. 0.000001d0) ri12 = 0.000001d0
 
                 if (normal .eq. 1 .and. use_bilinear) then
                     if (allocated(points)) deallocate(points)
                     allocate(points(size(rc,2), nd))
-                    points(:,1) = rc(2,:)
-                    points(:,2) = rc(3,:)
-                    points(:,3) = rc(1,:)
-                    call ISR%get_surface_derivative(points, dSdr)
+                    points(:,1) = rc(1,:)
+                    points(:,2) = rc(2,:)
+                    points(:,3) = rc(3,:)
+                    call ISR_mdt%get_surface_derivative(points, dSdr)
                 endif
 
                 !print'(a,i9,8i5,12f10.5)', "Ncrossings ", iter, normal, bin1, bin2, size(rc,2), ri1, rc(:,1), rc(:,2), ri2
                 do i =1,size(rc,2)
                     rci = rc(:,i)
-                    rci(normal) = rci(normal) + eps 
-                    cbin(:) =  get_bin(rci)
-
+                    rci(normal) = rci(normal) + eps
+                    cbin(:) = ISR_mdt%get_bin(rci, nbins, nhb)
                     if (normal .eq. 1 .and. use_bilinear) then
-                        cbin(normal) = cbins(1)+1
+                        cbin(normal) = cbins(normal)+1
                         crossdir = sign(1.d0,(ri12(1) - ri12(2)*dSdr(i,1) - ri12(3)*dSdr(i,2)))
                     else
+!                        cbin(:) =  get_bin(rci)
+                        !print'(a,i9,12i5,9f10.5)', "Ncrossings ", iter, normal, i, bin1, bin2, cbin, size(rc,2), ri1, rci, ri2
                         crossdir  = sign(1.d0, ri12(normal))
                     endif
 
@@ -8290,6 +9358,85 @@ subroutine cumulative_mass_flux_opt!(quantity, fluxes)
 	enddo
 
 end subroutine cumulative_mass_flux_opt
+
+
+
+
+!subroutine cumulative_mass_flux_bilinear_only!(quantity, fluxes)
+!	use module_record
+!    use librarymod, only : CV_surface_flux, imaxloc!, heaviside  =>  heaviside_a1
+!    use module_set_parameters, only : mass
+!    !use CV_objects, only : CV_sphere_mass
+!    implicit none
+
+!!	real(kind(0.d0)),dimension(1), intent(in)	    :: quantity
+!!	real(kind(0.d0)),dimension(1,6), intent(inout)	:: fluxes
+
+!    logical, save                   :: first_time=.true.
+
+
+!    logical                         :: crossings, use_bilinear
+!	integer							:: jxyz,i,j,k,n,normal
+!	integer		,dimension(3)		:: bin1,bin2,cbin,bs
+!	real(kind(0.d0)),parameter		:: eps = 1e-12
+!	real(kind(0.d0))        		:: crossdir
+!	real(kind(0.d0)),dimension(3)	:: ri1,ri2,ri12, rci
+
+!    integer, dimension(:), allocatable :: cbins
+!    real(kind(0.d0)),dimension(:,:),allocatable :: points
+!    real(kind(0.d0)),dimension(:,:), allocatable :: rc, rcx, rcy, rcz, dSdr
+
+!    if (cluster_analysis_outflag .eq. 1 .and.  & 
+!        any(intrinsic_interface_outflag .eq. (/1,2/))) then
+
+!	    do n = 1,np
+
+!		    ri1(:) = r(:,n) 							!Molecule i at time t
+!		    ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
+
+!            normal=ISR_mdt%normal
+!            bin1(:) = ISR_mdt%get_bin(ri1, nbins, nhb)
+!            bin2(:) = ISR_mdt%get_bin(ri2, nbins, nhb)
+!            call get_crossings_bilinear(ri1, ri2, bin1, bin2, normal, rc, crossings, cbins)
+
+!            if (crossings) then
+!                bs = 0
+!                bs(normal) = 1
+!                ri12   = ri1 - ri2		        !Molecule i trajectory between t-dt and t
+!                where (abs(ri12) .lt. 0.000001d0) ri12 = 0.000001d0
+
+!                if (allocated(points)) deallocate(points)
+!                allocate(points(size(rc,2), nd))
+!                points(:,1) = rc(1,:)
+!                points(:,2) = rc(2,:)
+!                points(:,3) = rc(3,:)
+!                call ISR_mdt%get_surface_derivative(points, dSdr)
+
+!                do i =1,size(rc,2)
+!                    rci = rc(:,i)
+!                    rci(normal) = rci(normal) + eps 
+
+!                    cbin(:) = ISR_mdt%get_bin(rci, nbins, nhb)
+!                    cbin(normal) = cbins(normal)+1
+!                    crossdir = sign(1.d0,(ri12(1) - ri12(2)*dSdr(i,1) - ri12(3)*dSdr(i,2)))
+
+!                    mass_flux(cbin(1),cbin(2),cbin(3),normal) = & 
+!                        mass_flux(cbin(1),cbin(2),cbin(3),normal) + crossdir*mass(n)
+!                    mass_flux(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),normal+3) = & 
+!                        mass_flux(cbin(1),cbin(2),cbin(3),normal)
+
+!                enddo
+!                deallocate(rc)
+!            endif
+!        enddo
+!    endif
+
+
+!end subroutine cumulative_mass_flux_bilinear_only
+
+
+
+
 
 
 

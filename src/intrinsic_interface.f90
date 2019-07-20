@@ -269,8 +269,8 @@ subroutine update_real_surface(self, points)
     if (debug) then
         call self%get_surface(points, surf)
         do j = 1, size(points,1)
-            print*, "Elevation vs points = ", j, surf(j) , points(j,3), &
-                     surf(j)-points(j,3)
+            print*, "Elevation vs points = ", j, surf(j) , points(j,self%normal), &
+                     surf(j)-points(j,self%normal)
         enddo
 !    do j=1, self%n_waves2
 !        print*, "Coeffs = ", j, self%coeff(j)
@@ -350,16 +350,18 @@ end subroutine get_real_surface_derivative
 
 
 !A version getting the explicit location from the intrinsic surface
-function get_bin_from_surface(self, r, binsize) result(bin)
+function get_bin_from_surface(self, r, nbins, nhb) result(bin)
     implicit none
 
 	class(intrinsic_surface_real) :: self
 
-    real(kind(0.d0)),intent(in),dimension(3) :: r, binsize
-    integer,dimension(3) 					 :: bin
+    real(kind(0.d0)),intent(in),dimension(3) :: r
+    integer,dimension(3),intent(in)		     :: nbins, nhb
+
+    integer,dimension(3)	                 :: bin
 
     integer :: n, i, j
-    real(kind(0.d0)), dimension(3) :: halfdomain
+    real(kind(0.d0)), dimension(3) :: halfdomain, binsize
     real(kind(0.d0)), allocatable, dimension(:) :: elevation
     real(kind(0.d0)), allocatable, dimension(:,:) :: points
 
@@ -367,13 +369,14 @@ function get_bin_from_surface(self, r, binsize) result(bin)
     points(1,:) = r(:)
     call self%get_surface(points, elevation)
 
+    binsize = self%box/float(nbins)
     halfdomain = 0.5*self%box
     n=self%normal
     i=self%ixyz
     j=self%jxyz
-    bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1))/binsize(n))!+nhb(n)
-    bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))!+nhb(i)
-    bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))!+nhb(j)
+    bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1))/binsize(n))+nhb(n)
+    bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb(i)
+    bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb(j)
 
 !    bin(1) = ceiling((r(1)+halfdomain(1)-elevation(1))/binsize(1))+nhb(1)
 !    bin(2) = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
@@ -381,11 +384,11 @@ function get_bin_from_surface(self, r, binsize) result(bin)
 
     !print*, bin(n), (r(n)+halfdomain(n)-elevation(1))/binsize(n)
 
-!	if (bin(n) > nbins(n)+nhb(n)) then
-!        bin(n) = nbins(n)+nhb(n)
-!    elseif (bin(n) < 1 ) then
-!        bin(n) = 1   
-!    endif
+	if (bin(n) > nbins(n)+nhb(n)) then
+        bin(n) = nbins(n)+nhb(n)
+    elseif (bin(n) < 1 ) then
+        bin(n) = 1
+    endif
 
 end function get_bin_from_surface
 
@@ -654,7 +657,7 @@ subroutine sample_intrinsic_surface(self, nbins, vertices, writeiter)
     binsize(1) = self%box(self%ixyz)/dble(nbins(self%ixyz))
     binsize(2) = self%box(self%jxyz)/dble(nbins(self%jxyz))
 
-    allocate(points(4,2))
+    allocate(points(4,3))
     allocate(vertices(nbins(self%ixyz)*nbins(self%jxyz),4,3))
 
     if (writeobj) then
@@ -672,15 +675,15 @@ subroutine sample_intrinsic_surface(self, nbins, vertices, writeiter)
         zsb = float(k-1)*binsize(2)-0.5d0*self%box(self%jxyz)
         zst = float(k  )*binsize(2)-0.5d0*self%box(self%jxyz)
 
-        points(1,1) = ysb; points(1,2) = zsb !Bottom left
-        points(2,1) = yst; points(2,2) = zsb !Bottom right
-        points(3,1) = ysb; points(3,2) = zst !Top left
-        points(4,1) = yst; points(4,2) = zst !Top right
+        points(1,self%ixyz) = ysb; points(1,self%jxyz) = zsb !Bottom left
+        points(2,self%ixyz) = yst; points(2,self%jxyz) = zsb !Bottom right
+        points(3,self%ixyz) = ysb; points(3,self%jxyz) = zst !Top left
+        points(4,self%ixyz) = yst; points(4,self%jxyz) = zst !Top right
 
         call self%get_surface(points, elevation)
         !call surface_from_modes(points, 3, q_vectors, modes, elevation)
         do i = 1, 4
-            vertices(v,i,:) = (/ points(i,1), points(i,2), elevation(i) /)
+            vertices(v,i,:) = (/elevation(i), points(i,self%ixyz), points(i,self%jxyz)/)
             !print*, i, j, k, v, vertices(v,i,:)
         enddo
        
@@ -1106,6 +1109,8 @@ end subroutine fit_intrinsic_surface
 
 
 end module intrinsic_module
+
+
 
 
 

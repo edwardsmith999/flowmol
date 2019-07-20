@@ -2717,7 +2717,7 @@ end subroutine mass_slice_io
 subroutine mass_bin_io(CV_mass_out,io_type)
     use module_parallel_io
     use messenger_bin_handler, only : swaphalos
-    use CV_objects, only : CVcheck_mass, CV_debug
+    !use CV_objects, only : CVcheck_mass, CV_debug
     implicit none
 
     real(kind(0.d0)), dimension(:,:,:), intent(inout) :: CV_mass_out
@@ -2750,10 +2750,9 @@ subroutine mass_bin_io(CV_mass_out,io_type)
             m = get_iter()/(tplot*Nmflux_ave) + 1 !Initial snapshot taken
         case(1)
             m = get_iter()/(Nmflux_ave) + 1 !Initial snapshot taken
-	        !Create copy of previous timestep Control Volume mass and calculate time evolution
-	        if (CV_debug .ne. 0) then
-		        call CVcheck_mass%update_dXdt(CV_mass_out(:,:,:))
-	        endif
+            !if (CV_debug .ne. 0) then
+            !    call CVcheck_mass%update_dXdt(CV_mass_out)
+            !endif
         case default
             call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')   
         end select
