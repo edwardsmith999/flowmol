@@ -1299,43 +1299,43 @@ end subroutine  build_cell_and_neighbourlist_using_debug_positions
 !-----------------------------------------------------------------------
 !Build linklist from array of positions of molecules
 ! NOT USED NOT USED NOT USED NOT USED NOT USED NOT USED 
-subroutine linklist_build(cellin, start, finish)
-	implicit none
+!subroutine linklist_build(cellin, start, finish)
+!	implicit none
 
-    type(cellinfo),intent(out)       :: cellin
+!    type(cellinfo),intent(out)       :: cellin
 
-	integer            :: j
-	integer            :: cellnp
-	integer            :: icell, jcell, kcell	
-	integer            :: start, finish
-	type(node), pointer:: old, current
+!	integer            :: j
+!	integer            :: cellnp
+!	integer            :: icell, jcell, kcell	
+!	integer            :: start, finish
+!	type(node), pointer:: old, current
 
-	print*, 'building linklist'
-	allocate (old)            !Allocate storage space for pointer old to point at
-	!old%rp => r(start,:)          !Point to first molecule's r
-	!old%vp => v(start,:)          !Set up pointer to current molecule's v
-	!old%ap => a(start,:)          !Set up pointer to current molecule's a
-	old%molno  = start       !Assign first molecule number 1
-	nullify (old%next)        !Points to null as first in linked list
-	
-	do j=start+1,finish
-		allocate (current)          !Allocate storage space for current to point at
-		!current%rp  => r(:,j)       !Set up pointer to current molecule's r
-		!current%vp  => v(:,j)       !Set up pointer to current molecule's v
-		!current%ap  => a(:,j)       !Set up pointer to current molecule's a
-		current%molno  = j     !Assign each molecule a number
-		old%previous => current     !Set up forward pointer to allow movement forward
-		current%next => old         !Set current's link pointer to point to previous item
-		old     => current          !Set current item to old ready for next loop
-	enddo
+!	print*, 'building linklist'
+!	allocate (old)            !Allocate storage space for pointer old to point at
+!	!old%rp => r(start,:)          !Point to first molecule's r
+!	!old%vp => v(start,:)          !Set up pointer to current molecule's v
+!	!old%ap => a(start,:)          !Set up pointer to current molecule's a
+!	old%molno  = start       !Assign first molecule number 1
+!	nullify (old%next)        !Points to null as first in linked list
+!	
+!	do j=start+1,finish
+!		allocate (current)          !Allocate storage space for current to point at
+!		!current%rp  => r(:,j)       !Set up pointer to current molecule's r
+!		!current%vp  => v(:,j)       !Set up pointer to current molecule's v
+!		!current%ap  => a(:,j)       !Set up pointer to current molecule's a
+!		current%molno  = j     !Assign each molecule a number
+!		old%previous => current     !Set up forward pointer to allow movement forward
+!		current%next => old         !Set current's link pointer to point to previous item
+!		old     => current          !Set current item to old ready for next loop
+!	enddo
 
-	cellnp = finish - start+1
-	cellin%cellnp(icell,jcell,kcell) = cellnp
-	nullify(current)      !Nullify current as no longer required
-	nullify(old%previous) !Points top to null as last in linked list
+!	cellnp = finish - start+1
+!	cellin%cellnp(icell,jcell,kcell) = cellnp
+!	nullify(current)      !Nullify current as no longer required
+!	nullify(old%previous) !Points top to null as last in linked list
 
 
-end subroutine linklist_build
+!end subroutine linklist_build
 ! NOT USED NOT USED NOT USED NOT USED NOT USED NOT USED 
 
 !===================================================================================

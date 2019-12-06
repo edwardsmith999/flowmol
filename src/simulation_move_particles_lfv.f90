@@ -60,6 +60,10 @@ subroutine simulation_move_particles_lfv
 		call error_abort("Error - incorrectly specified external_force_flag")
 	end select
 
+!    print*, "simulation_move_particles_lfv - Freeze molecules for debugging purposes"
+!    v = 10.*sin((iter-100000)/1000.d0)
+!    a = 0.d0
+
 	!Select case and evolve system in time
 	select case(ensemble)
 	case(nve)

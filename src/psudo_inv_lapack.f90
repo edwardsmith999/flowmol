@@ -1,6 +1,80 @@
 module lapack_fns 
 
-contains 
+contains
+
+
+subroutine multiply_by_tranpose(A, B, ATB)
+    implicit none
+
+    double precision, allocatable, dimension(:,:), intent(in) :: A, B
+    double precision, allocatable, dimension(:,:), intent(out) :: ATB
+
+    integer :: i, j, l, M, N, K, LDA, LDB, LDC
+
+    M = size(A,2)
+    N = size(B,2)
+    K = size(A,1)
+    LDA = max(1,K)
+    LDB = max(1,K)
+    LDC = max(1,M)
+    allocate(ATB(M,M))
+    call DGEMM( "T", "N", M, N, K, 1.d0, A, LDA, &
+                       B, LDB, 0.d0, ATB, LDC )
+
+
+    !Symmetric version
+!    N = size(A,2)
+!    K = size(A,1)
+!    LDA = max(1,K)
+!    LDC = max(1,N)
+
+!    allocate(ATB(N,N))
+!    CALL dsyrk('U', 'T', N, K, 1.0, A, LDA, 0.0, ATB, LDC )
+
+!    N = size(A,1)
+!    M = size(A,2)
+!    allocate(ATA(N, N))
+!    ATA = 0.d0
+!    do j = 1,N
+!        do l = 1,K
+!            do i = 1,M
+!                ATA(i,j) = ATA(i,j) + B(j,l)*A(i,l)
+!            enddo
+!        enddo
+!    enddo
+
+end subroutine multiply_by_tranpose
+
+subroutine solve(A, b, x)
+    implicit none
+
+    double precision, allocatable, dimension(:), intent(in) :: b
+    double precision, allocatable, dimension(:,:), intent(in) :: A
+    
+    double precision, allocatable, dimension(:), intent(out) :: x
+
+    integer :: i, j, N, NRHS, LDA, LDB, INFO
+    integer, dimension(:), allocatable :: IPIV
+    double precision, allocatable, dimension(:) :: b_
+    double precision, allocatable, dimension(:,:) :: A_
+
+    if (.not. allocated(A)) stop "Error, A not allocated"
+    if (.not. allocated(b)) stop "Error, b not allocated"
+
+    N = size(A,1)
+    NRHS = 1
+    LDA = N
+    LDB = size(b,1)
+    allocate(IPIV(N), x(N))
+    allocate(A_(N, N), b_(N))
+
+    A_ = A; b_ = b
+    call DGESV(N, NRHS, A_, LDA, IPIV, b_, LDB, INFO)
+    if (info .ne. 0) print*, "Ax=b Solve error=", info
+    x = b_
+
+end subroutine solve
+
 
 subroutine pinverse(A, PINV)
     implicit none

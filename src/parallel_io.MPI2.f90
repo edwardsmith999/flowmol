@@ -987,6 +987,7 @@ subroutine setup_restart_inputs()
 
     elapsedtime = elapsedtime + delta_t*extrasteps  !Set elapsed time to end of simualtion
     initialstep = Nsteps                            !Set plot count to final plot of last
+    iter = initialstep                              !Set iter to initialstep
     Nsteps = Nsteps + extrasteps                    !Establish final iteration step based on previous
 
 end subroutine setup_restart_inputs
@@ -2749,6 +2750,9 @@ subroutine mass_bin_io(CV_mass_out,io_type)
             m = get_iter()/(tplot*Nmflux_ave) + 1 !Initial snapshot taken
         case(1)
             m = get_iter()/(Nmflux_ave) + 1 !Initial snapshot taken
+            !if (CV_debug .ne. 0) then
+            !    call CVcheck_mass%update_dXdt(CV_mass_out)
+            !endif
         case default
             call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')   
         end select

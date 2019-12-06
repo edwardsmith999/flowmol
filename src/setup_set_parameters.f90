@@ -1177,6 +1177,10 @@ subroutine set_parameters_allocate
 	if (any(periodic.eq.2)) then
 		allocate(mol_wrap_integer(np))
 	endif
+    
+    if (intrinsic_interface_outflag .ne. 0) then
+        allocate(intnscshift(np+extralloc))
+    endif
 
 end subroutine set_parameters_allocate
 

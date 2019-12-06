@@ -31,11 +31,13 @@ type :: check_CV_mass
 	integer, dimension(3)		   			:: nbins, nhb, debug_CV
 	real(kind(0.d0))						:: delta_t
 	real(kind(0.d0)), dimension(3)  		:: domain, binsize
-	real(kind(0.d0)),dimension(:,:,:,:),allocatable :: flux
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable :: flux, surf, surf_mdt
 	real(kind(0.d0)),dimension(:,:,:),allocatable	:: dXdt, X, X_minus_t, X_minus_2t
 	contains
 		procedure :: initialise  => initialise_mass
 		procedure :: update_dXdt => update_dXdt_mass
+		procedure :: update_flux => update_flux_mass
+		procedure :: update_surface => update_surface_mass
 		procedure :: check_error => check_error_mass
 		procedure :: swap_halos  => swap_halos_mass
 end type check_CV_mass
@@ -187,12 +189,16 @@ contains
 		nb = nbins + 2*nhb
 
 		allocate(self%flux(nb(1),nb(2),nb(3),6))
+		allocate(self%surf(nb(1),nb(2),nb(3),6))
+		allocate(self%surf_mdt(nb(1),nb(2),nb(3),6))
 		allocate(self%dXdt(nb(1),nb(2),nb(3)))
 		allocate(self%X(nb(1),nb(2),nb(3)))
 		allocate(self%X_minus_t(nb(1),nb(2),nb(3)))
 		allocate(self%X_minus_2t(nb(1),nb(2),nb(3)))
 
 		self%flux 		= 0
+		self%surf       = 0
+		self%surf_mdt   = 0
 		self%dXdt 		= 0
 		self%X 			= 0
 		self%X_minus_t 	= 0
@@ -207,7 +213,7 @@ contains
 		! initialize shape objects
 		class(check_CV_mass) :: self
 
-		real(kind(0.d0)),dimension(:,:,:),allocatable,intent(in) :: X
+		real(kind(0.d0)),dimension(:,:,:),intent(in) :: X
 
 		self%X_minus_t  = self%X
 		self%X 			= X
@@ -215,6 +221,32 @@ contains
 		self%dXdt = self%X - self%X_minus_t
 
 	end subroutine update_dXdt_mass
+
+
+	!Update time evolution and store previous two values
+	subroutine update_flux_mass(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_mass) :: self
+
+		real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(in) :: X
+
+		self%flux = X
+
+	end subroutine update_flux_mass
+
+	!Update time evolution and store previous two values
+	subroutine update_surface_mass(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_mass) :: self
+
+		real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(in) :: X
+
+		self%surf_mdt = self%surf
+		self%surf = X
+
+	end subroutine update_surface_mass
 
 
 	!Swap halos on edges of processor boundaries
@@ -225,12 +257,24 @@ contains
 		integer							 :: nresults
 		integer, dimension(3),intent(in) :: nb
 
+		real(kind(0.d0)),dimension(:,:,:,:),allocatable :: temp
+
 		! initialize shape objects
 		class(check_CV_mass) :: self
 
 		!Include halo surface fluxes to get correct values for all cells
-		nresults = 6
-		call swaphalos(self%flux,nb(1),nb(2),nb(3),nresults)
+		!nresults = 6
+		!call swaphalos(self%flux,nb(1),nb(2),nb(3),nresults)
+
+		nresults = 6 + 6
+		allocate(temp(nb(1),nb(2),nb(3),nresults))
+		temp(:,:,:,1 :6) = self%flux
+		temp(:,:,:,7:12) = self%surf
+		call swaphalos(temp,nb(1),nb(2),nb(3),nresults)
+		self%flux = temp(:,:,:,1:6)
+		self%surf = temp(:,:,:,7:12)
+		deallocate(temp)
+
 
 	end subroutine swap_halos_mass
 
@@ -245,7 +289,7 @@ contains
 		integer,intent(in) :: iter,irank,imin,imax,jmin,jmax,kmin,kmax
 
         integer         :: i,j,k
-		real(kind(0.d0)):: totalflux,conserved
+		real(kind(0.d0)):: totalflux,totalsurf,conserved
 		integer,save 	:: first_time = 0
 		logical		 	:: check_ok
 
@@ -265,15 +309,21 @@ contains
 						+(self%flux(i,j,k,2) - self%flux(i,j,k,5)) & 
 						+(self%flux(i,j,k,3) - self%flux(i,j,k,6))
 
-            conserved = totalflux-self%dXdt(i,j,k)
+			totalsurf =  (self%surf_mdt(i,j,k,1) - self%surf_mdt(i,j,k,4)) &
+						+(self%surf_mdt(i,j,k,2) - self%surf_mdt(i,j,k,5)) & 
+						+(self%surf_mdt(i,j,k,3) - self%surf_mdt(i,j,k,6))
+
+            conserved = totalflux-self%dXdt(i,j,k)+totalsurf
 
             if (     (CV_debug .eq. 1) .and. (conserved .ne. 0) &
 			    .or. (i .eq. self%debug_CV(1) .and. & 
                       j .eq. self%debug_CV(2) .and. & 
                       k .eq. self%debug_CV(3))) then
-				print'(a,i8,4i4,6f11.5,f22.18)','Error_cubeCV_mass', iter,irank,i,j,k, & 
-					conserved, 0.d0, totalflux,self%dXdt(i,j,k), 0.d0, self%X_minus_t(i,j,k),self%X(i,j,k)
-
+				print'(a,i8,4i4,8f11.4)','Error_cubeCV_mass', iter,irank,i,j,k, & 
+					conserved, 0.d0, totalflux,self%dXdt(i,j,k), 0.d0, totalsurf, self%X_minus_t(i,j,k),self%X(i,j,k)
+!                print*, "CV Position = ", (i-self%nhb(1))*self%binsize(1)-0.5d0*self%domain(1), &
+!                                          (j-self%nhb(2))*self%binsize(2)-0.5d0*self%domain(2), &
+!                                          (k-self%nhb(3))*self%binsize(3)-0.5d0*self%domain(3)
 				check_ok = .false.
 			endif
 
@@ -1246,11 +1296,6 @@ contains
 
 
 	end module CV_objects
-
-
-
-
-
 
 ! !===================================================================================
 ! ! Momentum Flux over a surface of a bin including all intermediate bins
