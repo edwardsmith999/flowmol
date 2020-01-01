@@ -200,7 +200,7 @@ subroutine initialise(self, box, normal, alpha, eps)
     self%jxyz = mod(normal+1,3)+1
 
     self%area = box(self%ixyz)*box(self%jxyz)
-    self%qm = int(0.5*sqrt(self%area)/alpha)
+    self%qm = int(sqrt(self%area)/alpha)
     self%n_waves = 2*self%qm+1
     self%n_waves2 = self%n_waves**2
     allocate(self%u(self%n_waves2), self%v(self%n_waves2))
@@ -269,7 +269,7 @@ subroutine update_real_surface(self, points)
     if (debug) then
         call self%get_surface(points, surf)
         do j = 1, size(points,1)
-            print*, "Elevation vs points = ", j, surf(j) , points(j,self%normal), &
+            print*, "update_real_surface DEBUG ON Elevation vs points = ", j, surf(j) , points(j,self%normal), &
                      surf(j)-points(j,self%normal)
         enddo
 !    do j=1, self%n_waves2
@@ -525,9 +525,9 @@ subroutine update_surface_modes(self, points)
 
     !Make some definitions
     allocate(xy(size(points,1),2))
-    xy(:,1) = points(:, 1);  xy(:,2) = points(:, 2)
+    xy(:,1) = points(:,self%ixyz);  xy(:,2) = points(:,self%jxyz)
     allocate(z(size(points,1)))
-    z = points(:, 3)
+    z = points(:,self%normal)
     az = sum(z)/size(z)
     z = z - az
 
@@ -580,8 +580,8 @@ subroutine update_surface_modes(self, points)
     if (debug) then
         call self%get_surface(points, surf)
         do i = 1, size(points,1)
-            print*, "Elevation vs points = ", i, surf(i) , points(i,3), &
-                     surf(i)-points(i,3),   surf(i)/points(i,3)
+            print*, "Elevation vs points = ", i, surf(i) , points(i,self%normal), &
+                     surf(i)-points(i,self%normal),   surf(i)/points(i,self%normal)
         enddo
         print'(a,10f10.5)', "Modes", self%modes(1,1), self%modes(1,2), & 
                     self%modes(2,1), self%modes(1,3), self%modes(3,1)
@@ -807,7 +807,7 @@ subroutine update_pivots(points, ISR, pivots, tau, new_pivots)
     n = 0; found_range=.false.
     allocate(candidates(size(points,1))) 
     do i = size(z,1), 1, -1
-        if (z(i) > z_min .and. z(i) < z_max) then
+        if ((z(i) > z_min) .and. (z(i) < z_max)) then
             n = n + 1
             candidates(n) = indices(i)
             found_range = .true.
@@ -850,7 +850,74 @@ subroutine update_pivots(points, ISR, pivots, tau, new_pivots)
 end subroutine update_pivots
 
 
+!An alternative way of updating pivots using a surface which 
+!gets atoms a distance tau from existing surface
+subroutine update_pivots_alt(points, ISR, pivots, tau, ns, new_pivots)
+    use librarymod, only : Qsort
+    implicit none
+
+	type(intrinsic_surface_real), intent(in) :: ISR	! declare an instance
+    integer, intent(in), dimension(:), allocatable ::  pivots
+    double precision, intent(in) :: tau, ns
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    integer, intent(out), dimension(:), allocatable ::  new_pivots
+
+    logical :: found_range
+    integer :: i, n, ixyz, jxyz, ind, nmols, nPivots, sp, qm, qu
+    double precision :: z_max, z_min, area
+    integer, dimension(:), allocatable :: candidates, updated_pivots, indices
+    double precision, dimension(:), allocatable :: z, surf
+    double precision, dimension(:,:), allocatable :: candidates_pos, pivot_pos
+
+    !Get surface for all molecular locations
+    nmols = int(ns*ISR%area)
+    call ISR%get_surface(points, surf)
+    z = abs(points(:,ISR%normal)-surf(:))
+    allocate(indices(size(points,1)))
+    do ind = 1, size(indices,1)
+        indices(ind) = ind
+    enddo
+    call Qsort(z, indices)
+    n = 0; found_range=.false.
+    allocate(candidates(size(points,1))) 
+    do i = 1, size(z,1)
+        if (z(i) .lt. tau) then
+            n = n + 1
+            candidates(n) = indices(i)
+            found_range = .true.
+            if (n .ge. nmols) exit
+            !print*, "update_pivots_alt in range", i, n, z(i), tau, candidates(n)
+        else if (found_range) then
+            !If z is sorted and we've been inside the range,
+            !once we leave, no point looping anymore
+            !print*, "update_pivots_alt out range", i, n, z(i), tau, candidates(n)
+            exit
+        endif
+    enddo
+    new_pivots = candidates(1:n)
+
+!    do i = 1,size(pivots,1)
+!        print*, i, pivots(i)
+!    enddo
+    !Get surface for all molecular locations
+!    call ISR%get_surface(points, surf)
+!    n = 0
+!    allocate(candidates(size(points,1))) 
+!    do i = 1, size(points,1)
+!        if (abs(points(i,ISR%normal)-surf(i)) < tau) then
+!            n = n + 1
+!            candidates(n) = i !indices(i)
+!        endif
+!    enddo
+!    new_pivots = candidates(1:n)
+
+
+end subroutine update_pivots_alt
+
+
+
 subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
+    use physical_constants_MD, only : np
     implicit none
 
 	type(intrinsic_surface_real), intent(in) :: ISR	! declare an instance
@@ -859,16 +926,19 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
     double precision, intent(in), dimension(:,:), allocatable ::  points
     integer, dimension(:), allocatable, intent(inout) :: pivots
 
-    integer :: i, j, ixyz, jxyz, Np, sp, ntarget, try, maxtry=100, qm, qu
+    logical, save :: write_cluster_header=.true.
+    integer :: i, j, ixyz, jxyz, sp, ntarget, try, maxtry=100, qm, qu
     integer, dimension(2) :: modes_shape
     integer, dimension(:), allocatable :: indices, new_pivots, initial_pivots
     !integer, dimension(:), allocatable, save :: pivots
+    double precision, save :: savetau=0.d0
     double precision :: Error, tau_, rand, diff, maxpivot
     double precision, dimension(:), allocatable :: Q, z, d, surf
     double precision, dimension(:,:), allocatable :: Qxy, pivot_pos, initial_pivot_pos
 
     !Define things
-    tau_ = tau
+    tau_ = max(tau, savetau)
+    ntarget = int(ns*ISR%area)
 
     !Get initial pivots
     call get_initial_pivots(points, ISR, initial_pivots)
@@ -892,7 +962,8 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
     do try = 1, maxtry
 
         !Get new pivots
-        call update_pivots(points, ISR, pivots, tau_, new_pivots)
+        !call update_pivots(points, ISR, pivots, tau_, new_pivots)
+        call update_pivots_alt(points, ISR, pivots, tau_, ns, new_pivots)
 
         !Get new positions and new modes
         if (allocated(pivot_pos)) deallocate(pivot_pos)
@@ -907,28 +978,34 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
 
         !Exit once we have converged to particles on surface / area = ns
         !print*, size(new_pivots)/area, size(new_pivots), area, ns 
-        if (size(new_pivots)/ISR%area .gt. ns)  then
+        !if (size(new_pivots)/ISR%area .gt. ns)  then
+        if (size(new_pivots) .ge. ntarget)  then
             deallocate(pivots)
             ! Truncate pivots to give ns as all positions in 
             ! order of increasing distance from max pivot mol
-            ntarget = int(ns*ISR%area)
             allocate(pivots(ntarget))
             pivots = new_pivots(1:ntarget)
 
+            !DEBUG DEBUG DEBUG DEBUG
             !Debugging print statement of surface molecules
 !            allocate(initial_pivot_pos(9,3))
 !            do i =1, 9
 !                initial_pivot_pos(i,:) = points(initial_pivots(i),:)
 !            enddo
-!            maxpivot = maxval(initial_pivot_pos(:,normal))
+!            maxpivot = maxval(initial_pivot_pos(:,ISR%normal))
 !            do i =1, ntarget
-!                diff = maxpivot - pivot_pos(i, normal)
+!                diff = maxpivot - pivot_pos(i, ISR%normal)
 !                print'(a,2i5,3f10.5,f18.8)', "new pivot pos = ", i, ntarget, pivot_pos(i,:), diff
-!            enddo   
+!            enddo
+            !DEBUG DEBUG DEBUG DEBUG
+
             exit
         !If stuck on same numbers of pivots, try increasing search range
         elseif (size(new_pivots,1) .eq. size(pivots,1)) then
-            tau_ = tau_ + 0.01
+            print'(a, f10.5, a, i5, a, i6, a, i6, a)', "Increasing Tau to ", tau_, " at try ",  try, & 
+                   " with ", size(new_pivots), " pivots of target ", ntarget , " found."
+            tau_ = tau_ + 0.1*tau
+            savetau = tau_
         else
             deallocate(pivots)
             allocate(pivots(size(new_pivots,1)))
@@ -940,6 +1017,7 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
         if (try .eq. 50) then
 
             !Plot updated surface error
+            if (allocated(d)) deallocate(d)
             allocate(d(sp))
             call ISR%get_surface(pivot_pos, surf)
 
@@ -965,8 +1043,35 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
             endif
         endif
 
-
     enddo
+
+
+    !Plot updated surface error
+    !DEBUG DEBUG DEBUG DEBUG
+!    if (allocated(d)) deallocate(d)
+!    allocate(d(sp))
+!    call ISR%get_surface(pivot_pos, surf)
+
+!    d = pivot_pos(:, ISR%normal) - surf(:)
+!    Error = sqrt(sum(d * d) / size(d))
+!    print*, "fit_intrinsic_surface_modes", try, Error, ntarget
+
+    !Write vmd xyz file for debugging
+    if (write_cluster_header) then
+        open(292847, file="./cluster_interface.xyz",status='replace')
+        write(292847,*) np
+        write_cluster_header = .false.
+    else
+        open(292847, file="./cluster_interface.xyz",access='append')
+    endif
+    do i =1, size(pivots,1)
+        write(292847,'(a,3f18.8)') "Name", points(pivots(i),:)
+    enddo
+    do i=size(pivots,1)+1,np
+        write(292847,'(a,3f18.8)') "Name", 0.d0, 0.d0, 0.d0
+    enddo
+    close(292847)
+    !DEBUG DEBUG DEBUG DEBUG
 
 end subroutine fit_intrinsic_surface_modes
 
@@ -998,15 +1103,15 @@ subroutine get_surface_bilinear(points, A, elevation)
     double precision, intent(in), dimension(2,2) :: A
     double precision, intent(out), dimension(:), allocatable :: elevation
 
-    integer :: n, ixyz, jxyz, kxyz
+    integer :: n, ixyz, jxyz
 
     allocate(elevation(size(points,1)))
     elevation = 0.d0
     do n=1,size(points,1)
+    do ixyz=1,2
     do jxyz=1,2
-    do kxyz=1,2
-        elevation(n) = elevation(n) + A(jxyz, kxyz) & 
-                       *(points(n,1)**(jxyz-1))*(points(n,2)**(kxyz-1))
+        elevation(n) = elevation(n) + A(ixyz, jxyz) & 
+                       *(points(n,1)**(ixyz-1))*(points(n,2)**(jxyz-1))
     enddo
     enddo
     enddo

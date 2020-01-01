@@ -162,6 +162,7 @@ module computational_constants_MD
 		vflux_outflag, &
 		eflux_outflag, &
         msurf_outflag, &
+        Nsurfevo_outflag, &
 		proc_reorder, &				    !Reorder processors at restart
 		pass_vhalo = 0, &
 		peculiar_flag, &	 			!Take streaming velocity away from temperature 	
@@ -219,6 +220,7 @@ module computational_constants_MD
 		Nvflux_ave, 			&	!Number of averages for each velocity flux
 		Neflux_ave, 			&	!Number of averages for each energy flux
 		Nsurfm_ave, 			&	!Number of averages for each surface mass
+		Nsurfevo_ave, 			&	!Number of averages for each surface mass
 		initialstep, 			&	!Initial step of simulation
 		finalstep,              &   !Final step of simulation
 		Nsteps, 				&	!Total number of computational steps

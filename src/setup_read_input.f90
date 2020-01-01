@@ -884,10 +884,10 @@ subroutine setup_read_input
                 call error_abort("Error in build cluster -- rd must be less than neighbourlist cutoff")
             endif
 
-            if (force_list .ne. 2) then
+            if ((force_list .lt. 1) .or. (force_list .gt. 2)) then
                 call error_abort("Error in build_from_cellandneighbour_lists -- full "//&
-                                 "neightbour list should be used with interface tracking"//&
-                                 "Set FORCE_LIST to 2 in input file.")
+                                 "neightbour list should be used with interface tracking."//&
+                                 " Set FORCE_LIST to 2 in input file.")
             end if
         endif
     else
@@ -1223,6 +1223,15 @@ subroutine setup_read_input
     else
         msurf_outflag = 0
         Nsurfm_ave = 0
+    endif
+
+	call locate(1,'SURF_EVO_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+        read(1,*) Nsurfevo_outflag
+        read(1,*) Nsurfevo_ave
+    else
+        Nsurfevo_outflag = 0
+        Nsurfevo_ave = 0
     endif
 
 	call locate(1,'ETEVTCF_OUTFLAG',.false.,found_in_input)
