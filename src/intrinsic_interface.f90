@@ -10,6 +10,8 @@ module intrinsic_module
 
         integer      :: normal, ixyz, jxyz
         integer, dimension(2)  :: modes_shape
+        integer, dimension(:), allocatable     :: pivots
+
         double precision  :: alpha, eps
         double precision, dimension(3) :: box
 
@@ -25,6 +27,8 @@ module intrinsic_module
 
         integer      :: normal, ixyz, jxyz
         integer, dimension(2)  :: modes_shape
+        integer, dimension(:), allocatable     :: pivots
+
         double precision  :: alpha, eps
         double precision, dimension(3) :: box
         double precision, dimension(:), allocatable     :: Q
@@ -44,6 +48,7 @@ module intrinsic_module
 
         integer      :: normal, ixyz, jxyz, n_waves, n_waves2, qm
         integer, dimension(:), allocatable     :: u, v
+        integer, dimension(:), allocatable     :: pivots
 
         double precision  :: alpha, eps, area
         double precision, dimension(3) :: box
@@ -374,7 +379,8 @@ function get_bin_from_surface(self, r, nbins, nhb) result(bin)
     n=self%normal
     i=self%ixyz
     j=self%jxyz
-    bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1))/binsize(n))+nhb(n)
+    !bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1))/binsize(n))+nhb(n)
+    bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1)+0.5d0*binsize(n))/binsize(n))+nhb(n) !HALF SHIFT
     bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb(i)
     bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb(j)
 
@@ -872,6 +878,7 @@ subroutine update_pivots_alt(points, ISR, pivots, tau, ns, new_pivots)
     !Get surface for all molecular locations
     nmols = int(ns*ISR%area)
     call ISR%get_surface(points, surf)
+    allocate(z(size(points,1)))
     z = abs(points(:,ISR%normal)-surf(:))
     allocate(indices(size(points,1)))
     do ind = 1, size(indices,1)
@@ -917,7 +924,12 @@ end subroutine update_pivots_alt
 
 
 subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
-    use physical_constants_MD, only : np
+    !DEBUG DEBUGDEBUGDEBUG
+    !use physical_constants_MD, only : np
+    !use calculated_properties_MD, only : nbins
+    !use computational_constants_MD, only : nhb
+    !DEBUG DEBUGDEBUGDEBUG
+
     implicit none
 
 	type(intrinsic_surface_real), intent(in) :: ISR	! declare an instance
@@ -926,7 +938,6 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
     double precision, intent(in), dimension(:,:), allocatable ::  points
     integer, dimension(:), allocatable, intent(inout) :: pivots
 
-    logical, save :: write_cluster_header=.true.
     integer :: i, j, ixyz, jxyz, sp, ntarget, try, maxtry=100, qm, qu
     integer, dimension(2) :: modes_shape
     integer, dimension(:), allocatable :: indices, new_pivots, initial_pivots
@@ -1045,7 +1056,6 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
 
     enddo
 
-
     !Plot updated surface error
     !DEBUG DEBUG DEBUG DEBUG
 !    if (allocated(d)) deallocate(d)
@@ -1055,22 +1065,6 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
 !    d = pivot_pos(:, ISR%normal) - surf(:)
 !    Error = sqrt(sum(d * d) / size(d))
 !    print*, "fit_intrinsic_surface_modes", try, Error, ntarget
-
-    !Write vmd xyz file for debugging
-    if (write_cluster_header) then
-        open(292847, file="./cluster_interface.xyz",status='replace')
-        write(292847,*) np
-        write_cluster_header = .false.
-    else
-        open(292847, file="./cluster_interface.xyz",access='append')
-    endif
-    do i =1, size(pivots,1)
-        write(292847,'(a,3f18.8)') "Name", points(pivots(i),:)
-    enddo
-    do i=size(pivots,1)+1,np
-        write(292847,'(a,3f18.8)') "Name", 0.d0, 0.d0, 0.d0
-    enddo
-    close(292847)
     !DEBUG DEBUG DEBUG DEBUG
 
 end subroutine fit_intrinsic_surface_modes

@@ -226,7 +226,8 @@ contains
         !box = (/globaldomain(2), globaldomain(3), globaldomain(1)/)
         call ISR%get_surface(points, elevation)
 
-        bin(1) = ceiling((r(1)+halfdomain(1)-elevation(1))/binsize(1))+nhb(1)
+        !bin(1) = ceiling((r(1)+halfdomain(1)-elevation(1))/binsize(1))+nhb(1)
+        bin(1) = ceiling((r(1)+halfdomain(1)-elevation(1)+0.5d0*binsize(1))/binsize(1))+nhb(1) !HALF SHIFT
         bin(2) = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
         bin(3) = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
 
@@ -266,7 +267,8 @@ contains
 
         integer :: ixyz
 
-        bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n))/binsize(1))+nhb(1)
+        !bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n))/binsize(1))+nhb(1)
+        bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n)+0.5d0*binsize(1))/binsize(1))+nhb(1) !HALF SHIFT
         bin(2) = ceiling((r(2,n)+halfdomain(2))/binsize(2))+nhb(2)
         bin(3) = ceiling((r(3,n)+halfdomain(3))/binsize(3))+nhb(3)
 
@@ -561,10 +563,11 @@ contains
         integer                 :: maxbin, minbin, minTbin, maxTbin
         real(kind(0.d0))        :: pt, r12(3)
 
-        integer :: flag
+        integer :: flag, ss, Ns, cross
+        integer, dimension(3) :: bin, bin_mdt
         integer, dimension(:), allocatable :: cbinstemp
 
-        real(kind(0.d0)) :: yrb, yrt, zrb, zrt
+        real(kind(0.d0)) :: yrb, yrt, zrb, zrt, s, ds
         real(kind(0.d0)) :: y(2,2), z(2,2), P(2,2,3), A(2,2)
         real(kind(0.d0)), dimension(:), allocatable :: elevation, yt, yb, zt, zb
         real(kind(0.d0)),dimension(3,2)  :: intersect, normal
@@ -574,6 +577,9 @@ contains
             crossings = .false.
         else
             crossings = .true.
+
+            !if (all(ISR_mdt%get_bin(r1, nbins, nhb) .ne. bin1)) stop "get_crossings_bilinear - Bin check failure"
+            !if (all(ISR_mdt%get_bin(r2, nbins, nhb) .ne. bin2)) stop "get_crossings_bilinear - Bin check failure"
 
             !Tangents
             if (ISR_mdt%normal .ne. n) stop "Error in get_crossings_bilinear, normal not consistent with surface"
@@ -658,8 +664,14 @@ contains
                     call ISR_mdt%get_surface(points, elevation)
 
                     !Shift by current bin
-                    elevation(:) = elevation(:) + (i-1*nhb(n))*binsize(n)-0.5d0*ISR_mdt%box(ISR_mdt%normal)
-                    points(:,n) = elevation(:)  !Not necessarily used but for completeness
+!                    elevation(:) = elevation(:) & 
+!                                  + (i-1*nhb(n)+0.5d0)*binsize(n) &
+!                                  -0.5d0*ISR_mdt%box(ISR_mdt%normal)
+                    elevation(:) = elevation(:) & 
+                                  + (i-1*nhb(n)-0.5d0)*binsize(n) &
+                                  -0.5d0*ISR_mdt%box(ISR_mdt%normal)  !HALF SHIFT
+
+                    points(:,n) = elevation(:)  !Normal not necessarily used but for completeness
 
                     !Get a patch of P values to use in bilinear patch - line calculation
                     P(:,:,1) = reshape(points(:,n ), (/2,2/))
@@ -680,10 +692,10 @@ contains
                         call line_plane_intersect(r1, r12, P, intersect, normal, flag)
                     endif
 
-                    !print*, i, r1(1), elevation(1), r2(1), bin1(1)-nhb(1)!, yb, yt, zb, zt, intersect
+                    !print*, 'line_plane_intersect output', i, r1(1), elevation(1), r2(1), bin1(1)-nhb(1), yb, yt, zb, zt, intersect
                     !Loop over intersects and add to temp
                     do ixyz=1,size(intersect,2)
-                        !if (size(intersect,2) .ne. 1) print*, ixyz, i, jb, kb, j, temp(:,j-1), r1, intersect
+                        !if (size(intersect,2) .ne. 1) print'(5i5,9f10.5)', ixyz, i, jb, kb, j, r1, intersect(:,ixyz), r2
                         if (all(abs(intersect(:,ixyz)+666) .gt. 1e-7)) then
                             temp(:,j) = intersect(:,ixyz)
                             if (present(cbins)) cbinstemp(j) = i
@@ -711,7 +723,44 @@ contains
                     cbins = cbinstemp(j-1)
                 endif
             else
-                print*, "Warning in get_crossings_bilinear ", j, temp(:,j)
+                print*, "Warning in get_crossings_bilinear - no crossings found ", minbin, maxbin, r1, r2
+                ! Crossing of bilinear differs from Fourier surface
+                ! Walk line between two points and try to get location of crossing
+                Ns = 100
+                if (allocated(points)) deallocate(points)
+                allocate(points(Ns,3))
+            	ds = 1.d0 / real(Ns, kind(0.d0))
+            	! First sample at r1 
+	            s = -ds
+	            ! Loop over all samples, s varies from 0 to 1
+                bin_mdt = bin1
+	            do ss = 1, Ns+2
+		            ! Position of sample on line
+		            points(ss,:) = r1(:) + s*r12(:)
+                    bin = ISR_mdt%get_bin(points(ss,:), nbins, nhb)
+                    !print*, "Points on line", s, points(ss,:), bin, bin_mdt, &
+                    !bin(ISR_mdt%normal) .ne. bin_mdt(ISR_mdt%normal), ISR_mdt%normal
+                    !If bin changes then must be a crossing
+                    cross = bin(ISR_mdt%normal) - bin_mdt(ISR_mdt%normal) 
+                    if (cross .ne. 0) then
+                        allocate(rc(3, 1))
+                        rc(:, 1) = r1(:) + (s-0.5d0*ds)*r12(:)
+                        !print*, "Crossing found", rc, bin, s-0.5d0*ds
+                        if (present(cbins)) then
+                            allocate(cbins(1))
+                            if (cross .gt. 0) then
+                                cbins(1) = bin_mdt(ISR_mdt%normal)
+                            else 
+                                cbins(1) = bin(ISR_mdt%normal)
+                            endif
+                        endif
+                        exit
+                    endif
+                    bin_mdt = bin
+		            s = s + ds
+	            end do	
+                !call ISR_mdt%get_surface(points, elevation)
+                !print*, "Elevations", elevation+ (bin1(n)-1*nhb(n))*binsize(n)-0.5d0*ISR_mdt%box(ISR_mdt%normal)
                 !stop "Error get_crossings_bilinear - interactions must be missed"
             endif
         endif
@@ -3133,7 +3182,7 @@ end subroutine pressure_tensor_forces_H
 ! Linear trajectory path sampled to find approximate values of l_ij 
 !(less accurate, but much easier to understand)
 
-subroutine pressure_tensor_forces_VA_trap(ri,rj,rF,VA_line_samples)
+subroutine pressure_tensor_forces_VA_trap(ri, rj, rF, VA_line_samples)
 	use librarymod, only: outerprod
 	implicit none
 
@@ -3633,7 +3682,7 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 
 	!integer,intent(in)  			:: imin, jmin, kmin, imax, jmax, kmax
 
-	integer                         :: i, j, ixyz !Define dummy index
+	integer                         :: i, j, ixyz, jxyz !Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp 
@@ -3643,8 +3692,11 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 
 	real(kind(0.d0)),dimension(3)	:: vi_t, cellsperbin
 	!real(kind(0.d0)), dimension(3,3):: rF
+	real(kind(0.d0)), dimension(1,1):: one
 	real(kind(0.d0)), dimension(:,:), allocatable :: rF
 	real(kind(0.d0)), dimension(3,1):: rFv
+
+	real(kind(0.d0)), dimension(:,:,:,:,:), allocatable :: zeros
 	!rfbin = 0.d0
 	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
 	!rijsum = 0.d0
@@ -3713,40 +3765,88 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 
 					if (rij2 < rcutoff2) then
 
-                        !---------------------------------------
-                        ! - Get volume average pressure tensor -
+				        !Linear magnitude of acceleration for each molecule
+				        invrij2 = 1.d0/rij2                 !Invert value
+				        accijmag = get_accijmag(invrij2, molnoi, molnoj) !48.d0*(invrij2**7-0.5d0*invrij2**4)
+                        call get_outerprod(rij,rij*accijmag,rf)
 
-				        if (pressure_outflag .eq. 2) then
-						    !Linear magnitude of acceleration for each molecule
-						    invrij2 = 1.d0/rij2                 !Invert value
-						    accijmag = get_accijmag(invrij2, molnoi, molnoj) !48.d0*(invrij2**7-0.5d0*invrij2**4)
-                            call get_outerprod(rij,rij*accijmag,rf)
-                            !rf = outerprod(rij, accijmag*rij)
+                        !------------------------------------------------------------
+                        ! - Get volume average pressure tensor and pressure heating -
+				        if (pressure_outflag .eq. 2 .and. heatflux_outflag .eq. 2) then
 
-						    !Select requested configurational line partition methodology
-                            call pressure_tensor_forces_VA(ri, rj, rF, domain,  & 
-                                                           nbins, nhb,rfbin,    & 
-                                                           VA_calcmethod,       &
-                                                           VA_line_samples)
-                        endif
-                        !----------------------------------------
-                        ! - Get volume average pressure heating -
-				        if (heatflux_outflag .eq. 2) then
                             !Get the velocity, v, at time t 
                             ! ( This is the reason we need to do this after
                             !   the force calculation so we know a(t) ) 
                             vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
 
 						    !Select requested configurational line partition methodology
-                            !rf = outerprod(rij, accijmag*rij)
-                            call get_outerprod(rij,rij*accijmag,rf)
                             do ixyz = 1,3
                                 rfv(ixyz,1) = dot_product(rf(ixyz,:),vi_t(:))
                             enddo
-                            call pressure_tensor_forces_VA(ri, rj, rFv, domain, & 
-                                                           nbins, nhb, rfvbin,  & 
-                                                           VA_heatflux_calcmethod, &
-                                                           VA_heatflux_line_samples)
+
+                            !Merge both together as line calculation is expensive
+                            !especially if non-uniform grid
+!                            if (VA_calcmethod .eq. VA_heatflux_calcmethod .and. &
+!                                VA_line_samples .eq. VA_heatflux_line_samples) then
+!                                if (.not. allocated(zeros)) then
+!                                    allocate(zeros(size(rfbin,1), & 
+!                                                   size(rfbin,2), & 
+!                                                   size(rfbin,3), 1, 1))
+!                                    zeros = 0.d0
+!                                else
+!                                    zeros = 0.d0
+!                                endif
+!                                call pressure_tensor_forces_VA(ri, rj, one, domain, & 
+!                                                               nbins, nhb, zeros,   & 
+!                                                               VA_calcmethod,       &
+!                                                               VA_line_samples)
+!                                do ixyz = 1,3
+!                                    rFvbin(:,:,:,ixyz,1) = rFvbin(:,:,:,ixyz,1) + zeros(:,:,:,1,1)*rFv(ixyz,1)
+!                                    do jxyz = 1,3
+!                                        rFbin(:,:,:,ixyz,jxyz) = rFbin(:,:,:,ixyz,jxyz) + zeros(:,:,:,1,1)*rF(ixyz,jxyz)
+!                                    enddo
+!                                enddo
+!                                
+!    
+!                            else
+
+						        !Select requested configurational line partition methodology
+                                call pressure_tensor_forces_VA(ri, rj, rF, domain,  & 
+                                                               nbins, nhb,rfbin,    & 
+                                                               VA_calcmethod,       &
+                                                               VA_line_samples)
+
+                                call pressure_tensor_forces_VA(ri, rj, rFv, domain, & 
+                                                               nbins, nhb, rfvbin,  & 
+                                                               VA_heatflux_calcmethod, &
+                                                               VA_heatflux_line_samples)
+!                            endif
+                        else
+                            !---------------------------------------
+                            ! - Get volume average pressure tensor -
+				            if (pressure_outflag .eq. 2) then
+						        !Select requested configurational line partition methodology
+                                call pressure_tensor_forces_VA(ri, rj, rF, domain,  & 
+                                                               nbins, nhb,rfbin,    & 
+                                                               VA_calcmethod,       &
+                                                               VA_line_samples)
+                            endif
+                            !----------------------------------------
+                            ! - Get volume average pressure heating -
+				            if (heatflux_outflag .eq. 2) then
+                                !Get the velocity, v, at time t 
+                                ! ( This is the reason we need to do this after
+                                !   the force calculation so we know a(t) ) 
+                                vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
+
+                                do ixyz = 1,3
+                                    rfv(ixyz,1) = dot_product(rf(ixyz,:),vi_t(:))
+                                enddo
+                                call pressure_tensor_forces_VA(ri, rj, rFv, domain, & 
+                                                               nbins, nhb, rfvbin,  & 
+                                                               VA_heatflux_calcmethod, &
+                                                               VA_heatflux_line_samples)
+                            endif
                         endif
 
 					endif
@@ -7261,7 +7361,7 @@ contains
         use computational_constants_MD, only : iter, tplot, thermo_tags, thermo, &
                                                free, globaldomain, intrinsic_interface_outflag, &
                                                II_normal, II_alpha, II_tau, II_eps, II_ns, &
-                                               mflux_outflag, Nsurfevo_outflag
+                                               mflux_outflag, Nsurfevo_outflag, nhb
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, write_wavexyz
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
         use arrays_MD, only : tag, r, intnscshift
@@ -7277,6 +7377,7 @@ contains
         integer, intent(in)                :: min_ngbr
         double precision, intent(in)       :: rd
 
+        logical, save :: write_cluster_header=.true.
         logical,save                    :: first_time=.true., first_time_coeff=.true.
         character(32)                   :: filename, debug_outfile
         integer                         :: n,i,j,ixyz, jxyz,resolution,fittype,normal, clustNo, bins(3)
@@ -7357,6 +7458,11 @@ contains
                     !Fit intrinsic surface to next timestep
                     call fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
 
+                    !Set pivots in intrinsic surface
+                    if (allocated(ISR%pivots)) deallocate(ISR%pivots)
+                    allocate(ISR%pivots(size(pivots,1)))
+                    ISR%pivots = pivots
+
                     !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
                     if (first_time_coeff) then
                         !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
@@ -7391,7 +7497,7 @@ contains
 
                         !Get surface crossings due to surface's evolution
                         if (Nsurfevo_outflag .ne. 0) then
-                            call surface_evolution(ISR, ISR_mdt, 1, .true.)
+                            call surface_evolution(ISR, ISR_mdt, 1, .false.)
                         endif
                         !print*, "coeff mdt", maxval(abs(ISR_mdt%coeff(1:310))), maxval(abs(ISR_mdt%coeff(315:)))
                     endif
@@ -7405,15 +7511,28 @@ contains
                     !ISR%coeff(:)=coeffmdt(:)  !Set to fixed initial value
 
                     !DEBUG - write surface out
-                    call ISR%sample_surface((/1, 100, 100/), vertices)
-                    call write_wavexyz(vertices)
+                    !call ISR%sample_surface((/1, 100, 100/), vertices)
+                    !call write_wavexyz(vertices)
                     !call write_waveobj(vertices, iter)
-                    !write(filename,'(i6,a4)') iter, ".out"
-                    !open(20505, file=trim(filename))
-                    !do i = 1, size(vertices,1)
-                    !    write(20505,*), i, 0.25*sum(vertices(i,:,:),1)
-                    !enddo
-                    !close(20505)
+
+!                    !Write vmd xyz file for debugging
+!                    if (write_cluster_header) then
+!                        open(292847, file="./cluster_interface.xyz",status='replace')
+!                        write(292847,*) np
+!                        write_cluster_header = .false.
+!                    else
+!                        open(292847, file="./cluster_interface.xyz",access='append')
+!                    endif
+!                    do i =1, size(pivots,1)
+!                        !print'(a,i6,3f10.5,3i6)', "Cluster interface mols and bins", i, points(pivots(i),:),& 
+!                        !         ISR%get_bin(points(pivots(i),:), nbins, nhb)!, & 
+!                             !ISR_mdt%get_bin(points(pivots(i),:), nbins, nhb)
+!                        write(292847,'(a,3f18.8)') "Name", points(pivots(i),:)
+!                    enddo
+!                    do i=size(pivots,1)+1,np
+!                        write(292847,'(a,3f18.8)') "Name", 0.d0, 0.d0, 0.d0
+!                    enddo
+!                    close(292847)
                     !DEBUG - write surface out
 
 
@@ -7563,13 +7682,15 @@ contains
         use librarymod, only : get_Timestep_FileName, get_new_fileunit, imaxloc
         use interfaces, only : error_abort
         use arrays_MD, only : r, glob_no
+        use module_record, only : ISR
         implicit none
 
         type(clusterinfo),intent(inout)    :: self
         integer, intent(in)                :: min_ngbr
 
         integer                         :: i, N, clustno, mainclusterNo, fileunit, Nrecords
-        integer                         :: fileunit1, fileunit2, countwritten1, countwritten2
+        integer                         :: fileunit1, fileunit2, fileunit3
+        integer                         :: countwritten1, countwritten2, countwritten3
         logical,save                    :: first_time=.true.
 
         integer, dimension(:), allocatable :: clust
@@ -7586,12 +7707,18 @@ contains
             fileunit2 = get_new_fileunit()
             open(fileunit2, file="./cluster_others.xyz",status='replace')
             write(fileunit2,*) Nrecords
+            fileunit3 = get_new_fileunit()
+            open(fileunit3, file="./cluster_interface.xyz",status='replace')
+            write(fileunit3,*) Nrecords
             first_time = .false.
+
         else
             fileunit1 = get_new_fileunit()
             open(fileunit1, file="./cluster_main.xyz", access='append')
             fileunit2 = get_new_fileunit()
             open(fileunit2, file="./cluster_others.xyz", access='append')
+            fileunit3 = get_new_fileunit()
+            open(fileunit3, file="./cluster_interface.xyz", access='append')
         endif
 
         countwritten1 = 0; countwritten2 = 0
@@ -7615,6 +7742,15 @@ contains
                     enddo
                     countwritten2 = countwritten2 + size(rnp_ex,2)
                     !print*, "CLUSTER SIZE ADDED = ", size(rnp,2) + size(rnp_ex,2), N
+                    if (allocated(ISR%pivots)) then
+                        do i =1, size(ISR%pivots,1)
+                            !print'(a,i6,3f10.5,3i6)', "Cluster interface mols and bins", i, points(ISR%pivots(i),:),& 
+                            !         ISR%get_bin(points(ISR%pivots(i),:), nbins, nhb)!, & 
+                                 !ISR_mdt%get_bin(points(ISR%pivots(i),:), nbins, nhb)
+                            write(fileunit3,'(a,3f18.8)') "c", rnp(:,ISR%pivots(i))
+                        enddo
+                        countwritten3 = countwritten3 + size(ISR%pivots,1)
+                    endif
                 else
                     call cluster_to_array(self, clustno, rnp, 0)
                     do i=1,size(rnp,2)
@@ -7627,6 +7763,7 @@ contains
             endif
         enddo
 
+        !Sanity check, have all molecules been written either to main cluster or other
         if (countwritten1 + countwritten2 .ne. Nrecords) then 
             print*, countwritten1, countwritten2, Nrecords
             stop "Error in write_cluster_xyz - clust_main+clust_others .ne. total_particles"
@@ -7640,6 +7777,10 @@ contains
             write(fileunit2,'(a1,3f18.8)') "c", 0.d0, 0.d0, 0.d0
         enddo
         close(fileunit2)
+        do i=countwritten3+1, Nrecords
+            write(fileunit3,'(a,3f18.8)') "c", 0.d0, 0.d0, 0.d0
+        enddo
+        close(fileunit3)
 
     end subroutine write_cluster_xyz
 
@@ -8935,7 +9076,8 @@ subroutine get_interface_from_clusters()
                                  destroy_clusters
     use linked_list, only : cluster
     use computational_constants_MD, only : CA_rd, CA_min_nghbr, iter, &
-                                           tplot, intrinsic_interface_outflag
+                                           tplot, intrinsic_interface_outflag, &
+                                           CV_conserve
     implicit none
 
     integer             :: min_ngbr
@@ -8944,12 +9086,12 @@ subroutine get_interface_from_clusters()
     min_ngbr = CA_min_nghbr !1000000
     rd = CA_rd !1.5d0
     
-    if (mod(iter,tplot) .eq. 0) then
+    if (mod(iter,tplot) .eq. 0 .or. CV_conserve .eq. 1) then
         call build_clusters(cluster, rd)
-        call write_cluster_xyz(cluster, min_ngbr)
         if (any(intrinsic_interface_outflag .eq. (/1,2/))) then
             call get_cluster_properties(cluster, rd, min_ngbr)
         endif
+        !call write_cluster_xyz(cluster, min_ngbr)
         call destroy_clusters(cluster)
     endif
 

@@ -4262,7 +4262,7 @@ subroutine surface_evolution_mass_flux_io()
     end select
 
     !Write mass to file
-    call write_arrays(mass_surface_flux,nresults,outfile,m)
+    call write_arrays(mass_surface_flux, nresults, outfile, m)
 
 end subroutine surface_evolution_mass_flux_io
 
