@@ -226,7 +226,8 @@ contains
         !box = (/globaldomain(2), globaldomain(3), globaldomain(1)/)
         call ISR%get_surface(points, elevation)
 
-        bin(1) = ceiling((r(1)+halfdomain(1)-elevation(1))/binsize(1))+nhb(1)
+        !bin(1) = ceiling((r(1)+halfdomain(1)-elevation(1))/binsize(1))+nhb(1)
+        bin(1) = ceiling((r(1)+halfdomain(1)-elevation(1)+0.5d0*binsize(1))/binsize(1))+nhb(1) !HALF SHIFT
         bin(2) = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
         bin(3) = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
 
@@ -266,7 +267,8 @@ contains
 
         integer :: ixyz
 
-        bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n))/binsize(1))+nhb(1)
+        !bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n))/binsize(1))+nhb(1)
+        bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n)+0.5d0*binsize(1))/binsize(1))+nhb(1) !HALF SHIFT
         bin(2) = ceiling((r(2,n)+halfdomain(2))/binsize(2))+nhb(2)
         bin(3) = ceiling((r(3,n)+halfdomain(3))/binsize(3))+nhb(3)
 
@@ -561,10 +563,11 @@ contains
         integer                 :: maxbin, minbin, minTbin, maxTbin
         real(kind(0.d0))        :: pt, r12(3)
 
-        integer :: flag
+        integer :: flag, ss, Ns, cross
+        integer, dimension(3) :: bin, bin_mdt
         integer, dimension(:), allocatable :: cbinstemp
 
-        real(kind(0.d0)) :: yrb, yrt, zrb, zrt
+        real(kind(0.d0)) :: yrb, yrt, zrb, zrt, s, ds
         real(kind(0.d0)) :: y(2,2), z(2,2), P(2,2,3), A(2,2)
         real(kind(0.d0)), dimension(:), allocatable :: elevation, yt, yb, zt, zb
         real(kind(0.d0)),dimension(3,2)  :: intersect, normal
@@ -574,6 +577,9 @@ contains
             crossings = .false.
         else
             crossings = .true.
+
+            !if (all(ISR_mdt%get_bin(r1, nbins, nhb) .ne. bin1)) stop "get_crossings_bilinear - Bin check failure"
+            !if (all(ISR_mdt%get_bin(r2, nbins, nhb) .ne. bin2)) stop "get_crossings_bilinear - Bin check failure"
 
             !Tangents
             if (ISR_mdt%normal .ne. n) stop "Error in get_crossings_bilinear, normal not consistent with surface"
@@ -658,8 +664,14 @@ contains
                     call ISR_mdt%get_surface(points, elevation)
 
                     !Shift by current bin
-                    elevation(:) = elevation(:) + (i-1*nhb(n))*binsize(n)-0.5d0*ISR_mdt%box(ISR_mdt%normal)
-                    points(:,n) = elevation(:)  !Not necessarily used but for completeness
+!                    elevation(:) = elevation(:) & 
+!                                  + (i-1*nhb(n)+0.5d0)*binsize(n) &
+!                                  -0.5d0*ISR_mdt%box(ISR_mdt%normal)
+                    elevation(:) = elevation(:) & 
+                                  + (i-1*nhb(n)-0.5d0)*binsize(n) &
+                                  -0.5d0*ISR_mdt%box(ISR_mdt%normal)  !HALF SHIFT
+
+                    points(:,n) = elevation(:)  !Normal not necessarily used but for completeness
 
                     !Get a patch of P values to use in bilinear patch - line calculation
                     P(:,:,1) = reshape(points(:,n ), (/2,2/))
@@ -680,10 +692,10 @@ contains
                         call line_plane_intersect(r1, r12, P, intersect, normal, flag)
                     endif
 
-                    !print*, i, r1(1), elevation(1), r2(1), bin1(1)-nhb(1)!, yb, yt, zb, zt, intersect
+                    !print*, 'line_plane_intersect output', i, r1(1), elevation(1), r2(1), bin1(1)-nhb(1), yb, yt, zb, zt, intersect
                     !Loop over intersects and add to temp
                     do ixyz=1,size(intersect,2)
-                        !if (size(intersect,2) .ne. 1) print*, ixyz, i, jb, kb, j, temp(:,j-1), r1, intersect
+                        !if (size(intersect,2) .ne. 1) print'(5i5,9f10.5)', ixyz, i, jb, kb, j, r1, intersect(:,ixyz), r2
                         if (all(abs(intersect(:,ixyz)+666) .gt. 1e-7)) then
                             temp(:,j) = intersect(:,ixyz)
                             if (present(cbins)) cbinstemp(j) = i
@@ -711,8 +723,45 @@ contains
                     cbins = cbinstemp(j-1)
                 endif
             else
-                print*, j, temp(:,j)
-                stop "Error get_crossings_bilinear - interactions must be missed"
+                print*, "Warning in get_crossings_bilinear - no crossings found ", minbin, maxbin, r1, r2
+                ! Crossing of bilinear differs from Fourier surface
+                ! Walk line between two points and try to get location of crossing
+                Ns = 100
+                if (allocated(points)) deallocate(points)
+                allocate(points(Ns,3))
+            	ds = 1.d0 / real(Ns, kind(0.d0))
+            	! First sample at r1 
+	            s = -ds
+	            ! Loop over all samples, s varies from 0 to 1
+                bin_mdt = bin1
+	            do ss = 1, Ns+2
+		            ! Position of sample on line
+		            points(ss,:) = r1(:) + s*r12(:)
+                    bin = ISR_mdt%get_bin(points(ss,:), nbins, nhb)
+                    !print*, "Points on line", s, points(ss,:), bin, bin_mdt, &
+                    !bin(ISR_mdt%normal) .ne. bin_mdt(ISR_mdt%normal), ISR_mdt%normal
+                    !If bin changes then must be a crossing
+                    cross = bin(ISR_mdt%normal) - bin_mdt(ISR_mdt%normal) 
+                    if (cross .ne. 0) then
+                        allocate(rc(3, 1))
+                        rc(:, 1) = r1(:) + (s-0.5d0*ds)*r12(:)
+                        !print*, "Crossing found", rc, bin, s-0.5d0*ds
+                        if (present(cbins)) then
+                            allocate(cbins(1))
+                            if (cross .gt. 0) then
+                                cbins(1) = bin_mdt(ISR_mdt%normal)
+                            else 
+                                cbins(1) = bin(ISR_mdt%normal)
+                            endif
+                        endif
+                        exit
+                    endif
+                    bin_mdt = bin
+		            s = s + ds
+	            end do	
+                !call ISR_mdt%get_surface(points, elevation)
+                !print*, "Elevations", elevation+ (bin1(n)-1*nhb(n))*binsize(n)-0.5d0*ISR_mdt%box(ISR_mdt%normal)
+                !stop "Error get_crossings_bilinear - interactions must be missed"
             endif
         endif
 
@@ -759,8 +808,7 @@ subroutine simulation_record
     integer, save   :: vmdintervalno = 1
 
     !Cluster analysis or average bin based tracking of liquid vapour interfaces
-    if (cluster_analysis_outflag .eq. 1 .and.  & 
-        any(intrinsic_interface_outflag .eq. (/1,2/))) then
+    if (cluster_analysis_outflag .eq. 1) then
         call get_interface_from_clusters()
     elseif (cluster_analysis_outflag .eq. 2) then
         call sl_interface_from_binaverage()
@@ -768,7 +816,7 @@ subroutine simulation_record
 
 	if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 		call mass_flux_averaging(mflux_outflag)				!Average mass flux before movement of particles
-		call momentum_flux_averaging(vflux_outflag)         !Average momnetum flux after movement of particles
+		call momentum_flux_averaging(vflux_outflag)         !Average momentum flux after movement of particles
 		call energy_flux_averaging(eflux_outflag)			!Average energy flux after movement of particles
         call surface_density_averaging(msurf_outflag)	    !Obtain and record density on a surface
 	endif
@@ -3134,7 +3182,7 @@ end subroutine pressure_tensor_forces_H
 ! Linear trajectory path sampled to find approximate values of l_ij 
 !(less accurate, but much easier to understand)
 
-subroutine pressure_tensor_forces_VA_trap(ri,rj,rF,VA_line_samples)
+subroutine pressure_tensor_forces_VA_trap(ri, rj, rF, VA_line_samples)
 	use librarymod, only: outerprod
 	implicit none
 
@@ -3634,7 +3682,7 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 
 	!integer,intent(in)  			:: imin, jmin, kmin, imax, jmax, kmax
 
-	integer                         :: i, j, ixyz !Define dummy index
+	integer                         :: i, j, ixyz, jxyz !Define dummy index
 	integer							:: icell, jcell, kcell
 	integer                         :: icellshift, jcellshift, kcellshift
 	integer                         :: cellnp, adjacentcellnp 
@@ -3644,8 +3692,11 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 
 	real(kind(0.d0)),dimension(3)	:: vi_t, cellsperbin
 	!real(kind(0.d0)), dimension(3,3):: rF
+	real(kind(0.d0)), dimension(1,1):: one
 	real(kind(0.d0)), dimension(:,:), allocatable :: rF
 	real(kind(0.d0)), dimension(3,1):: rFv
+
+	real(kind(0.d0)), dimension(:,:,:,:,:), allocatable :: zeros
 	!rfbin = 0.d0
 	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
 	!rijsum = 0.d0
@@ -3714,40 +3765,88 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 
 					if (rij2 < rcutoff2) then
 
-                        !---------------------------------------
-                        ! - Get volume average pressure tensor -
+				        !Linear magnitude of acceleration for each molecule
+				        invrij2 = 1.d0/rij2                 !Invert value
+				        accijmag = get_accijmag(invrij2, molnoi, molnoj) !48.d0*(invrij2**7-0.5d0*invrij2**4)
+                        call get_outerprod(rij,rij*accijmag,rf)
 
-				        if (pressure_outflag .eq. 2) then
-						    !Linear magnitude of acceleration for each molecule
-						    invrij2 = 1.d0/rij2                 !Invert value
-						    accijmag = get_accijmag(invrij2, molnoi, molnoj) !48.d0*(invrij2**7-0.5d0*invrij2**4)
-                            call get_outerprod(rij,rij*accijmag,rf)
-                            !rf = outerprod(rij, accijmag*rij)
+                        !------------------------------------------------------------
+                        ! - Get volume average pressure tensor and pressure heating -
+				        if (pressure_outflag .eq. 2 .and. heatflux_outflag .eq. 2) then
 
-						    !Select requested configurational line partition methodology
-                            call pressure_tensor_forces_VA(ri, rj, rF, domain,  & 
-                                                           nbins, nhb,rfbin,    & 
-                                                           VA_calcmethod,       &
-                                                           VA_line_samples)
-                        endif
-                        !----------------------------------------
-                        ! - Get volume average pressure heating -
-				        if (heatflux_outflag .eq. 2) then
                             !Get the velocity, v, at time t 
                             ! ( This is the reason we need to do this after
                             !   the force calculation so we know a(t) ) 
                             vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
 
 						    !Select requested configurational line partition methodology
-                            !rf = outerprod(rij, accijmag*rij)
-                            call get_outerprod(rij,rij*accijmag,rf)
                             do ixyz = 1,3
                                 rfv(ixyz,1) = dot_product(rf(ixyz,:),vi_t(:))
                             enddo
-                            call pressure_tensor_forces_VA(ri, rj, rFv, domain, & 
-                                                           nbins, nhb, rfvbin,  & 
-                                                           VA_heatflux_calcmethod, &
-                                                           VA_heatflux_line_samples)
+
+                            !Merge both together as line calculation is expensive
+                            !especially if non-uniform grid
+!                            if (VA_calcmethod .eq. VA_heatflux_calcmethod .and. &
+!                                VA_line_samples .eq. VA_heatflux_line_samples) then
+!                                if (.not. allocated(zeros)) then
+!                                    allocate(zeros(size(rfbin,1), & 
+!                                                   size(rfbin,2), & 
+!                                                   size(rfbin,3), 1, 1))
+!                                    zeros = 0.d0
+!                                else
+!                                    zeros = 0.d0
+!                                endif
+!                                call pressure_tensor_forces_VA(ri, rj, one, domain, & 
+!                                                               nbins, nhb, zeros,   & 
+!                                                               VA_calcmethod,       &
+!                                                               VA_line_samples)
+!                                do ixyz = 1,3
+!                                    rFvbin(:,:,:,ixyz,1) = rFvbin(:,:,:,ixyz,1) + zeros(:,:,:,1,1)*rFv(ixyz,1)
+!                                    do jxyz = 1,3
+!                                        rFbin(:,:,:,ixyz,jxyz) = rFbin(:,:,:,ixyz,jxyz) + zeros(:,:,:,1,1)*rF(ixyz,jxyz)
+!                                    enddo
+!                                enddo
+!                                
+!    
+!                            else
+
+						        !Select requested configurational line partition methodology
+                                call pressure_tensor_forces_VA(ri, rj, rF, domain,  & 
+                                                               nbins, nhb,rfbin,    & 
+                                                               VA_calcmethod,       &
+                                                               VA_line_samples)
+
+                                call pressure_tensor_forces_VA(ri, rj, rFv, domain, & 
+                                                               nbins, nhb, rfvbin,  & 
+                                                               VA_heatflux_calcmethod, &
+                                                               VA_heatflux_line_samples)
+!                            endif
+                        else
+                            !---------------------------------------
+                            ! - Get volume average pressure tensor -
+				            if (pressure_outflag .eq. 2) then
+						        !Select requested configurational line partition methodology
+                                call pressure_tensor_forces_VA(ri, rj, rF, domain,  & 
+                                                               nbins, nhb,rfbin,    & 
+                                                               VA_calcmethod,       &
+                                                               VA_line_samples)
+                            endif
+                            !----------------------------------------
+                            ! - Get volume average pressure heating -
+				            if (heatflux_outflag .eq. 2) then
+                                !Get the velocity, v, at time t 
+                                ! ( This is the reason we need to do this after
+                                !   the force calculation so we know a(t) ) 
+                                vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
+
+                                do ixyz = 1,3
+                                    rfv(ixyz,1) = dot_product(rf(ixyz,:),vi_t(:))
+                                enddo
+                                call pressure_tensor_forces_VA(ri, rj, rFv, domain, & 
+                                                               nbins, nhb, rfvbin,  & 
+                                                               VA_heatflux_calcmethod, &
+                                                               VA_heatflux_line_samples)
+                            endif
                         endif
 
 					endif
@@ -4268,7 +4367,6 @@ subroutine mass_flux_averaging(flag)
             !     "call CVcheck_mass%check_error( ... "   
             !     with 
             !     "check_error_mass(CVcheck_mass, ... "
-            print*, 1+nhb(1)+skipbinsbot(1),nbins(1)+nhb(1)-skipbinstop(1), skipbinstop(1)
             call check_error_mass(CVcheck_mass, &
                                   1+nhb(1)+skipbinsbot(1),nbins(1)+nhb(1)-skipbinstop(1), & 
 								  1+nhb(2)+skipbinsbot(2),nbins(2)+nhb(2)-skipbinstop(2), & 
@@ -7127,22 +7225,23 @@ contains
 
         double precision, intent(in)       :: rd
 
-        integer                            :: i
+        integer                            :: i, allocsize
 
         !Initialised cluster list
+        allocsize = np+extralloc
         if (.not. allocated(self%Nlist)) then
-            allocate(self%Nlist(np+extralloc))
-            allocate(self%head(np+extralloc))
+            allocate(self%Nlist(allocsize))
+            allocate(self%head(allocsize))
         endif
         if (.not. allocated(self%inclust)) then
-            allocate(self%inclust(np+extralloc))
+            allocate(self%inclust(allocsize))
         endif
         if (.not. allocated(self%clusterngbrs)) then
-            allocate(self%clusterngbrs(np+extralloc))
+            allocate(self%clusterngbrs(allocsize))
         endif
 
         self%Nclust = 0
-	    do i = 1,np+extralloc
+	    do i = 1,allocsize
             self%inclust(i) = 0
             !self%clusterngbrs(i) = 0
 		    self%Nlist(i) = 0	!Zero number of molecules in cluster list
@@ -7150,8 +7249,16 @@ contains
 	    enddo
 
         !Call to build clusters from neighbour and cell lists
-        call build_from_cellandneighbour_lists(self, cell, neighbour, rd,  & 
-                                               r, np, skipwalls_=.true.)
+        if (force_list .eq. 1) then
+            call build_from_cell_list(self, cell, rd,  & 
+                                      r, np, skipwalls_=.true.)
+        else if (force_list .eq. 2) then
+            call build_from_neighbour_list(self, neighbour, rd,  & 
+                                           r, np, skipwalls_=.true.)
+        else 
+            call error_abort("Error in build_clusters -- full cell or "//&
+                             "neightbour list should be used with interface tracking")
+        endif
 
         !Remove all empty cluster references
         call CompressClusters(self)
@@ -7253,8 +7360,9 @@ contains
         use physical_constants_MD, only : np, nd, tethereddisttop, tethereddistbottom
         use computational_constants_MD, only : iter, tplot, thermo_tags, thermo, &
                                                free, globaldomain, intrinsic_interface_outflag, &
-                                               II_normal, II_alpha, II_tau, II_eps, II_ns
-        use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit
+                                               II_normal, II_alpha, II_tau, II_eps, II_ns, &
+                                               mflux_outflag, Nsurfevo_outflag, nhb
+        use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, write_wavexyz
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
         use arrays_MD, only : tag, r, intnscshift
         use librarymod, only : heaviside  =>  heaviside_a1!, fit_intrinsic_surface, fit_intrinsic_surface_modes
@@ -7269,6 +7377,7 @@ contains
         integer, intent(in)                :: min_ngbr
         double precision, intent(in)       :: rd
 
+        logical, save :: write_cluster_header=.true.
         logical,save                    :: first_time=.true., first_time_coeff=.true.
         character(32)                   :: filename, debug_outfile
         integer                         :: n,i,j,ixyz, jxyz,resolution,fittype,normal, clustNo, bins(3)
@@ -7314,7 +7423,9 @@ contains
             if (first_time) then
                 call ISR%initialise(globaldomain, normal, alpha, eps)   ! initialise
                 call ISR_mdt%initialise(globaldomain, normal, alpha, eps)   ! initialise
+                !Should be moved to setup_set_parameters
                 allocate(mass_surface_flux(nbinso(1),nbinso(2),nbinso(3),6))
+                !Should be moved to setup_set_parameters
                 first_time = .false.
             endif
 
@@ -7326,7 +7437,7 @@ contains
 
                 !print*, "Size of cluster = ", size(rnp,2)
 
-                !Z normal is the only one tested so far
+                !x normal is the tested appears to work
                 if (allocated(points)) deallocate(points)
                 allocate(points(size(rnp,2), size(rnp,1)))
                 points = 0.d0
@@ -7346,6 +7457,11 @@ contains
 
                     !Fit intrinsic surface to next timestep
                     call fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
+
+                    !Set pivots in intrinsic surface
+                    if (allocated(ISR%pivots)) deallocate(ISR%pivots)
+                    allocate(ISR%pivots(size(pivots,1)))
+                    ISR%pivots = pivots
 
                     !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
                     if (first_time_coeff) then
@@ -7379,19 +7495,10 @@ contains
                         !ISR%coeff(312)=0.5d0 !sin (2*pi/Lx)
                         !ISR%coeff(314)=0.5d0
 
-                        !DEBUG - write surface out
-                        !call ISR%sample_surface((/50, 50, 50/), vertices)
-                        !call write_waveobj(vertices, iter)
-                        !write(filename,'(i6,a4)') iter, ".out"
-                        !open(20505, file=trim(filename))
-                        !do i = 1, size(vertices,1)
-                        !    write(20505,*), i, 0.25*sum(vertices(i,:,:),1)
-                        !enddo
-                        !close(20505)
-                        !DEBUG - write surface out
-
                         !Get surface crossings due to surface's evolution
-                        call surface_evolution(ISR, ISR_mdt, 1, .true.)
+                        if (Nsurfevo_outflag .ne. 0) then
+                            call surface_evolution(ISR, ISR_mdt, 1, .false.)
+                        endif
                         !print*, "coeff mdt", maxval(abs(ISR_mdt%coeff(1:310))), maxval(abs(ISR_mdt%coeff(315:)))
                     endif
 !                    else
@@ -7402,6 +7509,31 @@ contains
                     !ISR%coeff(312)=0.4d0 !sin (2*pi/Lx)
                     !ISR%coeff(314)=0.1d0 !sin (2*pi/Lx)
                     !ISR%coeff(:)=coeffmdt(:)  !Set to fixed initial value
+
+                    !DEBUG - write surface out
+                    !call ISR%sample_surface((/1, 100, 100/), vertices)
+                    !call write_wavexyz(vertices)
+                    !call write_waveobj(vertices, iter)
+
+!                    !Write vmd xyz file for debugging
+!                    if (write_cluster_header) then
+!                        open(292847, file="./cluster_interface.xyz",status='replace')
+!                        write(292847,*) np
+!                        write_cluster_header = .false.
+!                    else
+!                        open(292847, file="./cluster_interface.xyz",access='append')
+!                    endif
+!                    do i =1, size(pivots,1)
+!                        !print'(a,i6,3f10.5,3i6)', "Cluster interface mols and bins", i, points(pivots(i),:),& 
+!                        !         ISR%get_bin(points(pivots(i),:), nbins, nhb)!, & 
+!                             !ISR_mdt%get_bin(points(pivots(i),:), nbins, nhb)
+!                        write(292847,'(a,3f18.8)') "Name", points(pivots(i),:)
+!                    enddo
+!                    do i=size(pivots,1)+1,np
+!                        write(292847,'(a,3f18.8)') "Name", 0.d0, 0.d0, 0.d0
+!                    enddo
+!                    close(292847)
+                    !DEBUG - write surface out
 
 
                     !Get shift for intrinsic surface for each molecule
@@ -7544,6 +7676,115 @@ contains
     end subroutine get_cluster_properties
 
 
+    subroutine write_cluster_xyz(self, min_ngbr)
+        use computational_constants_MD, only : extralloc, globaldomain
+        use physical_constants_MD, only : np, nd
+        use librarymod, only : get_Timestep_FileName, get_new_fileunit, imaxloc
+        use interfaces, only : error_abort
+        use arrays_MD, only : r, glob_no
+        use module_record, only : ISR
+        implicit none
+
+        type(clusterinfo),intent(inout)    :: self
+        integer, intent(in)                :: min_ngbr
+
+        integer                         :: i, N, clustno, mainclusterNo, fileunit, Nrecords
+        integer                         :: fileunit1, fileunit2, fileunit3
+        integer                         :: countwritten1, countwritten2, countwritten3
+        logical,save                    :: first_time=.true.
+
+        integer, dimension(:), allocatable :: clust
+        double precision,dimension(:,:),allocatable :: rnp, rnp_ex
+
+        Nrecords = np! + extralloc
+        mainclusterNo = imaxloc(self%Nlist)
+
+        !Write vmd xyz file for debugging
+        if (first_time) then
+            fileunit1 = get_new_fileunit()
+            open(fileunit1, file="./cluster_main.xyz",status='replace')
+            write(fileunit1,*) Nrecords
+            fileunit2 = get_new_fileunit()
+            open(fileunit2, file="./cluster_others.xyz",status='replace')
+            write(fileunit2,*) Nrecords
+            fileunit3 = get_new_fileunit()
+            open(fileunit3, file="./cluster_interface.xyz",status='replace')
+            write(fileunit3,*) Nrecords
+            first_time = .false.
+
+        else
+            fileunit1 = get_new_fileunit()
+            open(fileunit1, file="./cluster_main.xyz", access='append')
+            fileunit2 = get_new_fileunit()
+            open(fileunit2, file="./cluster_others.xyz", access='append')
+            fileunit3 = get_new_fileunit()
+            open(fileunit3, file="./cluster_interface.xyz", access='append')
+        endif
+
+        countwritten1 = 0; countwritten2 = 0
+        do clustno =1,self%Nclust
+            N = self%Nlist(clustno)
+            if (N .ne. 0) then
+                !print*, clustno, N, mainclusterNo
+                if (clustno .eq. mainclusterNo) then
+                    call cluster_to_array(self, clustno, rnp, min_ngbr, rnp_ex)
+                    do i=1,size(rnp,2) !Cluster size can be larger than rnp as min_ngbr excluded
+                        write(fileunit1,'(a1,3f18.8)') "c", rnp(:,i)
+!                        if (any(rnp(:,i)+0.5d0*globaldomain .gt. globaldomain)) then 
+!                            print*, "write_cluster_xyz outside domain", i, rnp(:,i), clustno, np
+!                            stop "Error in write_cluster_xyz"
+!                        endif
+                    enddo
+                    countwritten1 = countwritten1 + size(rnp,2)
+                    !Write excluded molecules by minimum neightbour cutoff to cluster_others.xyz file
+                    do i=1,size(rnp_ex,2) 
+                        write(fileunit2,'(a1,3f18.8)') "c", rnp_ex(:,i)
+                    enddo
+                    countwritten2 = countwritten2 + size(rnp_ex,2)
+                    !print*, "CLUSTER SIZE ADDED = ", size(rnp,2) + size(rnp_ex,2), N
+                    if (allocated(ISR%pivots)) then
+                        do i =1, size(ISR%pivots,1)
+                            !print'(a,i6,3f10.5,3i6)', "Cluster interface mols and bins", i, points(ISR%pivots(i),:),& 
+                            !         ISR%get_bin(points(ISR%pivots(i),:), nbins, nhb)!, & 
+                                 !ISR_mdt%get_bin(points(ISR%pivots(i),:), nbins, nhb)
+                            write(fileunit3,'(a,3f18.8)') "c", rnp(:,ISR%pivots(i))
+                        enddo
+                        countwritten3 = countwritten3 + size(ISR%pivots,1)
+                    endif
+                else
+                    call cluster_to_array(self, clustno, rnp, 0)
+                    do i=1,size(rnp,2)
+                        write(fileunit2,'(a1,3f18.8)') "c", rnp(:,i)
+                    enddo
+                    countwritten2 = countwritten2 + size(rnp,2)
+                endif
+                deallocate(rnp)
+                if (allocated(rnp_ex)) deallocate(rnp_ex)
+            endif
+        enddo
+
+        !Sanity check, have all molecules been written either to main cluster or other
+        if (countwritten1 + countwritten2 .ne. Nrecords) then 
+            print*, countwritten1, countwritten2, Nrecords
+            stop "Error in write_cluster_xyz - clust_main+clust_others .ne. total_particles"
+        endif
+
+        do i=countwritten1+1, Nrecords
+            write(fileunit1,'(a1,3f18.8)') "c", 0.d0, 0.d0, 0.d0
+        enddo
+        close(fileunit1)
+        do i=countwritten2+1, Nrecords
+            write(fileunit2,'(a1,3f18.8)') "c", 0.d0, 0.d0, 0.d0
+        enddo
+        close(fileunit2)
+        do i=countwritten3+1, Nrecords
+            write(fileunit3,'(a,3f18.8)') "c", 0.d0, 0.d0, 0.d0
+        enddo
+        close(fileunit3)
+
+    end subroutine write_cluster_xyz
+
+
 
 
     subroutine surface_evolution(ISR, ISR_mdt, cnsvtype, write_debug)
@@ -7677,7 +7918,7 @@ contains
 !        enddo
 !        enddo
 
-        if (CV_debug .ne. 0) call CVcheck_mass%update_surface(mass_surface_flux)
+        call surface_evolution_mass_flux_io()
 
     end subroutine surface_evolution
 
@@ -7866,18 +8107,17 @@ contains
     end subroutine thermostat_cluster
 
 
-    subroutine build_from_cellandneighbour_lists(self, cell, neighbour, rd, & 
-                                                 rmols, nmols, skipwalls_)
-	    use module_compute_forces, only: cellinfo, neighbrinfo, rj, rij, ri,&
+    subroutine build_from_cell_list(self, cell, rd, & 
+                                    rmols, nmols, skipwalls_)
+	    use module_compute_forces, only: cellinfo, rj, rij, ri,&
                                          delta_rneighbr, rcutoff, rij2, &
                                          moltype
-        use computational_constants_MD, only : Mie_potential
+        use computational_constants_MD, only : Mie_potential, ncells
 	    use interfaces, only : error_abort
         implicit none
 
         type(clusterinfo),intent(inout) :: self
         type(cellinfo),intent(in)       :: cell
-        type(neighbrinfo),intent(in)    :: neighbour
 
         integer,intent(in)              :: nmols
         logical, intent(in),optional    :: skipwalls_
@@ -7887,10 +8127,11 @@ contains
         logical                              :: skipwalls
 	    integer                              :: i, j, m, n !Define dummy index
 	    integer							     :: icell, jcell, kcell, Nchecked, Nnghbrs
+        integer                              :: adjacentcellnp, icellshift, jcellshift, kcellshift
 	    integer                              :: cellnp, molnoi, molnoj, noneighbrs
         double precision                     :: rd2
-        !integer, dimension(:), allocatable   :: clusterngbrs
-	    type(node), pointer 	             :: oldi, currenti, noldj,ncurrentj
+
+	    type(node), pointer 	             :: oldi, currenti, oldj, currentj
 
         if (present(skipwalls_)) then
             skipwalls = skipwalls_
@@ -7900,48 +8141,121 @@ contains
 
         rd2 = rd**2
 
-        ! If number of checked molecules greater than minimum 
-        ! used in definitions of cluster list 
-        ! (1 by Stillinger or 3 used by Braga et al 2018)
-!        allocate(clusterngbrs(nmols))
-!        if (min_ngbr .ne. 0) then
-!            !First count number of cluster neighbours 
-!            do molnoi = 1, nmols
+        self%clusterngbrs = 0
+	    do kcell=2, ncells(3)+1
+	    do jcell=2, ncells(2)+1
+	    do icell=2, ncells(1)+1
 
-!	            ri = rmols(:,molnoi)         	!Retrieve ri
-!                if (skipwalls .and. (Mie_potential .ne. 0)) then
-!                    if (any(moltype(molnoi) .eq. (/ 2, 9 /) )) cycle !Don't include wall molecules
-!                endif
+		    cellnp = cell%cellnp(icell,jcell,kcell)
+		    oldi => cell%head(icell,jcell,kcell)%point !Set old to first molecule in list
 
-!                noneighbrs = neighbour%Nlist(molnoi)	    !Determine number of elements in neighbourlist
-!                noldj => neighbour%head(molnoi)%point		!Set old to head of neighbour list
-!                Nnghbrs = 0
+		    do i = 1,cellnp					!Step through each particle in list 
 
-!                !Step through all neighbours i 
-!                do j = 1, noneighbrs
-!	                molnoj = noldj%molno			        !Number of molecule j
-!	                rj(:) = rmols(:,molnoj)			            !Retrieve rj
-!	                rij(:)= ri(:) - rj(:)   	            !Evaluate distance between particle i and j
-!	                rij2  = dot_product(rij,rij)            !Square of vector calculated
+			    molnoi = oldi%molno 	 	!Number of molecule
+			    ri = rmols(:,molnoi)         	!Retrieve ri
+                
+                Nchecked = 0
+			    do kcellshift = -1,1
+			    do jcellshift = -1,1
+			    do icellshift = -1,1
 
-!	                if (rij2 .lt. rd2) then
-!                        if (skipwalls .and. (Mie_potential .ne. 0)) then
-!                            if (any(moltype(molnoj) .eq. (/ 2, 9 /))) cycle
-!                        endif
-!                        Nnghbrs = Nnghbrs + 1
-!                    endif
-!	                ncurrentj => noldj
-!	                noldj => ncurrentj%next !Use pointer in datatype to obtain next item in list
-!                 enddo
-!                clusterngbrs(molnoi) = Nnghbrs
-!            enddo
-!        endif
+				    oldj => cell%head(icell+icellshift, & 
+                                      jcell+jcellshift, &
+                                      kcell+kcellshift)%point
+				    adjacentcellnp = cell%cellnp(icell+icellshift, & 
+                                                 jcell+jcellshift, &
+                                                 kcell+kcellshift)
 
-        !allocate(clusterngbrs(nmols))
+				    do j = 1,adjacentcellnp			!Step through all j for each i
+
+					    molnoj = oldj%molno			!Number of molecule
+                        if (molnoj .gt. nmols) cycle
+					    rj = rmols(:,molnoj)			!Retrieve rj
+
+					    currentj => oldj
+					    oldj => currentj%next		!Use pointer in datatype to obtain next item in list
+
+					    if(molnoi==molnoj) cycle	!Check to prevent interaction with self
+
+					    rij2=0						!Set rij^2 to zero
+					    rij(:) = ri(:) - rj(:)		!Evaluate distance between particle i and j
+					    rij2 = dot_product(rij,rij)	!Square of vector calculated
+
+                        if (skipwalls .and. (Mie_potential .ne. 0)) then
+                            if (any(moltype(molnoi) .eq. (/ 2, 9 /) )) cycle !Don't include wall molecules
+                        endif
+
+	                    if (rij2 .lt. rd2) then
+                            !print*, molnoi, molnoj, rij2, self%Nclust
+                            if (skipwalls .and. (Mie_potential .ne. 0)) then
+                                if (any(moltype(molnoj) .eq. (/ 2, 9 /))) then
+                                    call AddBondedPair(self, molnoi, molnoi)
+                                else
+                                    call AddBondedPair(self, molnoi, molnoj)
+                                endif
+                            else
+                                call AddBondedPair(self, molnoi, molnoj)
+                            endif
+                            Nchecked = Nchecked + 1
+                        endif
+                    enddo
+			    enddo
+			    enddo
+			    enddo
+			    currenti => oldi
+			    oldi => currenti%next !Use pointer in datatype to obtain next item in list
+
+               !If no neighbours, add molecule to its own cluster list
+                if (Nchecked .eq. 0) then
+                    call AddBondedPair(self, molnoi, molnoi)
+                    Nchecked = 1
+                endif
+
+                !Store number of clusterable molecules close to each molecule
+                self%clusterngbrs(molnoi) = Nchecked
+		    enddo
+	    enddo
+	    enddo
+	    enddo
+
+
+    end subroutine build_from_cell_list
+
+
+    subroutine build_from_neighbour_list(self, neighbour, rd, & 
+                                         rmols, nmols, skipwalls_)
+	    use module_compute_forces, only: neighbrinfo, rj, rij, ri,&
+                                         delta_rneighbr, rcutoff, rij2, &
+                                         moltype
+        use computational_constants_MD, only : Mie_potential
+	    use interfaces, only : error_abort
+        implicit none
+
+        type(clusterinfo),intent(inout) :: self
+        type(neighbrinfo),intent(in)    :: neighbour
+
+        integer,intent(in)              :: nmols
+        logical, intent(in),optional    :: skipwalls_
+        double precision, intent(in)    :: rd
+        double precision, intent(in), dimension(:,:) :: rmols
+
+        logical                              :: skipwalls
+	    integer                              :: i, j, m, n !Define dummy index
+	    integer							     :: Nchecked, Nnghbrs
+	    integer                              :: molnoi, molnoj, noneighbrs
+        double precision                     :: rd2
+	    type(node), pointer 	             :: old, current
+
+        if (present(skipwalls_)) then
+            skipwalls = skipwalls_
+        else
+            skipwalls = .false.
+        endif
+
+        rd2 = rd**2
+
         self%clusterngbrs = 0
         do molnoi = 1, nmols
-
-            !if (clusterngbrs(molnoi) .lt. min_ngbr) cycle
 
 	        ri = rmols(:,molnoi)         	!Retrieve ri
             if (skipwalls .and. (Mie_potential .ne. 0)) then
@@ -7949,7 +8263,7 @@ contains
             endif
 
             noneighbrs = neighbour%Nlist(molnoi)	    !Determine number of elements in neighbourlist
-            noldj => neighbour%head(molnoi)%point		!Set old to head of neighbour list
+            old => neighbour%head(molnoi)%point		!Set old to head of neighbour list
 
             !A list of bonded pairs which we add to cluster linked list
             !only if they have more than min_ngbrs
@@ -7957,11 +8271,8 @@ contains
             !Step through all neighbours i 
             do j = 1, noneighbrs
 
-	            molnoj = noldj%molno			        !Number of molecule j
-
-                !if (molnoj .gt. nmols) cycle               !Ignore halo values
-                !if (clusterngbrs(molnoj) .lt. min_ngbr) cycle
-
+	            molnoj = old%molno			        !Number of molecule j
+                if (molnoj .gt. nmols) cycle
 	            rj(:) = rmols(:,molnoj)			            !Retrieve rj
 	            rij(:)= ri(:) - rj(:)   	            !Evaluate distance between particle i and j
 	            rij2  = dot_product(rij,rij)            !Square of vector calculated
@@ -7978,8 +8289,8 @@ contains
                     endif
                     Nchecked = Nchecked + 1
                 endif
-	            ncurrentj => noldj
-	            noldj => ncurrentj%next !Use pointer in datatype to obtain next item in list
+	            current => old
+	            old => current%next !Use pointer in datatype to obtain next item in list
             enddo
 
             !If no neighbours, add molecule to its own cluster list
@@ -7991,16 +8302,15 @@ contains
             !Store number of clusterable molecules close to each molecule
             self%clusterngbrs(molnoi) = Nchecked
 
-		    !currenti => oldi
-		    !oldi => currenti%next !Use pointer in datatype to obtain next item in list
         enddo
 
-    end subroutine build_from_cellandneighbour_lists
+    end subroutine build_from_neighbour_list
 
 
     subroutine AddBondedPair(self, molnoi, molnoj)
         use linked_list, only : linklist_checkpushneighbr, linklist_merge
 	    use interfaces, only : error_abort
+        use arrays_MD, only : r
         implicit none
 
         type(clusterinfo),intent(inout)    :: self
@@ -8013,9 +8323,10 @@ contains
         if (molnoi .eq. molnoj) then
             if (self%inclust(molnoi) .eq. 0) then
                 self%Nclust = self%Nclust + 1
-                !if (self%Nclust .gt. self%maxclusts) then
-            	!	call error_abort("Increase maxcluster in clusterinfo linklist")
-                !endif
+                !print'(a,3i5,3f10.5)', "NEw mol in add bonded pair", molnoi, self%Nclust, self%inclust(molnoi), r(:,molnoi)
+                if (self%Nclust .gt. self%maxclusts) then
+            		call error_abort("Increase maxcluster in clusterinfo linklist")
+                endif
                 nc = self%Nclust
                 call linklist_checkpushneighbr(self, nc, molnoi)
                 self%inclust(molnoi) = nc
@@ -8029,9 +8340,9 @@ contains
             if (self%inclust(molnoj) .eq. 0) then
                 !Create a new cluster
                 self%Nclust = self%Nclust + 1
-                !if (self%Nclust .gt. self%maxclusts) then
-            	!	call error_abort("Increase maxcluster in clusterinfo linklist")
-                !endif
+                if (self%Nclust .gt. self%maxclusts) then
+            		call error_abort("Increase maxcluster in clusterinfo linklist")
+                endif
                 nc = self%Nclust
                 !Add both molecules to it
                 self%inclust(molnoi) = nc
@@ -8083,7 +8394,9 @@ contains
 
                     !Add smaller cluster linked lists to bigger one
                     call linklist_merge(self, keep=cbig, delete=csmall)
-                    !Now we've merge two linklists, we can reduce count by one
+                    !Now we've merge two linklists, it seems we should be able
+                    !to reduce count by one BUT CANNOT as leaves a gap which
+                    !we later remove with compress
                     !self%Nclust = self%Nclust - 1
 
                 else
@@ -8145,15 +8458,17 @@ contains
 
         type(clusterinfo),intent(inout) :: self
 
-        integer                         :: m, j, nc
+        integer                         :: m, j, onc, nc
 	    type(node), pointer 	        :: old, current
 
         !Loop though all clusters
+        onc = self%Nclust !old number of clusters
         nc = 0
         !Loop though all clusters
-        do j = 1,self%Nclust
+        do j = 1,onc
             !For all clusters which are not empty
             if (self%Nlist(j) .gt. 0) then
+                !print*, "CompressClusters", j, nc, self%Nclust, onc, self%Nlist(nc+1), self%Nlist(j)
                 !Copy to next sequential array position
                 nc = nc + 1
                 self%Nlist(nc) = self%Nlist(j)
@@ -8167,13 +8482,18 @@ contains
                 enddo
             endif
 
-            self%Nclust = nc
         enddo
+        self%Nclust = nc
+
+!        do j = 1,self%Nclust
+!            print*, "CompressClusters", j, self%Nclust, self%Nlist(j)
+!        enddo
 
     end subroutine CompressClusters
 
 
-    subroutine cluster_to_array(self, clustNo, array, min_ngbr)
+    subroutine cluster_to_array(self, clustNo, array, min_ngbr, array_exlude)
+        use computational_constants_MD, only : globaldomain
         use arrays_MD, only : r
         use physical_constants_MD, only : np
         implicit none
@@ -8181,32 +8501,53 @@ contains
         type(clusterinfo),intent(in)    :: self
         integer, intent(in)             :: clustNo, min_ngbr
         double precision, dimension(:,:), allocatable, intent(out) :: array
+        double precision, dimension(:,:), allocatable, intent(out), optional :: array_exlude
 
-        integer                         :: n, m, Nmols
+        integer                         :: n, m, o, Nmols
 	    type(node), pointer 	        :: old, current
-        double precision, dimension(:,:), allocatable :: temp
+        double precision, dimension(:,:), allocatable :: temp, temp_ex
 
 
         !For all clusters which are not empty
         Nmols = self%Nlist(clustNo)
         if (Nmols .gt. 0) then
-            allocate(temp(3,Nmols)); m = 1
+            allocate(temp(3,Nmols)); m = 0
+            if (present(array_exlude)) then
+                allocate(temp_ex(3,Nmols)); o = 0
+            endif
             current => self%head(clustNo)%point
             !Loop through all cluster molecules         
+
             do n = 1,Nmols
                 !Check not halo and minimum number of neighbours
-                if (current%molno .le. np .and. & 
-                    self%clusterngbrs(n) .gt. min_ngbr) then
-                    temp(:,m) = r(:,current%molno)
-                    m = m + 1
-                    !print*, n, m, current%molno
+                if (current%molno .le. np) then
+                    if (self%clusterngbrs(current%molno) .ge. min_ngbr) then
+                        m = m + 1
+                        temp(:,m) = r(:,current%molno)
+                        !if (any(r(:,current%molno)+0.5d0*globaldomain .gt. globaldomain)) then 
+                        !    print*, "Cluster to array - outside domain", m, r(:,current%molno), current%molno
+                            !stop "Error in write_cluster_xyz"
+                        !endif
+                    else
+                        if (present(array_exlude)) then
+                            o = o + 1
+                            temp_ex(:,o) = r(:, current%molno)
+                        endif
+                        !print'(a,2i5,3f10.5,2(a,i3),a)', "Cluster to array ", clustNo, current%molno, r(:,current%molno), & 
+                        !        " has ", self%clusterngbrs(current%molno) ," which is fewer than ", min_ngbr, " neighbours"
+                    endif
+                    !print*, n, m, current%molno, temp(:,m)
                 endif
                 old => current%next
                 current => old
             enddo
         endif
-        allocate(array(3,m-1))
-        array(:,:) = temp(:,1:m-1)
+        allocate(array(3,m)); array=0.d0
+        array(:,:) = temp(:,1:m)
+        if (present(array_exlude)) then
+            allocate(array_exlude(3,o)); array_exlude=0.d0
+            array_exlude(:,:) = temp_ex(:,1:o)
+        endif
 
     end subroutine cluster_to_array
 
@@ -8731,9 +9072,12 @@ end module cluster_analysis
 subroutine get_interface_from_clusters()
     use cluster_analysis, only : build_clusters, & 
                                  get_cluster_properties, & 
+                                 write_cluster_xyz, &
                                  destroy_clusters
     use linked_list, only : cluster
-    use computational_constants_MD, only : CA_rd, CA_min_nghbr
+    use computational_constants_MD, only : CA_rd, CA_min_nghbr, iter, &
+                                           tplot, intrinsic_interface_outflag, &
+                                           CV_conserve
     implicit none
 
     integer             :: min_ngbr
@@ -8742,9 +9086,14 @@ subroutine get_interface_from_clusters()
     min_ngbr = CA_min_nghbr !1000000
     rd = CA_rd !1.5d0
     
-    call build_clusters(cluster, rd)
-    call get_cluster_properties(cluster, rd, min_ngbr)
-    call destroy_clusters(cluster)
+    if (mod(iter,tplot) .eq. 0 .or. CV_conserve .eq. 1) then
+        call build_clusters(cluster, rd)
+        if (any(intrinsic_interface_outflag .eq. (/1,2/))) then
+            call get_cluster_properties(cluster, rd, min_ngbr)
+        endif
+        !call write_cluster_xyz(cluster, min_ngbr)
+        call destroy_clusters(cluster)
+    endif
 
 end subroutine get_interface_from_clusters
 
@@ -9029,11 +9378,6 @@ contains
 	    type(node), pointer 	        :: oldi, currenti, oldj, currentj, noldj,ncurrentj
 
         rd2 = rd**2
-        if (force_list .ne. 2) then
-            call error_abort("Error in get_molecules_within_rc -- full "//&
-                             "neightbour list should be used with interface tracking")
-        end if
-
         allocate(cellsurface(3,3,size(celllist,2)))
         do n = 1,size(celllist,2)
 

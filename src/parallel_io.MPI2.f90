@@ -2435,6 +2435,11 @@ subroutine parallel_io_psf()
                  mass_lookup(mt), &         ! mass
                   0                         ! A "0" for no reason!
     enddo
+    !Add an empty set of bond information needed
+    !for MDTraj 
+    write(unitno,'(a)') ""
+    write(unitno,'(i8,a)') 0, " !NBOND: bonds"
+
     close(unitno)
 
 
@@ -2447,13 +2452,18 @@ subroutine parallel_io_psf()
         call system(cmd)
         if (nproc .gt. 99) then 
             print*, "Warning, manually concat results/vmd_out.psf.* files"
-        else
+        else if (nproc .gt. 1) then
             write (nprocstr, "(i2)") nproc
             write(cmd,'(4a)'),"for i in {2..", trim(nprocstr)//"}; do cat ", &
                                        trim(prefix_dir)//"results/vmd_out.psf.$i >> ", &
                                        trim(prefix_dir)//"results/vmd_out.psf; done;"
             print*, cmd
             call system(cmd)
+        else if (nproc .eq. 1) then
+            write (nprocstr, "(i2)") nproc
+            write(cmd,'(4a)'),"cat ", trim(prefix_dir)//"results/vmd_out.psf.1 >> ", &
+                                      trim(prefix_dir)//"results/vmd_out.psf"
+            print*, cmd
         endif
     endif
 
@@ -4089,7 +4099,8 @@ subroutine energy_flux_io()
 
 end subroutine energy_flux_io
 
-
+!-----------------------------------
+! Density at the surface from 1/velocity at the surface
 
 subroutine surface_density_io()
     use module_parallel_io
@@ -4215,6 +4226,45 @@ subroutine external_forcev_io()
     call write_arrays(Fv_ext_bin,nresults,trim(prefix_dir)//'results/Fvext',m)
 
 end subroutine external_forcev_io
+
+
+
+subroutine surface_evolution_mass_flux_io()
+    use module_parallel_io
+    use CV_objects, only : CVcheck_mass, CV_debug
+    use messenger_bin_handler, only : swaphalos
+    implicit none
+
+    integer             :: m,nresults
+    character(41)       :: filename, outfile
+
+    !Work out correct filename for i/o type
+    filename='results/dsurf_mflux'
+    outfile = trim(prefix_dir)//filename
+
+    !Include halo surface fluxes to get correct values for all cells
+    nresults = 6
+    call swaphalos(mass_surface_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
+
+    !Store mass flux value in CV data object
+    if (CV_debug .ne. 0) then
+        call CVcheck_mass%update_surface(mass_surface_flux)
+    endif
+
+    !Calculate record number timestep
+    select case(CV_conserve)
+    case(0)
+        m = get_iter()/(tplot*Nsurfevo_ave)
+    case(1)
+        m = get_iter()/(Nsurfevo_ave)
+    case default
+        call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
+    end select
+
+    !Write mass to file
+    call write_arrays(mass_surface_flux, nresults, outfile, m)
+
+end subroutine surface_evolution_mass_flux_io
 
 !---------------------------------------------------------------------------------
 ! Record  energy accross plane

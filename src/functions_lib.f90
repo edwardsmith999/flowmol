@@ -1951,7 +1951,42 @@ subroutine write_waveobj(vertices, writeiter)
     enddo
     close(fileno)
 
+    !write(filename,'(i6,a4)') iter, ".out"
+    !open(20505, file=trim(filename))
+    !do i = 1, size(vertices,1)
+    !    write(20505,*), i, 0.25*sum(vertices(i,:,:),1)
+    !enddo
+    !close(20505)
+
 end subroutine write_waveobj
+
+subroutine write_wavexyz(vertices)
+    implicit none
+
+    real(kind(0.d0)), dimension(:,:,:), intent(in), allocatable :: vertices
+
+    logical, save    :: first_time = .true.
+    integer          :: v, i, fileno
+    character(200)   :: filename
+    
+    filename = "./surface.xyz"
+    fileno = get_new_fileunit() 
+    if (first_time) then
+        open(fileno, file=trim(filename), status='replace')
+        write(fileno,*) size(vertices,1)
+        first_time = .false.
+    else
+        open(fileno, file=trim(filename),access='append')
+    endif
+
+    do v = 1,size(vertices,1)
+        !do i =1,4
+            write(fileno,'(a1, 3f15.8)') "v", vertices(v,1,:)
+        !enddo
+    enddo
+    close(fileno)
+
+end subroutine write_wavexyz
 
 
 !-------------------------------------------------------------------------------------
