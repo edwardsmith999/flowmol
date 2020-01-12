@@ -9601,37 +9601,107 @@ end subroutine sl_interface_from_binaverage
 
 !end subroutine evaluate_properties_cellradialdist
 
+module flux_opt
 
+contains
 
-
-
-!===================================================================================
-! Mass Flux over a surface of a bin
-! Includes all intermediate bins
-
-subroutine cumulative_mass_flux_opt!(quantity, fluxes)
+subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
 	use module_record
     use librarymod, only : CV_surface_flux, imaxloc!, heaviside  =>  heaviside_a1
     use module_set_parameters, only : mass
-    !use CV_objects, only : CV_sphere_mass
     implicit none
 
-!	real(kind(0.d0)),dimension(1), intent(in)	    :: quantity
-!	real(kind(0.d0)),dimension(1,6), intent(inout)	:: fluxes
+    logical, intent(in) :: use_bilinear
+    real(kind(0.d0)),dimension(3), intent(in)	:: ri1,ri2
+	real(kind(0.d0)),dimension(:), allocatable, intent(in) :: quantity
+	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable, intent(inout)	:: fluxes
 
     logical, save                   :: first_time=.true.
 
 
-    logical                         :: crossings, use_bilinear
+    logical                         :: crossings
 	integer							:: jxyz,i,j,k,n,normal
 	integer		,dimension(3)		:: bin1,bin2,cbin,bs
 	real(kind(0.d0)),parameter		:: eps = 1e-12
 	real(kind(0.d0))        		:: crossdir
-	real(kind(0.d0)),dimension(3)	:: ri1,ri2,ri12, rci
+    real(kind(0.d0)),dimension(3)	:: ri12, rci
 
     integer, dimension(:), allocatable :: cbins
     real(kind(0.d0)),dimension(:,:),allocatable :: points
     real(kind(0.d0)),dimension(:,:), allocatable :: rc, rcx, rcy, rcz, dSdr
+
+
+    if (use_bilinear) then
+        bin1(:) = ISR_mdt%get_bin(ri1, nbins, nhb)
+        bin2(:) = ISR_mdt%get_bin(ri2, nbins, nhb)
+    else
+        bin1 = get_bin(ri1)
+        bin2 = get_bin(ri2)
+    endif
+
+    do normal=1,3
+        if (use_bilinear .and. normal .eq. 1) then
+            !Redefine bins here
+            call get_crossings_bilinear(ri1, ri2, bin1, bin2, normal, rc, crossings, cbins)
+        else
+            call get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings)
+        endif
+        if (crossings) then
+            bs = 0
+            bs(normal) = 1
+            ri12   = ri1 - ri2		        !Molecule i trajectory between t-dt and t
+            where (abs(ri12) .lt. 0.000001d0) ri12 = 0.000001d0
+
+            if (normal .eq. 1 .and. use_bilinear) then
+                if (allocated(points)) deallocate(points)
+                allocate(points(size(rc,2), nd))
+                points(:,1) = rc(1,:)
+                points(:,2) = rc(2,:)
+                points(:,3) = rc(3,:)
+                call ISR_mdt%get_surface_derivative(points, dSdr)
+            endif
+
+            do i =1,size(rc,2)
+                rci = rc(:,i)
+                rci(normal) = rci(normal) + eps
+                cbin(:) = ISR_mdt%get_bin(rci, nbins, nhb)
+                if (normal .eq. 1 .and. use_bilinear) then
+                    cbin(normal) = cbins(normal)+1
+                    crossdir = sign(1.d0,(ri12(1) - ri12(2)*dSdr(i,1) - ri12(3)*dSdr(i,2)))
+                else
+                    crossdir  = sign(1.d0, ri12(normal))
+                endif
+
+                fluxes(cbin(1),cbin(2),cbin(3),:,normal) = & 
+                    fluxes(cbin(1),cbin(2),cbin(3),:,normal) + crossdir*quantity(:)
+                fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),:,normal+3) = & 
+                    fluxes(cbin(1),cbin(2),cbin(3),:,normal)
+
+            enddo
+            deallocate(rc)
+        endif
+
+	enddo
+
+end subroutine cumulative_flux_opt
+
+end module flux_opt
+
+
+
+subroutine cumulative_mass_flux_opt
+    use flux_opt
+	use module_record, only : cluster_analysis_outflag, np, r, v, & 
+                              delta_t, intrinsic_interface_outflag, mass_flux
+    use module_set_parameters, only : mass
+    implicit none
+
+    logical                         :: use_bilinear
+
+    integer :: n
+    real(kind(0.d0)),dimension(3)	:: ri1,ri2
+	real(kind(0.d0)),dimension(:), allocatable :: quantity
+	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable	:: fluxes
 
     if (cluster_analysis_outflag .eq. 1 .and.  & 
         any(intrinsic_interface_outflag .eq. (/1,2/))) then
@@ -9640,68 +9710,168 @@ subroutine cumulative_mass_flux_opt!(quantity, fluxes)
         use_bilinear = .false.
     endif
 
-	do n = 1,np!+halo_np
+    allocate(quantity(1))
+    allocate(fluxes(size(mass_flux,1), size(mass_flux,2), & 
+                    size(mass_flux,3), 1, size(mass_flux,4)))
+    fluxes(:,:,:,1,:) = mass_flux(:,:,:,:)
 
+	do n = 1,np
 		ri1(:) = r(:,n) 							!Molecule i at time t
 		ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
-
-        if (use_bilinear) then
-            bin1(:) = ISR_mdt%get_bin(ri1, nbins, nhb)
-            bin2(:) = ISR_mdt%get_bin(ri2, nbins, nhb)
-        else
-            bin1 = get_bin(ri1)
-            bin2 = get_bin(ri2)
-        endif
-
-        do normal=1,3
-            if (use_bilinear .and. normal .eq. 1) then
-                !Redefine bins here
-                call get_crossings_bilinear(ri1, ri2, bin1, bin2, normal, rc, crossings, cbins)
-            else
-                call get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings)
-            endif
-            if (crossings) then
-                bs = 0
-                bs(normal) = 1
-	            ri12   = ri1 - ri2		        !Molecule i trajectory between t-dt and t
-	            where (abs(ri12) .lt. 0.000001d0) ri12 = 0.000001d0
-
-                if (normal .eq. 1 .and. use_bilinear) then
-                    if (allocated(points)) deallocate(points)
-                    allocate(points(size(rc,2), nd))
-                    points(:,1) = rc(1,:)
-                    points(:,2) = rc(2,:)
-                    points(:,3) = rc(3,:)
-                    call ISR_mdt%get_surface_derivative(points, dSdr)
-                endif
-
-                !print'(a,i9,8i5,12f10.5)', "Ncrossings ", iter, normal, bin1, bin2, size(rc,2), ri1, rc(:,1), rc(:,2), ri2
-                do i =1,size(rc,2)
-                    rci = rc(:,i)
-                    rci(normal) = rci(normal) + eps
-                    cbin(:) = ISR_mdt%get_bin(rci, nbins, nhb)
-                    if (normal .eq. 1 .and. use_bilinear) then
-                        cbin(normal) = cbins(normal)+1
-                        crossdir = sign(1.d0,(ri12(1) - ri12(2)*dSdr(i,1) - ri12(3)*dSdr(i,2)))
-                    else
-!                        cbin(:) =  get_bin(rci)
-                        !print'(a,i9,12i5,9f10.5)', "Ncrossings ", iter, normal, i, bin1, bin2, cbin, size(rc,2), ri1, rci, ri2
-                        crossdir  = sign(1.d0, ri12(normal))
-                    endif
-
-                    mass_flux(cbin(1),cbin(2),cbin(3),normal) = & 
-                        mass_flux(cbin(1),cbin(2),cbin(3),normal) + crossdir*mass(n)
-                    mass_flux(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),normal+3) = & 
-                        mass_flux(cbin(1),cbin(2),cbin(3),normal)
-
-                enddo
-                deallocate(rc)
-            endif
-        enddo
-
-	enddo
+        quantity(1) = mass(n)
+        call cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
+    enddo
+    mass_flux(:,:,:,:) = fluxes(:,:,:,1,:)
 
 end subroutine cumulative_mass_flux_opt
+
+
+!=========================================================================
+! UNDER DEVELOPMENT UNDER DEVELOPMENT UNDER DEVELOPMENT UNDER DEVELOPMENT
+!=========================================================================
+
+!subroutine cumulative_momentum_flux_opt(r_,v_,momentum_flux_,notcrossing)
+!    use flux_opt
+!	use module_record, only : cluster_analysis_outflag, np, & 
+!                              delta_t, intrinsic_interface_outflag
+!    use module_set_parameters, only : mass
+!    implicit none
+
+!	real(kind(0.d0)),dimension(:,:),allocatable,intent(in) 			:: r_,v_
+!	real(kind(0.d0)),dimension(:,:,:,:,:),allocatable,intent(inout) :: momentum_flux_
+!	integer,dimension(:),allocatable,intent(out),optional			:: notcrossing
+
+!    logical                         :: use_bilinear
+
+!    integer :: n
+!    real(kind(0.d0)),dimension(3)	:: ri1,ri2
+!	real(kind(0.d0)),dimension(:), allocatable :: quantity
+!	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable	:: fluxes
+
+!	!Allocate array if required and assume all are not crossing
+!	if (present(notcrossing)) then
+!		if (allocated(notcrossing)) deallocate(notcrossing)
+!		allocate(notcrossing(np)); notcrossing = 1
+!	endif
+
+!    if (cluster_analysis_outflag .eq. 1 .and.  & 
+!        any(intrinsic_interface_outflag .eq. (/1,2/))) then
+!        use_bilinear = .true.
+!    else
+!        use_bilinear = .false.
+!    endif
+
+!    allocate(quantity(3))
+
+!	do n = 1,np
+!		ri1(:) = r(:,n) 							!Molecule i at time t
+!		ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
+!        quantity(1) = v_(:,n)
+!        call cumulative_flux_opt(ri1, ri2, momentum_flux_, quantity, use_bilinear)
+
+!		!Record mask of molecules which are currently crossing
+!		if (present(notcrossing)) notcrossing(n) = 0
+!    enddo
+
+!end subroutine cumulative_momentum_flux_opt
+
+!===================================================================================
+! Mass Flux over a surface of a bin
+! Includes all intermediate bins
+
+!subroutine cumulative_mass_flux_opt!(quantity, fluxes)
+!	use module_record
+!    use librarymod, only : CV_surface_flux, imaxloc!, heaviside  =>  heaviside_a1
+!    use module_set_parameters, only : mass
+!    !use CV_objects, only : CV_sphere_mass
+!    implicit none
+
+!!	real(kind(0.d0)),dimension(1), intent(in)	    :: quantity
+!!	real(kind(0.d0)),dimension(1,6), intent(inout)	:: fluxes
+
+!    logical, save                   :: first_time=.true.
+
+
+!    logical                         :: crossings, use_bilinear
+!	integer							:: jxyz,i,j,k,n,normal
+!	integer		,dimension(3)		:: bin1,bin2,cbin,bs
+!	real(kind(0.d0)),parameter		:: eps = 1e-12
+!	real(kind(0.d0))        		:: crossdir
+!	real(kind(0.d0)),dimension(3)	:: ri1,ri2,ri12, rci
+
+!    integer, dimension(:), allocatable :: cbins
+!    real(kind(0.d0)),dimension(:,:),allocatable :: points
+!    real(kind(0.d0)),dimension(:,:), allocatable :: rc, rcx, rcy, rcz, dSdr
+
+!    if (cluster_analysis_outflag .eq. 1 .and.  & 
+!        any(intrinsic_interface_outflag .eq. (/1,2/))) then
+!        use_bilinear = .true.
+!    else
+!        use_bilinear = .false.
+!    endif
+
+!	do n = 1,np!+halo_np
+
+!		ri1(:) = r(:,n) 							!Molecule i at time t
+!		ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
+
+!        if (use_bilinear) then
+!            bin1(:) = ISR_mdt%get_bin(ri1, nbins, nhb)
+!            bin2(:) = ISR_mdt%get_bin(ri2, nbins, nhb)
+!        else
+!            bin1 = get_bin(ri1)
+!            bin2 = get_bin(ri2)
+!        endif
+
+!        do normal=1,3
+!            if (use_bilinear .and. normal .eq. 1) then
+!                !Redefine bins here
+!                call get_crossings_bilinear(ri1, ri2, bin1, bin2, normal, rc, crossings, cbins)
+!            else
+!                call get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings)
+!            endif
+!            if (crossings) then
+!                bs = 0
+!                bs(normal) = 1
+!	            ri12   = ri1 - ri2		        !Molecule i trajectory between t-dt and t
+!	            where (abs(ri12) .lt. 0.000001d0) ri12 = 0.000001d0
+
+!                if (normal .eq. 1 .and. use_bilinear) then
+!                    if (allocated(points)) deallocate(points)
+!                    allocate(points(size(rc,2), nd))
+!                    points(:,1) = rc(1,:)
+!                    points(:,2) = rc(2,:)
+!                    points(:,3) = rc(3,:)
+!                    call ISR_mdt%get_surface_derivative(points, dSdr)
+!                endif
+
+!                !print'(a,i9,8i5,12f10.5)', "Ncrossings ", iter, normal, bin1, bin2, size(rc,2), ri1, rc(:,1), rc(:,2), ri2
+!                do i =1,size(rc,2)
+!                    rci = rc(:,i)
+!                    rci(normal) = rci(normal) + eps
+!                    cbin(:) = ISR_mdt%get_bin(rci, nbins, nhb)
+!                    if (normal .eq. 1 .and. use_bilinear) then
+!                        cbin(normal) = cbins(normal)+1
+!                        crossdir = sign(1.d0,(ri12(1) - ri12(2)*dSdr(i,1) - ri12(3)*dSdr(i,2)))
+!                    else
+!!                        cbin(:) =  get_bin(rci)
+!                        !print'(a,i9,12i5,9f10.5)', "Ncrossings ", iter, normal, i, bin1, bin2, cbin, size(rc,2), ri1, rci, ri2
+!                        crossdir  = sign(1.d0, ri12(normal))
+!                    endif
+
+!                    mass_flux(cbin(1),cbin(2),cbin(3),normal) = & 
+!                        mass_flux(cbin(1),cbin(2),cbin(3),normal) + crossdir*mass(n)
+!                    mass_flux(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),normal+3) = & 
+!                        mass_flux(cbin(1),cbin(2),cbin(3),normal)
+
+!                enddo
+!                deallocate(rc)
+!            endif
+!        enddo
+
+!	enddo
+
+!end subroutine cumulative_mass_flux_opt
 
 
 
