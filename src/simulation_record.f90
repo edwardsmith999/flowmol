@@ -3084,7 +3084,7 @@ subroutine pressure_tensor_forces_VA(ri, rj, rF, domain,  &
         if (present(VA_line_samples)) then
             VA_line_samples_ = VA_line_samples
         else
-            VA_line_samples_ = 20
+            VA_line_samples_ = 0 !Auto select if zero
         endif
 		call pressure_tensor_forces_VA_trap(ri,rj,rF,VA_line_samples_)
 	case(2)
@@ -3197,9 +3197,15 @@ subroutine pressure_tensor_forces_VA_trap(ri, rj, rF, VA_line_samples)
 	VAbinsize(:) = domain(:) / nbins(:)
 	rij = rj - ri
 	!rF = outerprod(rij, accijmag*rij)
-
+	!Auto select line segments so one segment per bin
+	if (VA_line_samples .eq. 0) then
+		print*, "Trap bins", Ns, rij, rij/VAbinsize, ceiling(maxval(rij/VAbinsize))+1, ceiling(maxval(abs(rij)/VAbinsize))+1
+		Ns = ceiling(maxval(abs(rij)/VAbinsize))+1
+	else
+		Ns = VA_line_samples
+	endif
+	
 	! Split line l_ij into segments of size ds
-	Ns = VA_line_samples
 	ds = 1.d0 / real(Ns, kind(0.d0))
 	! First sample at midpoint of first segment 
 	s = 0.5d0*ds 
