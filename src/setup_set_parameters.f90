@@ -2127,6 +2127,10 @@ subroutine set_parameters_outputs
 				allocate(F_ext_bin(nbinso(1),nbinso(2),nbinso(3),3))
 				F_ext_bin = 0.d0
 			endif
+			if (Nsurfevo_outflag .ne. 0) then
+				allocate(momentum_surface_flux(nbinso(1),nbinso(2),nbinso(3),3,6))
+				momentum_surface_flux = 0.d0
+			endif
 			momentum_flux 	= 0.d0
 			volume_momentum = 0.d0
 			volume_force 	= 0.d0
@@ -2139,14 +2143,14 @@ subroutine set_parameters_outputs
                 print*, 'bin', debug_CV,localise_bin(debug_CV)
 				call CVcheck_mass%initialise(nbins,nhb,domain, & 
                                              delta_t,Nmflux_ave, & 
-                                             localise_bin(debug_CV))     ! initialize CVcheck
+                                             localise_bin(debug_CV),debug_CV_range)     ! initialize CVcheck
 				call CVcheck_momentum%initialise(nbins,nhb,domain, & 
                                                  delta_t,Nvflux_ave, & 
-                                                 localise_bin(debug_CV)) ! initialize CVcheck
+                                                 localise_bin(debug_CV),debug_CV_range) ! initialize CVcheck
 				call CV_constraint%initialise(nbins,nhb,domain,delta_t,Nvflux_ave)   ! initialize CV constraint object
 				call CVcheck_energy%initialise(nbins,nhb,domain, & 
                                                delta_t,Neflux_ave, & 
-                                               localise_bin(debug_CV))   ! initialize CVcheck
+                                               localise_bin(debug_CV),debug_CV_range)   ! initialize CVcheck
             
 				!call CV_sphere_mass%initialise((/1,1,1/))	
 				!call CV_sphere_momentum%initialise_sphere((/1,1,1/),collect_spherical=.false.)	
@@ -2154,6 +2158,10 @@ subroutine set_parameters_outputs
 			!Allocate bins for control volume mass fluxes
 			if (.not.(allocated(volume_mass)))  allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)))
 			allocate(  mass_flux(nbinso(1),nbinso(2),nbinso(3),6))
+			if (Nsurfevo_outflag .ne. 0) then
+				allocate(mass_surface_flux(nbinso(1),nbinso(2),nbinso(3),6))
+				mass_surface_flux = 0
+			endif
 			volume_mass = 0
 			mass_flux   = 0
 		case default
@@ -2162,6 +2170,10 @@ subroutine set_parameters_outputs
 				if (.not. allocated(volume_mass)) &
 				allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)  ))
 				allocate(  mass_flux(nbinso(1),nbinso(2),nbinso(3),6))
+				if (Nsurfevo_outflag .ne. 0) then
+					allocate(mass_surface_flux(nbinso(1),nbinso(2),nbinso(3),6))
+					mass_surface_flux = 0
+				endif
 				volume_mass = 0
 				mass_flux   = 0
 				if (CV_debug .eq. 1) then
@@ -2169,7 +2181,7 @@ subroutine set_parameters_outputs
                 elseif (CV_debug .eq. 2) then
 					call CVcheck_mass%initialise(nbins,nhb,domain, & 
                                                 delta_t,Nmflux_ave, & 
-                                                localise_bin(debug_CV))   ! initialize CVcheck
+                                                localise_bin(debug_CV),debug_CV_range)   ! initialize CVcheck
 				endif
 			endif
 	end select
@@ -2180,6 +2192,10 @@ subroutine set_parameters_outputs
 		allocate( Pxyvface(nbinso(1),nbinso(2),nbinso(3),6))
 		allocate( Pxyvface_mdt(nbinso(1),nbinso(2),nbinso(3),6))
 		allocate( Pxyvface_integrated(nbinso(1),nbinso(2),nbinso(3),6))
+		if (Nsurfevo_outflag .ne. 0) then
+			allocate(energy_surface_flux(nbinso(1),nbinso(2),nbinso(3),6))
+			energy_surface_flux = 0.d0
+		endif
 		energy_flux 	= 0.d0; Pxyvface = 0.d0; 
 		Pxyvface_mdt=0.d0; Pxyvface_integrated = 0.d0
 		if (external_force_flag .ne. 0 .or. & 

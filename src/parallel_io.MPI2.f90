@@ -3782,7 +3782,8 @@ subroutine mass_flux_io()
 
     !Store mass flux value in CV data object
     if (CV_debug .ne. 0) then
-        CVcheck_mass%flux = mass_flux
+        !CVcheck_mass%flux = mass_flux
+		call CVcheck_mass%update_flux(mass_flux)
     endif
 
     !Calculate record number timestep
@@ -3856,7 +3857,9 @@ subroutine momentum_flux_io()
     end select
 
     !allocate(momentum_flux_temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults))
-    momentum_flux_temp = reshape(momentum_flux,(/ size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults /))
+    momentum_flux_temp = reshape(momentum_flux,(/ size(momentum_flux,1), & 
+												  size(momentum_flux,2), & 
+											      size(momentum_flux,3),nresults /))
     call write_arrays(momentum_flux_temp,nresults,trim(prefix_dir)//'results/vflux',m)
     deallocate(momentum_flux_temp)
 
@@ -4238,6 +4241,7 @@ subroutine surface_evolution_mass_flux_io()
     integer             :: m,nresults
     character(41)       :: filename, outfile
 
+
     !Work out correct filename for i/o type
     filename='results/dsurf_mflux'
     outfile = trim(prefix_dir)//filename
@@ -4254,9 +4258,9 @@ subroutine surface_evolution_mass_flux_io()
     !Calculate record number timestep
     select case(CV_conserve)
     case(0)
-        m = get_iter()/(tplot*Nsurfevo_ave)
+        m = get_iter()/(tplot*Nmflux_ave)
     case(1)
-        m = get_iter()/(Nsurfevo_ave)
+        m = get_iter()/(Nmflux_ave)
     case default
         call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
     end select
@@ -4265,6 +4269,73 @@ subroutine surface_evolution_mass_flux_io()
     call write_arrays(mass_surface_flux, nresults, outfile, m)
 
 end subroutine surface_evolution_mass_flux_io
+
+subroutine surface_evolution_momentum_flux_io()
+    use module_parallel_io
+    use CV_objects, only : CVcheck_momentum, CV_debug
+    use messenger_bin_handler, only : swaphalos
+    implicit none
+
+    integer             :: m,nresults, ixyz
+    character(41)       :: filename, outfile
+    real(kind(0.d0))                                :: binface
+    real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: temp
+
+    !Work out correct filename for i/o type
+    filename='results/dsurf_vflux'
+    outfile = trim(prefix_dir)//filename
+
+    ! Swap Halos
+    nresults = 18
+    allocate(temp(size(momentum_surface_flux,1),size(momentum_surface_flux,2),size(momentum_surface_flux,3),nresults))
+    temp = reshape(momentum_surface_flux, & 
+                        (/ size(momentum_surface_flux,1), & 
+                           size(momentum_surface_flux,2), & 
+                           size(momentum_surface_flux,3),nresults /))
+    call swaphalos(temp,nbinso(1),nbinso(2),nbinso(3),nresults)
+    momentum_surface_flux = reshape(temp,(/ size(momentum_flux,1), & 
+                                            size(momentum_flux,2), & 
+                                            size(momentum_flux,3),3,6 /))
+											
+											
+	!Divide by size of bin face to give flux per unit area
+    do ixyz = 1,3
+        binface       = (domain(modulo(ixyz  ,3)+1)/nbins(modulo(ixyz  ,3)+1))* & 
+                        (domain(modulo(ixyz+1,3)+1)/nbins(modulo(ixyz+1,3)+1))
+        momentum_surface_flux(:,:,:,:,ixyz  )=momentum_surface_flux(:,:,:,:,ixyz  )/(binface) !Bottom
+        momentum_surface_flux(:,:,:,:,ixyz+3)=momentum_surface_flux(:,:,:,:,ixyz+3)/(binface) !Top
+    enddo
+
+    !Divide momentum flux by averaing period tau=delta_t*Nvflux_ave if CV_conserve=1
+    !or Divide momentum flux by sum of the Nvflux_ave times delta_t averaging periods 
+    !as sample is taken every tplot steps. The output is then a representaive momentum flux.
+    momentum_surface_flux = momentum_surface_flux/(delta_t*Nvflux_ave)
+
+
+    !Store mass flux value in CV data object
+    if (CV_debug .ne. 0) then
+        call CVcheck_momentum%update_surface(momentum_surface_flux)
+    endif
+
+    !Calculate record number timestep
+    select case(CV_conserve)
+    case(0)
+        m = get_iter()/(tplot*Nvflux_ave)
+    case(1)
+        m = get_iter()/(Nvflux_ave)
+    case default
+        call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
+    end select
+
+    !Write mass to file
+    temp = reshape(momentum_surface_flux,(/ size(momentum_surface_flux,1), & 
+											size(momentum_surface_flux,2), & 
+											size(momentum_surface_flux,3),nresults /))
+    call write_arrays(temp,nresults,trim(prefix_dir)//'results/dsurf_vflux',m)
+    deallocate(temp)
+
+end subroutine surface_evolution_momentum_flux_io
+
 
 !---------------------------------------------------------------------------------
 ! Record  energy accross plane

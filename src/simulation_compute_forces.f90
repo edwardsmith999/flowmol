@@ -208,6 +208,7 @@ subroutine simulation_compute_forces
 		!Forces calculated using cell lists
 		select case(potential_flag)
 		case(0)					!If simple LJ fluid
+			!print*, "simulation_compute_forces_LJ_cells switched off"
 			call simulation_compute_forces_LJ_cells
 		case default								
 			call error_abort("Potential flag/force_list incompatible - only LJ available with cell lists")
@@ -417,6 +418,7 @@ end subroutine simulation_compute_forces_Soddemann_AP
 !========================================================================
 !Compute forces using cells instead of neighbourlist
 subroutine simulation_compute_forces_LJ_cells
+	!use flux_opt, only : control_volume_stresses_opt
 	use module_compute_forces
 	implicit none
 
@@ -480,7 +482,7 @@ subroutine simulation_compute_forces_LJ_cells
 						if (vflux_outflag .eq. 4 .or. eflux_outflag.eq.4) then
 							if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 								fij = accijmag*rij(:)
-								call Control_Volume_stresses(fij,ri,rj)
+								call Control_Volume_stresses_opt(fij,ri,rj)
 							endif
 						endif
 
