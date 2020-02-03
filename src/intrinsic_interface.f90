@@ -723,13 +723,23 @@ subroutine get_initial_pivots(points, ISR, pivots)
     ! Defines the initial pivots as a set of 9 particles, where
     ! each particle is in a distinct sector formed by dividing
     ! the macroscopic plane into 3x3 regions.
-    integer :: Npivots, i, ind
+    integer :: Npivots, maxpivots, i, ind
     integer, dimension(2) :: nxy, bins
-    integer, dimension(3,3) :: sectors
+    integer, dimension(:,:), allocatable :: sectors
 
     integer, dimension(:), allocatable :: indices
     double precision, dimension(3) :: binsize
     double precision, dimension(:), allocatable :: z
+
+    !Define bins
+    bins = 3
+    allocate(sectors(bins(1), bins(2)))
+    sectors = 0
+    Npivots = bins(1)*bins(2)
+    maxpivots = Npivots
+    allocate(pivots(Npivots))
+    binsize(1) = ISR%box(ISR%ixyz)/dble(bins(1))
+    binsize(2) = ISR%box(ISR%jxyz)/dble(bins(2))
 
     !Setup indices
     allocate(indices(size(points,1))) 
@@ -741,13 +751,6 @@ subroutine get_initial_pivots(points, ISR, pivots)
     allocate(z(size(points,1)))
     z = points(:,ISR%normal)
     call Qsort(z, indices)
-    Npivots = 9
-    allocate(pivots(Npivots))
-    sectors = 0
-
-    bins = 3
-    binsize(1) = ISR%box(ISR%ixyz)/dble(bins(1))
-    binsize(2) = ISR%box(ISR%jxyz)/dble(bins(2))
 
     !print*, ixyz, jxyz, box(:), box(ixyz)/dble(bins(1))
     do ind = size(z,1), 1, -1
@@ -755,7 +758,7 @@ subroutine get_initial_pivots(points, ISR, pivots)
         nxy(2) = ceiling((points(indices(ind), ISR%jxyz) + 0.5d0*ISR%box(ISR%jxyz)) / binsize(2))
 
         if (nxy(1) .lt. 1 .or. nxy(2) .lt. 1 .or. & 
-            nxy(1) .gt. 3 .or. nxy(2) .gt. 3) then
+            nxy(1) .gt. bins(1) .or. nxy(2) .gt. bins(2)) then
             !print*, ind, nxy, points(indices(ind), :)
             cycle
         endif
@@ -767,7 +770,7 @@ subroutine get_initial_pivots(points, ISR, pivots)
             Npivots = Npivots - 1
             !print*, ind, Npivots, pivots(Npivots+1), points(indices(ind), ixyz), points(indices(ind), jxyz)
         endif
-        if (sum(sectors) .ge. 9) then
+        if (sum(sectors) .ge. maxpivots) then
             exit
         endif
     enddo
@@ -775,6 +778,7 @@ subroutine get_initial_pivots(points, ISR, pivots)
     if (Npivots .ne. 0) stop "Not all initial pivots found"
 
 end subroutine get_initial_pivots
+
 
 
 subroutine update_pivots(points, ISR, pivots, tau, new_pivots)
