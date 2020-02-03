@@ -7361,8 +7361,8 @@ contains
         use computational_constants_MD, only : iter, tplot, thermo_tags, thermo, &
                                                free, globaldomain, intrinsic_interface_outflag, &
                                                II_normal, II_alpha, II_tau, II_eps, II_ns, &
-                                               mflux_outflag, Nsurfevo_outflag, nhb
-        use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, write_wavexyz
+                                               mflux_outflag, Nsurfevo_outflag, nhb, CA_generate_xyz
+        use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, write_waveobj, write_wave_xyz
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
         use arrays_MD, only : tag, r, intnscshift
         use librarymod, only : heaviside  =>  heaviside_a1!, fit_intrinsic_surface, fit_intrinsic_surface_modes
@@ -7511,9 +7511,14 @@ contains
                     !ISR%coeff(:)=coeffmdt(:)  !Set to fixed initial value
 
                     !DEBUG - write surface out
-                    !call ISR%sample_surface((/1, 100, 100/), vertices)
-                    !call write_wavexyz(vertices)
-                    !call write_waveobj(vertices, iter)
+                    if (CA_generate_xyz .eq. 1) then
+                        call ISR%sample_surface((/1, 200, 200/), vertices)
+                        call write_wave_xyz(vertices)
+                    elseif (CA_generate_xyz .eq. 2) then
+                        call ISR%sample_surface((/1, 200, 200/), vertices)
+                        call write_waveobj(vertices, iter)
+                    endif
+
 
 !                    !Write vmd xyz file for debugging
 !                    if (write_cluster_header) then
@@ -9075,8 +9080,8 @@ subroutine get_interface_from_clusters()
                                  write_cluster_xyz, &
                                  destroy_clusters
     use linked_list, only : cluster
-    use computational_constants_MD, only : CA_rd, CA_min_nghbr, iter, &
-                                           tplot, intrinsic_interface_outflag, &
+    use computational_constants_MD, only : CA_rd, CA_min_nghbr, CA_generate_xyz, & 
+                                           iter, tplot, intrinsic_interface_outflag, &
                                            CV_conserve
     implicit none
 
@@ -9091,7 +9096,7 @@ subroutine get_interface_from_clusters()
         if (any(intrinsic_interface_outflag .eq. (/1,2/))) then
             call get_cluster_properties(cluster, rd, min_ngbr)
         endif
-        !call write_cluster_xyz(cluster, min_ngbr)
+        if (CA_generate_xyz .eq. 1) call write_cluster_xyz(cluster, min_ngbr)
         call destroy_clusters(cluster)
     endif
 
