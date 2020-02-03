@@ -192,7 +192,7 @@ module computational_constants_MD
 	!Add debugging CV flags
 	integer,dimension(6) :: F_CV_limits		 !Limits of CV forces
 	integer	             :: CV_debug=0
-    integer,dimension(3) :: debug_CV
+    integer,dimension(3) :: debug_CV, debug_CV_range
 
 	integer, dimension(3)	:: periodic
 
@@ -780,6 +780,7 @@ module calculated_properties_MD
 		volume_momentum_p,	& 		!Polymer momentum in a control volume at time t
 		centre_of_mass,	    & 		!Centre of mass of control volume
 		energy_flux,		&		!Flow of energy over a control volume surface
+		energy_surface_flux,&		!Flow of energy due to movement of surface
 		Pxyvface,			&		!Power tensor on bin face
 		Pxyvface_mdt,		&		!Power tensor on bin face at previous timestep
 		Pxyvface_integrated,&		!Integrated form of Power
@@ -788,14 +789,15 @@ module calculated_properties_MD
         heatfluxbin
 
 	real(kind(0.d0)), dimension(:,:,:,:,:), allocatable :: & 
-		volume_force,  		& 		!Force acting over control volume surface 
-		momentum_flux, 		&		!Flow of momentum over a control volume surface
-		rfbin, 				& 		!Position(x)Force tensor per bin
-		rfvbin,				& 		!Position(x)Force dot v per bin
-		vvbin, 				& 		!velocity(x)velocity tensor per bin
-		Pxybin, 			&		!Stress tensor per bin
-		Pxyface, 			&		!Stress tensor on bin face
-		Gxybins	    				!Parameter used in Nose Hoover stressostat
+		volume_force,  			& 		!Force acting over control volume surface 
+		momentum_flux, 			&		!Flow of momentum over a control volume surface
+		momentum_surface_flux, 	&		!Change in momentum due to surface movement
+		rfbin, 					& 		!Position(x)Force tensor per bin
+		rfvbin,					& 		!Position(x)Force dot v per bin
+		vvbin, 					& 		!velocity(x)velocity tensor per bin
+		Pxybin, 				&		!Stress tensor per bin
+		Pxyface, 				&		!Stress tensor on bin face
+		Gxybins	    					!Parameter used in Nose Hoover stressostat
 
 	!real(kind(0.d0)),dimension(2,3,44)	:: shiftVAstress
 contains

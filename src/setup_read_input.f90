@@ -1179,6 +1179,14 @@ subroutine setup_read_input
                     print*, "Warning - CV_debug = 2 so CV number should be specified, setting to 3,3,3"
                     debug_CV = (/ 3, 3, 3 /)
                 endif
+				!Try to keep reading to see if range specified
+		        read(1,*,iostat=ios) debug_CV_range(1)				
+				read(1,*,iostat=ios) debug_CV_range(2)
+				read(1,*,iostat=ios) debug_CV_range(3)
+        		if (ios .ne. 0) then
+                    debug_CV_range = (/ 1, 1, 1 /)
+                endif
+				print*, "debug_CV_range", debug_CV_range					
             endif
         endif
 	endif

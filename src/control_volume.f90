@@ -28,7 +28,7 @@ module CV_objects
 !type, extends(check_CV) :: check_CV_mass
 type :: check_CV_mass
 	integer						 			:: N_ave
-	integer, dimension(3)		   			:: nbins, nhb, debug_CV
+	integer, dimension(3)		   			:: nbins, nhb, debug_CV, debug_CV_range
 	real(kind(0.d0))						:: delta_t
 	real(kind(0.d0)), dimension(3)  		:: domain, binsize
 	real(kind(0.d0)),dimension(:,:,:,:),allocatable :: flux, surf, surf_mdt
@@ -45,16 +45,17 @@ end type check_CV_mass
 !type, extends(check_CV) :: check_CV_momentum
 type :: check_CV_momentum
 	integer						 			:: N_ave
-	integer, dimension(3)		   			:: nbins, nhb, debug_CV
+	integer, dimension(3)		   			:: nbins, nhb, debug_CV, debug_CV_range
 	real(kind(0.d0))						:: delta_t
 	real(kind(0.d0)), dimension(3)  		:: domain, binsize
-	real(kind(0.d0)),dimension(:,:,:,:,:),allocatable 	:: flux, Pxy,  Pxy_minus_t
+	real(kind(0.d0)),dimension(:,:,:,:,:),allocatable 	:: flux, Pxy,  Pxy_minus_t, surf, surf_mdt
 	real(kind(0.d0)),dimension(:,:,:,:),allocatable		:: dXdt, X, X_minus_t, X_minus_2t, & 
 														   F_ext, totalflux, totalpressure
 	contains
 		procedure :: initialise  => initialise_momentum
 		procedure :: update_dXdt => update_dXdt_momentum
 		procedure :: update_flux => update_flux_momentum
+		procedure :: update_surface => update_surface_momentum
 		procedure :: update_Pxy  => update_Pxy
 		procedure :: update_F_ext=> update_F_ext
 		procedure :: check_error => check_error_momentum
@@ -64,10 +65,10 @@ end type check_CV_momentum
 !type, extends(check_CV) :: check_CV_energy
 type :: check_CV_energy
 	integer						 			:: N_ave
-	integer, dimension(3)		   			:: nbins, nhb, debug_CV
+	integer, dimension(3)		   			:: nbins, nhb, debug_CV, debug_CV_range
 	real(kind(0.d0))						:: delta_t
 	real(kind(0.d0)), dimension(3)  		:: domain, binsize
-	real(kind(0.d0)),dimension(:,:,:,:),allocatable 	:: flux, Pxyv,  Pxyv_minus_t
+	real(kind(0.d0)),dimension(:,:,:,:),allocatable 	:: flux, Pxyv,  Pxyv_minus_t, surf, surf_mdt
 	real(kind(0.d0)),dimension(:,:,:),allocatable		:: dXdt, X, X_minus_t, X_minus_2t, & 
 														   Fv_ext, totalflux, totalpower
 	contains
@@ -157,7 +158,7 @@ contains
 !===================================================
 
 	!Constructor for object
-	subroutine initialise_mass(self,nbins,nhb,domain,delta_t,N_ave,debug_CV)
+	subroutine initialise_mass(self,nbins,nhb,domain,delta_t,N_ave,debug_CV, debug_CV_range)
 		implicit none
 
 		! initialize shape objects
@@ -165,7 +166,7 @@ contains
 
 		integer, dimension(3),intent(in) 			:: nbins,nhb
 		integer,intent(in)						 	:: N_ave
-		integer, dimension(3),intent(in),optional 	:: debug_CV
+		integer, dimension(3),intent(in),optional 	:: debug_CV, debug_CV_range
 		real(kind(0.d0)),intent(in)					:: delta_t
 		real(kind(0.d0)), dimension(3),intent(in)	:: domain
 
@@ -181,6 +182,9 @@ contains
 		self%binsize = domain/nbins
         if (present(debug_CV)) then
             self%debug_CV = debug_CV
+			if (present(debug_CV_range)) then
+				self%debug_CV_range = debug_CV_range
+			endif
         else
             self%debug_CV = (/ -666, -666, -666 /) 
         endif
@@ -309,16 +313,16 @@ contains
 						+(self%flux(i,j,k,2) - self%flux(i,j,k,5)) & 
 						+(self%flux(i,j,k,3) - self%flux(i,j,k,6))
 
-			totalsurf =  (self%surf_mdt(i,j,k,1) - self%surf_mdt(i,j,k,4)) &
-						+(self%surf_mdt(i,j,k,2) - self%surf_mdt(i,j,k,5)) & 
-						+(self%surf_mdt(i,j,k,3) - self%surf_mdt(i,j,k,6))
+			totalsurf =  (self%surf(i,j,k,1) - self%surf(i,j,k,4)) &
+						+(self%surf(i,j,k,2) - self%surf(i,j,k,5)) & 
+						+(self%surf(i,j,k,3) - self%surf(i,j,k,6))
 
             conserved = totalflux-self%dXdt(i,j,k)+totalsurf
 
-            if (     (CV_debug .eq. 1) .and. (conserved .ne. 0) &
-			    .or. (i .eq. self%debug_CV(1) .and. & 
-                      j .eq. self%debug_CV(2) .and. & 
-                      k .eq. self%debug_CV(3))) then
+            if (    ((CV_debug .eq. 1) .and. (conserved .ne. 0)) &
+			    .or. (i .ge. self%debug_CV(1) .and. (i .lt. self%debug_CV(1)+self%debug_CV_range(1)) .and.	& 
+                      j .eq. self%debug_CV(2) .and. (j .lt. self%debug_CV(2)+self%debug_CV_range(2)) .and. & 
+                      k .eq. self%debug_CV(3) .and. (k .lt. self%debug_CV(3)+self%debug_CV_range(3)))) then
 				print'(a,i8,4i4,8f11.4)','Error_cubeCV_mass', iter,irank,i,j,k, & 
 					conserved, 0.d0, totalflux,self%dXdt(i,j,k), 0.d0, totalsurf, self%X_minus_t(i,j,k),self%X(i,j,k)
 !                print*, "CV Position = ", (i-self%nhb(1))*self%binsize(1)-0.5d0*self%domain(1), &
@@ -338,14 +342,14 @@ contains
 !===================================================
 
 	!Constructor for object
-	subroutine initialise_momentum(self,nbins,nhb,domain,delta_t,N_ave,debug_CV)
+	subroutine initialise_momentum(self,nbins,nhb,domain,delta_t,N_ave,debug_CV,debug_CV_range)
 		implicit none
 
 		! initialize shape objects
 		class(check_CV_momentum) 		:: self
 
 		integer, dimension(3),intent(in) 			:: nbins, nhb
-		integer, dimension(3),intent(in),optional 	:: debug_CV
+		integer, dimension(3),intent(in),optional 	:: debug_CV, debug_CV_range
 		integer,intent(in)						 	:: N_ave
 		real(kind(0.d0)),intent(in)					:: delta_t
 		real(kind(0.d0)), dimension(3),intent(in)	:: domain
@@ -367,6 +371,8 @@ contains
 		allocate(self%flux(nb(1),nb(2),nb(3),3,6))
 		allocate(self%Pxy(nb(1),nb(2),nb(3),3,6))
 		allocate(self%Pxy_minus_t(nb(1),nb(2),nb(3),3,6))
+		allocate(self%surf(nb(1),nb(2),nb(3),3,6))
+		allocate(self%surf_mdt(nb(1),nb(2),nb(3),3,6))
 		allocate(self%dXdt(nb(1),nb(2),nb(3),3))
 		allocate(self%X(nb(1),nb(2),nb(3),3))
 		allocate(self%X_minus_t(nb(1),nb(2),nb(3),3))
@@ -375,6 +381,9 @@ contains
 		allocate(self%totalpressure(nb(1),nb(2),nb(3),3))
         if (present(debug_CV)) then
             self%debug_CV = debug_CV
+			if (present(debug_CV_range)) then
+				self%debug_CV_range = debug_CV_range
+			endif
         else
             self%debug_CV = (/ -666, -666, -666 /) 
         endif
@@ -389,6 +398,8 @@ contains
 		self%F_ext		= 0.d0
 		self%totalflux  = 0.d0
 		self%totalpressure = 0.d0
+		self%surf       = 0
+		self%surf_mdt   = 0
 		!self%X_minus_2t = 0.d0
 
 	end subroutine initialise_momentum
@@ -444,6 +455,19 @@ contains
 		self%Pxy = X
 
 	end subroutine update_Pxy
+	
+	!Update time evolution and store previous two values
+	subroutine update_surface_momentum(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_momentum) :: self
+
+		real(kind(0.d0)),dimension(:,:,:,:,:),allocatable,intent(in) :: X
+
+		self%surf_mdt = self%surf
+		self%surf = X
+
+	end subroutine update_surface_momentum
 
 	!Swap halos on edges of processor boundaries
 	subroutine swap_halos_momentum(self,nb)
@@ -505,7 +529,7 @@ contains
 		integer 						:: i,j,k
 		integer,save 					:: first_time = 0
 		real(kind(0.d0))				:: conserved
-		real(kind(0.d0)),dimension(3)	:: totalpressure,totalflux,F_ext,dvelocitydt
+		real(kind(0.d0)),dimension(3)	:: totalpressure,totalflux,F_ext,dvelocitydt, totalsurf
 
 		!First call doesn't have difference in time yet so skip
 		if (first_time .lt. 2) then
@@ -533,17 +557,21 @@ contains
 			!drhou/dt
 			dvelocitydt =  self%dxdt(i,j,k,:)/(self%delta_t*self%N_ave)
 
+			totalsurf =  (self%surf(i,j,k,:,1) - self%surf(i,j,k,:,4))/self%binsize(1) &
+						+(self%surf(i,j,k,:,2) - self%surf(i,j,k,:,5))/self%binsize(2) & 
+						+(self%surf(i,j,k,:,3) - self%surf(i,j,k,:,6))/self%binsize(3)
+
 			!Verify that CV momentum is exactly conservative
-			conserved = sum(totalpressure+totalflux-dvelocitydt-F_ext)
+			conserved = sum(totalpressure+totalflux-dvelocitydt-F_ext+totalsurf)
 
 
 			if (     CV_debug .eq. 1 .and. (abs(conserved) .gt. 0.000000001d0) &
-			    .or. (i .eq. self%debug_CV(1) .and. & 
-                      j .eq. self%debug_CV(2) .and. & 
-                      k .eq. self%debug_CV(3))) then
-				print'(a,i8,4i4,6f11.5,f22.18)','Error_in_momentum_flux', iter,irank,i,j,k, & 
+			    .or. (i .ge. self%debug_CV(1) .and. i .lt. self%debug_CV(1)+self%debug_CV_range(1) .and.	& 
+                      j .eq. self%debug_CV(2) .and. j .lt. self%debug_CV(2)+self%debug_CV_range(2) .and. & 
+                      k .eq. self%debug_CV(3) .and. k .lt. self%debug_CV(3)+self%debug_CV_range(3))) then
+				print'(a,i8,4i4,7f11.5,f22.18)','Error_in_momentum_flux', iter,irank,i,j,k, & 
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
-					+sum(F_ext), sum(self%X(i,j,k,:)),   & 
+					+sum(F_ext), sum(totalsurf), sum(self%X(i,j,k,:)),   & 
 					 sum(self%X_minus_t(i,j,k,:))
 				check_ok = .false.
 			endif
@@ -565,14 +593,14 @@ contains
 !===================================================
 
 	!Constructor for object
-	subroutine initialise_energy(self,nbins,nhb,domain,delta_t,N_ave,debug_CV)
+	subroutine initialise_energy(self,nbins,nhb,domain,delta_t,N_ave,debug_CV, debug_CV_range)
 		implicit none
 
 		! initialize shape objects
 		class(check_CV_energy) 		:: self
 
 		integer, dimension(3),intent(in) 			:: nbins, nhb
-		integer, dimension(3),intent(in),optional 	:: debug_CV
+		integer, dimension(3),intent(in),optional 	:: debug_CV, debug_CV_range
 		integer,intent(in)						 	:: N_ave
 		real(kind(0.d0)),intent(in)					:: delta_t
 		real(kind(0.d0)), dimension(3),intent(in)	:: domain
@@ -589,6 +617,9 @@ contains
 		self%binsize = domain/nbins
         if (present(debug_CV)) then
             self%debug_CV = debug_CV
+			if (present(debug_CV_range)) then
+				self%debug_CV_range = debug_CV_range
+			endif
         else
             self%debug_CV = (/ -666, -666, -666 /) 
         endif
@@ -777,9 +808,9 @@ contains
 
 			if(      (CV_debug .eq. 1) .and. & 
                 (abs(conserved/divider) .gt. 0.1d0) &
-			            .or. (i .eq. self%debug_CV(1) .and. & 
-                              j .eq. self%debug_CV(2) .and. & 
-                              k .eq. self%debug_CV(3))) then
+			    .or. (i .ge. self%debug_CV(1) .and. i .lt. self%debug_CV(1)+self%debug_CV_range(1) .and.	& 
+                      j .eq. self%debug_CV(2) .and. j .lt. self%debug_CV(2)+self%debug_CV_range(2) .and. & 
+                      k .eq. self%debug_CV(3) .and. k .lt. self%debug_CV(3)+self%debug_CV_range(3))) then
 
                 print'(a22,i8,4i4,2f13.6,e16.5,4f13.6)','Error_%age_energy_flux', iter,irank,i,j,k, & 
 					         conserved/divider, totalpower,-totalflux,denergydt, & 

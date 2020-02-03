@@ -78,6 +78,9 @@ subroutine setup_initial_record
         enddo
     endif
     call messenger_syncall()
+	
+	!Assign get bins functions
+    call setup_assign_get_bins_fn() !Check if bins/cluster setup
 
     !Evaluate system properties on all processes
     call simulation_compute_forces
@@ -113,8 +116,7 @@ subroutine setup_initial_record
         call parallel_io_psf()
     endif
 
-    !Assign get bins functions
-    call setup_assign_get_bins_fn() !Check if bins/cluster setup
+
 
     !Calculate Control Volume starting state
     call initial_control_volume

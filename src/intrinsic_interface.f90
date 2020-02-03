@@ -213,6 +213,9 @@ subroutine initialise(self, box, normal, alpha, eps)
         self%u(i) = (i-1) / self%n_waves - self%qm
         self%v(i) = modulo((i-1), self%n_waves) - self%qm
     enddo
+	
+	allocate(self%coeff(self%n_waves2))
+	self%coeff = 0.d0
 
     allocate(self%diag(self%n_waves2))
     self%diag = check_uv(self%u, self%v) & 
@@ -246,7 +249,8 @@ subroutine update_real_surface(self, points)
 
     logical :: debug=.false.
     double precision, dimension(:), allocatable :: surf
-
+    double precision, allocatable, dimension(:) :: x
+	
     allocate(A(self%n_waves2, self%n_waves2))
     allocate(b(self%n_waves2))
     allocate(fuv(size(points,1), self%n_waves2))
@@ -268,13 +272,15 @@ subroutine update_real_surface(self, points)
 
     !This solves Ax = b
     A = A + self%diag_matrix
-    call solve(A, b, self%coeff)
+    call solve(A, b, x)
+	self%coeff(:) = x(:)
 
     !Check surface we just fitted actually matches our points
     if (debug) then
         call self%get_surface(points, surf)
         do j = 1, size(points,1)
-            print*, "update_real_surface DEBUG ON Elevation vs points = ", j, surf(j) , points(j,self%normal), &
+            print*, "update_real_surface DEBUG ON Elevation vs points = ", & 
+					j, surf(j) , points(j,self%normal), &
                      surf(j)-points(j,self%normal)
         enddo
 !    do j=1, self%n_waves2
@@ -366,20 +372,30 @@ function get_bin_from_surface(self, r, nbins, nhb) result(bin)
     integer,dimension(3)	                 :: bin
 
     integer :: n, i, j
+    !real(kind(0.d0)) :: maprange
     real(kind(0.d0)), dimension(3) :: halfdomain, binsize
     real(kind(0.d0)), allocatable, dimension(:) :: elevation
     real(kind(0.d0)), allocatable, dimension(:,:) :: points
-
-    allocate(points(1,3))
-    points(1,:) = r(:)
-    call self%get_surface(points, elevation)
 
     binsize = self%box/float(nbins)
     halfdomain = 0.5*self%box
     n=self%normal
     i=self%ixyz
     j=self%jxyz
-    !bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1))/binsize(n))+nhb(n)
+	
+	!maprange = 5.d0
+	!if ((r(1) .lt. self%coeff(313)-maprange) .or. & 
+	!	(r(1) .gt. self%coeff(313)+maprange)) then
+	!	bin(n) = ceiling((r(n)+halfdomain(n)+0.5d0*binsize(n))/binsize(n))+nhb(n)
+	!    bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb(i)
+	!	bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb(j)
+	!	return
+	!endif
+	
+    allocate(points(1,3))
+    points(1,:) = r(:)
+    call self%get_surface(points, elevation)
+
     bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1)+0.5d0*binsize(n))/binsize(n))+nhb(n) !HALF SHIFT
     bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb(i)
     bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb(j)
