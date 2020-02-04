@@ -246,25 +246,18 @@ contains
 
         integer :: ixyz
 		
-		bin = ISR%get_bin(r(:,n), nbins, nhb)
 
-        !bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n))/binsize(1))+nhb(1)
-        ! bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n)+0.5d0*binsize(1))/binsize(1))+nhb(1) !HALF SHIFT
-        ! bin(2) = ceiling((r(2,n)+halfdomain(2))/binsize(2))+nhb(2)
-        ! bin(3) = ceiling((r(3,n)+halfdomain(3))/binsize(3))+nhb(3)
+        bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n)+0.5d0*binsize(1))/binsize(1))+nhb(1) !HALF SHIFT
+        bin(2) = ceiling((r(2,n)+halfdomain(2))/binsize(2))+nhb(2)
+        bin(3) = ceiling((r(3,n)+halfdomain(3))/binsize(3))+nhb(3)
 
-        ! !bin = bin_from_integer_division(r(:,n))
-        ! !bin(1) = bin(1) - intnscshift(n)
-
-        ! !Prevents out of range values
-        ! !do ixyz=1,3
-        ! ixyz = 1
-		! if (bin(ixyz) > nbins(ixyz)+nhb(ixyz)) then
-            ! bin(ixyz) = nbins(ixyz)+nhb(ixyz)
-        ! elseif (bin(ixyz) < 1 ) then
-            ! bin(ixyz) = 1   
-        ! endif
-        !enddo
+        !Prevents out of range values
+        ixyz = 1
+        if (bin(ixyz) > nbins(ixyz)+nhb(ixyz)) then
+            bin(ixyz) = nbins(ixyz)+nhb(ixyz)
+        elseif (bin(ixyz) < 1 ) then
+            bin(ixyz) = 1   
+        endif
 
     end function bin_molno_from_full_intrinsic
 
