@@ -60,6 +60,7 @@ module intrinsic_module
 		    procedure :: update_surface => update_real_surface
 		    procedure :: get_surface => get_real_surface
 		    procedure :: get_surface_derivative => get_real_surface_derivative
+		    procedure :: get_zero_mode => get_zero_mode
             procedure :: get_bin => get_bin_from_surface
 		    procedure :: sample_surface => sample_intrinsic_surface
 
@@ -360,6 +361,20 @@ subroutine get_real_surface_derivative(self, points, dSdr, qu)
 end subroutine get_real_surface_derivative
 
 
+subroutine get_zero_mode(self, zeromode)
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    integer :: j
+    real(kind(0.d0)) :: zeromode
+
+    j = (2 * self%qm + 1) * self%qm + self%qm + 1
+    zeromode = self%coeff(j)
+
+end subroutine get_zero_mode
+
+
 !A version getting the explicit location from the intrinsic surface
 function get_bin_from_surface(self, r, nbins, nhb) result(bin)
     implicit none
@@ -372,7 +387,7 @@ function get_bin_from_surface(self, r, nbins, nhb) result(bin)
     integer,dimension(3)	                 :: bin
 
     integer :: n, i, j
-    !real(kind(0.d0)) :: maprange
+    real(kind(0.d0)) :: maprange, zeromode
     real(kind(0.d0)), dimension(3) :: halfdomain, binsize
     real(kind(0.d0)), allocatable, dimension(:) :: elevation
     real(kind(0.d0)), allocatable, dimension(:,:) :: points
@@ -383,10 +398,12 @@ function get_bin_from_surface(self, r, nbins, nhb) result(bin)
     i=self%ixyz
     j=self%jxyz
 	
+    !Add in a range over which the intrinsic deformation is applied
 	!maprange = 5.d0
-	!if ((r(1) .lt. self%coeff(313)-maprange) .or. & 
-	!	(r(1) .gt. self%coeff(313)+maprange)) then
-	!	bin(n) = ceiling((r(n)+halfdomain(n)+0.5d0*binsize(n))/binsize(n))+nhb(n)
+    !call self%get_zero_mode(zeromode)
+	!if ((r(n) .lt. zeromode-maprange) .or. & 
+	!	(r(n) .gt. zeromode+maprange)) then
+	!	bin(n) = ceiling((r(n)+halfdomain(n)-zeromode+0.5d0*binsize(n))/binsize(n))+nhb(n)
 	!    bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb(i)
 	!	bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb(j)
 	!	return
@@ -399,12 +416,6 @@ function get_bin_from_surface(self, r, nbins, nhb) result(bin)
     bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1)+0.5d0*binsize(n))/binsize(n))+nhb(n) !HALF SHIFT
     bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb(i)
     bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb(j)
-
-!    bin(1) = ceiling((r(1)+halfdomain(1)-elevation(1))/binsize(1))+nhb(1)
-!    bin(2) = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
-!    bin(3) = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
-
-    !print*, bin(n), (r(n)+halfdomain(n)-elevation(1))/binsize(n)
 
 	if (bin(n) > nbins(n)+nhb(n)) then
         bin(n) = nbins(n)+nhb(n)
