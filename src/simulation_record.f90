@@ -2849,14 +2849,11 @@ subroutine simulation_compute_kinetic_VA(imin,imax,jmin,jmax,kmin,kmax)
 	integer 							:: bin(3)
 	real(kind(0.d0)), dimension(3)		:: VAbinsize, velvect
 
-	!vvbin = 0.d0
-
-	!Determine bin size
-	!VAbinsize(:) = domain(:) / nbins(:)
-    bin(:) = get_bin_molno(n)
-
 	! Add kinetic part of pressure tensor for all molecules
 	do n = 1, np
+
+                !Determine bin size
+                bin(:) = get_bin_molno(n)
 
 		!Assign to bins using integer division
 		ibin = bin(1) !ceiling((r(1,n)+halfdomain(1))/VAbinsize(1))	!Establish current bin
