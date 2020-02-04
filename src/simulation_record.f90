@@ -210,7 +210,7 @@ contains
         real(kind(0.d0)), dimension(3) :: box
         real(kind(0.d0)), allocatable, dimension(:) :: elevation
         real(kind(0.d0)), allocatable, dimension(:,:) :: points
-				
+
 		bin = ISR%get_bin(r, nbins, nhb)
 
         ! allocate(points(1,3))
@@ -3022,24 +3022,25 @@ contains
 !       nbins    - Number of averaging bins in domain
 !       nhb      - Number of halos bins (for periodic boundaries/parallel simulations)
 !  VA_calcmethod - Method of VA calculation
-!       rfbin    - Returned array with length of interaction
+!       array    - Returned array with length of interaction
 !     
 ! N.B. molecular positon from -halfdomain to +halfdomain       
 
 
 subroutine pressure_tensor_forces_VA(ri, rj, rF, domain,  & 
-                                     nbins, nhb, rfbin,   & 
+                                     nbins, nhb, array,   & 
                                      VA_calcmethod,       &
                                      VA_line_samples)
     use computational_constants_MD, only : cellsidelength
     use module_record, only : get_bin
+    implicit none
 
     integer,intent(in)                                      :: VA_calcmethod
     integer,intent(in),optional                             :: VA_line_samples
     integer,dimension(3),intent(in)                         :: nbins,nhb
 	real(kind(0.d0)), dimension(:,:), intent(in)            :: rF
 	real(kind(0.d0)),dimension(3), intent(in)		        :: ri, rj, domain
-	real(kind(0.d0)),dimension(:,:,:,:,:), intent(inout)	:: rfbin
+	real(kind(0.d0)),dimension(:,:,:,:,:), intent(inout)	:: array
 
     integer                                                 :: VA_line_samples_
 	real(kind(0.d0)),dimension(3)                           :: halfdomain
@@ -3118,8 +3119,8 @@ subroutine pressure_tensor_forces_H(ri,rj,rF)
 		!------Add molecules to bin-----
 
 		!Factor of two as molecule i and molecule j are both counted in bin i
-		rfbin(ibin(1),ibin(2),ibin(3),:,:) = & 
-            rfbin(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)
+		array(ibin(1),ibin(2),ibin(3),:,:) = & 
+            array(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)
 
 
 	!===================Interactions split over 2 or more cells ==========
@@ -3129,12 +3130,12 @@ subroutine pressure_tensor_forces_H(ri,rj,rF)
 		!Molecule i and j contribution split between bins
 
 		!-----------Molecule i bin-----------
-		rfbin(ibin(1),ibin(2),ibin(3),:,:) = & 
-            rfbin(ibin(1),ibin(2),ibin(3),:,:) + 0.5d0*rF(:,:)
+		array(ibin(1),ibin(2),ibin(3),:,:) = & 
+            array(ibin(1),ibin(2),ibin(3),:,:) + 0.5d0*rF(:,:)
 
 		!-----------Molecule j bin-----------
-		rfbin(jbin(1),jbin(2),jbin(3),:,:) = & 
-            rfbin(jbin(1),jbin(2),jbin(3),:,:) + 0.5d0*rF(:,:)
+		array(jbin(1),jbin(2),jbin(3),:,:) = & 
+            array(jbin(1),jbin(2),jbin(3),:,:) + 0.5d0*rF(:,:)
 		
 	case default
 
@@ -3148,7 +3149,7 @@ end subroutine pressure_tensor_forces_H
 
 !====================================================================================
 ! VOLUME AVERAGE CONFIGURATIONAL EXPRESSION
-! Author: David Trevelyan, July 2013 (david.trevelyan06@imperial.ac.uk)
+! Author: Edward Smith, David Trevelyan, July 2019
 ! Linear trajectory path sampled to find approximate values of l_ij 
 !(less accurate, but much easier to understand)
 
@@ -3167,10 +3168,10 @@ subroutine pressure_tensor_forces_VA_trap(ri, rj, rF, VA_line_samples)
 	VAbinsize(:) = domain(:) / nbins(:)
 	rij = rj - ri
 	!rF = outerprod(rij, accijmag*rij)
-	!Auto select line segments so one segment per bin
+	!Auto select line segments so minimum of one segment per bin
 	if (VA_line_samples .eq. 0) then
-		!print*, "Trap bins", Ns, rij, rij/VAbinsize, ceiling(maxval(rij/VAbinsize))+1, ceiling(maxval(abs(rij)/VAbinsize))+1
 		Ns = ceiling(maxval(abs(rij)/VAbinsize))+1
+		!print*, "Trap bins", Ns !, rij, rij/VAbinsize, ceiling(maxval(rij/VAbinsize))+1, ceiling(maxval(abs(rij)/VAbinsize))+1
 	else
 		Ns = VA_line_samples
 	endif
@@ -3190,10 +3191,10 @@ subroutine pressure_tensor_forces_VA_trap(ri, rj, rF, VA_line_samples)
 		! by neighbouring processors)
 		if ( .not. any( abs(rs(:)) .gt. halfdomain(:) ) ) then
 
-			!bin(:) = ceiling((rs(:)+halfdomain(:))/VAbinsize(:)) + 1
+
             bin(:) = get_bin(rs(:))
-			rfbin(bin(1),bin(2),bin(3),:,:) =  &
-			rfbin(bin(1),bin(2),bin(3),:,:) + rF(:,:)/real(Ns,kind(0.d0))
+			array(bin(1),bin(2),bin(3),:,:) =  &
+			array(bin(1),bin(2),bin(3),:,:) + rF(:,:)/real(Ns,kind(0.d0))
 
 		end if
 
@@ -3278,8 +3279,8 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		!------Add molecules to bin-----
 
 		!Factor of two as molecule i and molecule j are both counted in bin i
-		rfbin(ibin(1),ibin(2),ibin(3),:,:) =& 
-            rfbin(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)
+		array(ibin(1),ibin(2),ibin(3),:,:) =& 
+            array(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)
 
 	!===================Interactions split over 2 cells only==========
 	case(4)
@@ -3330,13 +3331,13 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		!Molecule i and j contribution split between bins
 
 		!-----------Molecule i bin-----------
-		rfbin(ibin(1),ibin(2),ibin(3),:,:) = & 
-            rfbin(ibin(1),ibin(2),ibin(3),:,:) &
+		array(ibin(1),ibin(2),ibin(3),:,:) = & 
+            array(ibin(1),ibin(2),ibin(3),:,:) &
 			  + rF(:,:)*MLfrac(1,1,1)
 
 		!-----------Molecule j bin-----------
-		rfbin(jbin(1),jbin(2),jbin(3),:,:) = & 
-            rfbin(jbin(1),jbin(2),jbin(3),:,:) &
+		array(jbin(1),jbin(2),jbin(3),:,:) = & 
+            array(jbin(1),jbin(2),jbin(3),:,:) &
 			  + rF(:,:)*MLfrac(bindiff(1),bindiff(2),bindiff(3))
 
 		deallocate(intersection)
@@ -3444,18 +3445,18 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		!For domain cells it is added directly to that cell
 
 		!-----------Molecule i bin-----------
-		rfbin(ibin(1),ibin(2),ibin(3),:,:) = & 
-            rfbin(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)*MLfrac(1,1,1)
+		array(ibin(1),ibin(2),ibin(3),:,:) = & 
+            array(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)*MLfrac(1,1,1)
 
 		!-----------Intermediate Bin-----------
 		!If both bins are in the domain then contribution is added for both molecules
-		rfbin(interbin(1,1),interbin(2,1),interbin(3,1),:,:) = &
-			rfbin(interbin(1,1),interbin(2,1),interbin(3,1),:,:) &
+		array(interbin(1,1),interbin(2,1),interbin(3,1),:,:) = &
+			array(interbin(1,1),interbin(2,1),interbin(3,1),:,:) &
 			+ rF(:,:)*MLfrac(interbindiff(1,1),interbindiff(2,1),interbindiff(3,1))
 
 		!-----------Molecule j bin-----------
-		rfbin(jbin(1),jbin(2),jbin(3),:,:) = & 
-            rfbin(jbin(1),jbin(2),jbin(3),:,:) &
+		array(jbin(1),jbin(2),jbin(3),:,:) = & 
+            array(jbin(1),jbin(2),jbin(3),:,:) &
 			+ rF(:,:)*MLfrac(bindiff(1),bindiff(2),bindiff(3))
 
 		deallocate(Lfrac)
@@ -3607,24 +3608,24 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		!For domain cells it is added directly to that cell
 
 		!-----------Molecule i bin-----------
-		rfbin(ibin(1),ibin(2),ibin(3),:,:) = & 
-            rfbin(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)*MLfrac(1,1,1)
+		array(ibin(1),ibin(2),ibin(3),:,:) = & 
+            array(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)*MLfrac(1,1,1)
 
 		!-----------1st Intermediate Bin-----------
 		!Intermediate and i bin in domain, j in halo - add intermediate for molecule i
-		rfbin(interbin(1,1),interbin(2,1),interbin(3,1),:,:) = &
-			rfbin(interbin(1,1),interbin(2,1),interbin(3,1),:,:) &
+		array(interbin(1,1),interbin(2,1),interbin(3,1),:,:) = &
+			array(interbin(1,1),interbin(2,1),interbin(3,1),:,:) &
 			+ rF(:,:)*MLfrac(interbindiff(1,1),interbindiff(2,1),interbindiff(3,1))
 
 		!-----------2nd Intermediate Bin-----------
 		!Intermediate and i bin in domain, j in halo - add intermediate for molecule i
-		rfbin(interbin(1,2),interbin(2,2),interbin(3,2),:,:) = &
-			rfbin(interbin(1,2),interbin(2,2),interbin(3,2),:,:) &
+		array(interbin(1,2),interbin(2,2),interbin(3,2),:,:) = &
+			array(interbin(1,2),interbin(2,2),interbin(3,2),:,:) &
 			+ rF(:,:)*MLfrac(interbindiff(1,2),interbindiff(2,2),interbindiff(3,2))
 
 		!-----------Molecule j bin-----------
-		rfbin(jbin(1),jbin(2),jbin(3),:,:) = & 
-            rfbin(jbin(1),jbin(2),jbin(3),:,:) &
+		array(jbin(1),jbin(2),jbin(3),:,:) = & 
+            array(jbin(1),jbin(2),jbin(3),:,:) &
 			+ rF(:,:)*MLfrac(bindiff(1),bindiff(2),bindiff(3))
 
 		deallocate(intersection)
@@ -3772,6 +3773,7 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 !                                else
 !                                    zeros = 0.d0
 !                                endif
+                            !    one = 1.d0
 !                                call pressure_tensor_forces_VA(ri, rj, one, domain, & 
 !                                                               nbins, nhb, zeros,   & 
 !                                                               VA_calcmethod,       &
