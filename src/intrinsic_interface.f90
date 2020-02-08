@@ -400,7 +400,7 @@ function get_bin_from_surface(self, r, nbins, nhb) result(bin)
 	
     !Add in a range over which the intrinsic deformation is applied
 	!maprange = 5.d0
-    !call self%get_zero_mode(zeromode)
+    call self%get_zero_mode(zeromode)
 	!if ((r(n) .lt. zeromode-maprange) .or. & 
 	!	(r(n) .gt. zeromode+maprange)) then
 	!	bin(n) = ceiling((r(n)+halfdomain(n)-zeromode+0.5d0*binsize(n))/binsize(n))+nhb(n)
@@ -413,7 +413,8 @@ function get_bin_from_surface(self, r, nbins, nhb) result(bin)
     points(1,:) = r(:)
     call self%get_surface(points, elevation)
 
-    bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1)+0.5d0*binsize(n))/binsize(n))+nhb(n) !HALF SHIFT
+    !Added a shift by zero wavelength so surface is not at zero
+    bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1)+zeromode+0.5d0*binsize(n))/binsize(n))+nhb(n) !HALF SHIFT
     bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb(i)
     bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb(j)
 
