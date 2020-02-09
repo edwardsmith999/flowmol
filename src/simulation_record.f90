@@ -210,7 +210,7 @@ contains
         real(kind(0.d0)), dimension(3) :: box
         real(kind(0.d0)), allocatable, dimension(:) :: elevation
         real(kind(0.d0)), allocatable, dimension(:,:) :: points
-				
+
 		bin = ISR%get_bin(r, nbins, nhb)
 
         ! allocate(points(1,3))
@@ -245,26 +245,19 @@ contains
 	    integer,dimension(3) 		:: bin
 
         integer :: ixyz
-		
-		!bin = ISR%get_bin(r(:,n), nbins, nhb)
 
-        !bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n))/binsize(1))+nhb(1)
+
         bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n)+0.5d0*binsize(1))/binsize(1))+nhb(1) !HALF SHIFT
         bin(2) = ceiling((r(2,n)+halfdomain(2))/binsize(2))+nhb(2)
         bin(3) = ceiling((r(3,n)+halfdomain(3))/binsize(3))+nhb(3)
 
-        ! !bin = bin_from_integer_division(r(:,n))
-        ! !bin(1) = bin(1) - intnscshift(n)
-
-        ! !Prevents out of range values
-        ! !do ixyz=1,3
+        !Prevents out of range values
         ixyz = 1
-		if (bin(ixyz) > nbins(ixyz)+nhb(ixyz)) then
-			bin(ixyz) = nbins(ixyz)+nhb(ixyz)
+        if (bin(ixyz) > nbins(ixyz)+nhb(ixyz)) then
+            bin(ixyz) = nbins(ixyz)+nhb(ixyz)
         elseif (bin(ixyz) < 1 ) then
-			bin(ixyz) = 1   
+            bin(ixyz) = 1   
         endif
-        !enddo
 
     end function bin_molno_from_full_intrinsic
 
@@ -544,7 +537,7 @@ contains
         integer                 :: maxbin, minbin, minTbin, maxTbin
         real(kind(0.d0))        :: pt, r12(3)
 
-        integer :: flag, ss, Ns, cross
+        integer :: flag, ss, Ns, cross, bc
         integer, dimension(3) :: bin, bin_mdt
         integer, dimension(:), allocatable :: cbinstemp
 
@@ -589,6 +582,7 @@ contains
             if (present(cbins)) allocate(cbinstemp(2*sum(abs(bin1-bin2))))
 
             !loop over bin range
+            bc = 1
             do i = minbin, maxbin-1
 
                 !Use either distance between molecules or binside
@@ -609,7 +603,6 @@ contains
                         yt(j) = (jb-nhb(t1)  )*binsize(t1)-0.5d0*ISR_mdt%box(t1)
                         j = j + 1
                     enddo
-					stop "get_crossings_bilinear, bins closer"
                 endif
 
                 !Use either distance between molecules or binside
@@ -660,8 +653,9 @@ contains
                     P(:,:,2) = reshape(points(:,t1), (/2,2/))
                     P(:,:,3) = reshape(points(:,t2), (/2,2/))
 
-                    !print*, i, p(1,1,:), P(1,2,:), P(2,1,:), p(2,2,:), r1(:), r12(:)
-                    !Special case of flat surface causes problems
+                    !print'(a,2i5,18f10.5)', "x_bilinear", i,j, p(1,1,:), P(1,2,:), P(2,1,:), p(2,2,:), r1(:), r12(:)
+
+                    !Special case of flat surface causes problems so need to handle separatly
                     if (P(1,1,1) .eq. P(2,1,1) .and. &
                         P(2,1,1) .eq. P(1,2,1) .and. &
                         P(1,2,1) .eq. P(2,2,1)) then
@@ -677,11 +671,13 @@ contains
                     !print*, 'line_plane_intersect output', i, r1(1), elevation(1), r2(1), bin1(1)-nhb(1), yb, yt, zb, zt, intersect
                     !Loop over intersects and add to temp
                     do ixyz=1,size(intersect,2)
-                        !if (size(intersect,2) .ne. 1) print'(5i5,9f10.5)', ixyz, i, jb, kb, j, r1, intersect(:,ixyz), r2
                         if (all(abs(intersect(:,ixyz)+666) .gt. 1e-7)) then
-                            temp(:,j) = intersect(:,ixyz)
-                            if (present(cbins)) cbinstemp(j) = i
+                            !if (size(intersect,2) .ne. 1) print'(a,6i5,9f10.5)', "intrsect", ixyz, i, jb, kb, j,& 
+                            !                                                     bc, r1, intersect(:,ixyz), r2
+                            temp(:,bc) = intersect(:,ixyz)
+                            if (present(cbins)) cbinstemp(bc) = i
                             j = j + 1
+                            bc = bc + 1
                         endif
                     enddo
 
@@ -697,12 +693,12 @@ contains
 
             enddo
             !Copy array of intersects to rc
-            if (j .gt. 1) then
-                allocate(rc(3, j-1))
-                rc = temp(:,1:j-1)
+            if (bc .gt. 1) then
+                allocate(rc(3, bc-1))
+                rc = temp(:,1:bc-1)
                 if (present(cbins)) then
-                    allocate(cbins(j-1))
-                    cbins = cbinstemp(j-1)
+                    allocate(cbins(bc-1))
+                    cbins = cbinstemp(1:bc-1)
                 endif
             else
                 print*, "Warning in get_crossings_bilinear - no crossings found ", minbin, maxbin, r1, r2
@@ -2857,14 +2853,11 @@ subroutine simulation_compute_kinetic_VA(imin,imax,jmin,jmax,kmin,kmax)
 	integer 							:: bin(3)
 	real(kind(0.d0)), dimension(3)		:: VAbinsize, velvect
 
-	!vvbin = 0.d0
-
-	!Determine bin size
-	!VAbinsize(:) = domain(:) / nbins(:)
-    bin(:) = get_bin_molno(n)
-
 	! Add kinetic part of pressure tensor for all molecules
 	do n = 1, np
+
+        !Determine bin size (removing halo as vvbins arrays doesn't include halo)
+        bin(:) = get_bin_molno(n)-nhb
 
 		!Assign to bins using integer division
 		ibin = bin(1) !ceiling((r(1,n)+halfdomain(1))/VAbinsize(1))	!Establish current bin
@@ -3033,24 +3026,25 @@ contains
 !       nbins    - Number of averaging bins in domain
 !       nhb      - Number of halos bins (for periodic boundaries/parallel simulations)
 !  VA_calcmethod - Method of VA calculation
-!       rfbin    - Returned array with length of interaction
+!       array    - Returned array with length of interaction
 !     
 ! N.B. molecular positon from -halfdomain to +halfdomain       
 
 
 subroutine pressure_tensor_forces_VA(ri, rj, rF, domain,  & 
-                                     nbins, nhb, rfbin,   & 
+                                     nbins, nhb, array,   & 
                                      VA_calcmethod,       &
                                      VA_line_samples)
     use computational_constants_MD, only : cellsidelength
     use module_record, only : get_bin
+    implicit none
 
     integer,intent(in)                                      :: VA_calcmethod
     integer,intent(in),optional                             :: VA_line_samples
     integer,dimension(3),intent(in)                         :: nbins,nhb
 	real(kind(0.d0)), dimension(:,:), intent(in)            :: rF
 	real(kind(0.d0)),dimension(3), intent(in)		        :: ri, rj, domain
-	real(kind(0.d0)),dimension(:,:,:,:,:), intent(inout)	:: rfbin
+	real(kind(0.d0)),dimension(:,:,:,:,:), intent(inout)	:: array
 
     integer                                                 :: VA_line_samples_
 	real(kind(0.d0)),dimension(3)                           :: halfdomain
@@ -3129,8 +3123,8 @@ subroutine pressure_tensor_forces_H(ri,rj,rF)
 		!------Add molecules to bin-----
 
 		!Factor of two as molecule i and molecule j are both counted in bin i
-		rfbin(ibin(1),ibin(2),ibin(3),:,:) = & 
-            rfbin(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)
+		array(ibin(1),ibin(2),ibin(3),:,:) = & 
+            array(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)
 
 
 	!===================Interactions split over 2 or more cells ==========
@@ -3140,12 +3134,12 @@ subroutine pressure_tensor_forces_H(ri,rj,rF)
 		!Molecule i and j contribution split between bins
 
 		!-----------Molecule i bin-----------
-		rfbin(ibin(1),ibin(2),ibin(3),:,:) = & 
-            rfbin(ibin(1),ibin(2),ibin(3),:,:) + 0.5d0*rF(:,:)
+		array(ibin(1),ibin(2),ibin(3),:,:) = & 
+            array(ibin(1),ibin(2),ibin(3),:,:) + 0.5d0*rF(:,:)
 
 		!-----------Molecule j bin-----------
-		rfbin(jbin(1),jbin(2),jbin(3),:,:) = & 
-            rfbin(jbin(1),jbin(2),jbin(3),:,:) + 0.5d0*rF(:,:)
+		array(jbin(1),jbin(2),jbin(3),:,:) = & 
+            array(jbin(1),jbin(2),jbin(3),:,:) + 0.5d0*rF(:,:)
 		
 	case default
 
@@ -3159,7 +3153,7 @@ end subroutine pressure_tensor_forces_H
 
 !====================================================================================
 ! VOLUME AVERAGE CONFIGURATIONAL EXPRESSION
-! Author: David Trevelyan, July 2013 (david.trevelyan06@imperial.ac.uk)
+! Author: Edward Smith, David Trevelyan, July 2019
 ! Linear trajectory path sampled to find approximate values of l_ij 
 !(less accurate, but much easier to understand)
 
@@ -3178,10 +3172,10 @@ subroutine pressure_tensor_forces_VA_trap(ri, rj, rF, VA_line_samples)
 	VAbinsize(:) = domain(:) / nbins(:)
 	rij = rj - ri
 	!rF = outerprod(rij, accijmag*rij)
-	!Auto select line segments so one segment per bin
+	!Auto select line segments so minimum of one segment per bin
 	if (VA_line_samples .eq. 0) then
-		!print*, "Trap bins", Ns, rij, rij/VAbinsize, ceiling(maxval(rij/VAbinsize))+1, ceiling(maxval(abs(rij)/VAbinsize))+1
 		Ns = ceiling(maxval(abs(rij)/VAbinsize))+1
+		!print*, "Trap bins", Ns !, rij, rij/VAbinsize, ceiling(maxval(rij/VAbinsize))+1, ceiling(maxval(abs(rij)/VAbinsize))+1
 	else
 		Ns = VA_line_samples
 	endif
@@ -3201,10 +3195,10 @@ subroutine pressure_tensor_forces_VA_trap(ri, rj, rF, VA_line_samples)
 		! by neighbouring processors)
 		if ( .not. any( abs(rs(:)) .gt. halfdomain(:) ) ) then
 
-			!bin(:) = ceiling((rs(:)+halfdomain(:))/VAbinsize(:)) + 1
+
             bin(:) = get_bin(rs(:))
-			rfbin(bin(1),bin(2),bin(3),:,:) =  &
-			rfbin(bin(1),bin(2),bin(3),:,:) + rF(:,:)/real(Ns,kind(0.d0))
+			array(bin(1),bin(2),bin(3),:,:) =  &
+			array(bin(1),bin(2),bin(3),:,:) + rF(:,:)/real(Ns,kind(0.d0))
 
 		end if
 
@@ -3289,8 +3283,8 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		!------Add molecules to bin-----
 
 		!Factor of two as molecule i and molecule j are both counted in bin i
-		rfbin(ibin(1),ibin(2),ibin(3),:,:) =& 
-            rfbin(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)
+		array(ibin(1),ibin(2),ibin(3),:,:) =& 
+            array(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)
 
 	!===================Interactions split over 2 cells only==========
 	case(4)
@@ -3341,13 +3335,13 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		!Molecule i and j contribution split between bins
 
 		!-----------Molecule i bin-----------
-		rfbin(ibin(1),ibin(2),ibin(3),:,:) = & 
-            rfbin(ibin(1),ibin(2),ibin(3),:,:) &
+		array(ibin(1),ibin(2),ibin(3),:,:) = & 
+            array(ibin(1),ibin(2),ibin(3),:,:) &
 			  + rF(:,:)*MLfrac(1,1,1)
 
 		!-----------Molecule j bin-----------
-		rfbin(jbin(1),jbin(2),jbin(3),:,:) = & 
-            rfbin(jbin(1),jbin(2),jbin(3),:,:) &
+		array(jbin(1),jbin(2),jbin(3),:,:) = & 
+            array(jbin(1),jbin(2),jbin(3),:,:) &
 			  + rF(:,:)*MLfrac(bindiff(1),bindiff(2),bindiff(3))
 
 		deallocate(intersection)
@@ -3455,18 +3449,18 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		!For domain cells it is added directly to that cell
 
 		!-----------Molecule i bin-----------
-		rfbin(ibin(1),ibin(2),ibin(3),:,:) = & 
-            rfbin(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)*MLfrac(1,1,1)
+		array(ibin(1),ibin(2),ibin(3),:,:) = & 
+            array(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)*MLfrac(1,1,1)
 
 		!-----------Intermediate Bin-----------
 		!If both bins are in the domain then contribution is added for both molecules
-		rfbin(interbin(1,1),interbin(2,1),interbin(3,1),:,:) = &
-			rfbin(interbin(1,1),interbin(2,1),interbin(3,1),:,:) &
+		array(interbin(1,1),interbin(2,1),interbin(3,1),:,:) = &
+			array(interbin(1,1),interbin(2,1),interbin(3,1),:,:) &
 			+ rF(:,:)*MLfrac(interbindiff(1,1),interbindiff(2,1),interbindiff(3,1))
 
 		!-----------Molecule j bin-----------
-		rfbin(jbin(1),jbin(2),jbin(3),:,:) = & 
-            rfbin(jbin(1),jbin(2),jbin(3),:,:) &
+		array(jbin(1),jbin(2),jbin(3),:,:) = & 
+            array(jbin(1),jbin(2),jbin(3),:,:) &
 			+ rF(:,:)*MLfrac(bindiff(1),bindiff(2),bindiff(3))
 
 		deallocate(Lfrac)
@@ -3618,24 +3612,24 @@ subroutine pressure_tensor_forces_VA_exact(ri,rj,rF)
 		!For domain cells it is added directly to that cell
 
 		!-----------Molecule i bin-----------
-		rfbin(ibin(1),ibin(2),ibin(3),:,:) = & 
-            rfbin(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)*MLfrac(1,1,1)
+		array(ibin(1),ibin(2),ibin(3),:,:) = & 
+            array(ibin(1),ibin(2),ibin(3),:,:) + rF(:,:)*MLfrac(1,1,1)
 
 		!-----------1st Intermediate Bin-----------
 		!Intermediate and i bin in domain, j in halo - add intermediate for molecule i
-		rfbin(interbin(1,1),interbin(2,1),interbin(3,1),:,:) = &
-			rfbin(interbin(1,1),interbin(2,1),interbin(3,1),:,:) &
+		array(interbin(1,1),interbin(2,1),interbin(3,1),:,:) = &
+			array(interbin(1,1),interbin(2,1),interbin(3,1),:,:) &
 			+ rF(:,:)*MLfrac(interbindiff(1,1),interbindiff(2,1),interbindiff(3,1))
 
 		!-----------2nd Intermediate Bin-----------
 		!Intermediate and i bin in domain, j in halo - add intermediate for molecule i
-		rfbin(interbin(1,2),interbin(2,2),interbin(3,2),:,:) = &
-			rfbin(interbin(1,2),interbin(2,2),interbin(3,2),:,:) &
+		array(interbin(1,2),interbin(2,2),interbin(3,2),:,:) = &
+			array(interbin(1,2),interbin(2,2),interbin(3,2),:,:) &
 			+ rF(:,:)*MLfrac(interbindiff(1,2),interbindiff(2,2),interbindiff(3,2))
 
 		!-----------Molecule j bin-----------
-		rfbin(jbin(1),jbin(2),jbin(3),:,:) = & 
-            rfbin(jbin(1),jbin(2),jbin(3),:,:) &
+		array(jbin(1),jbin(2),jbin(3),:,:) = & 
+            array(jbin(1),jbin(2),jbin(3),:,:) &
 			+ rF(:,:)*MLfrac(bindiff(1),bindiff(2),bindiff(3))
 
 		deallocate(intersection)
@@ -3783,6 +3777,7 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 !                                else
 !                                    zeros = 0.d0
 !                                endif
+                            !    one = 1.d0
 !                                call pressure_tensor_forces_VA(ri, rj, one, domain, & 
 !                                                               nbins, nhb, zeros,   & 
 !                                                               VA_calcmethod,       &
@@ -4238,20 +4233,20 @@ subroutine simulation_compute_energy_VA(imin,imax,jmin,jmax,kmin,kmax)
     real(kind(0.d0))                    :: energy
 	real(kind(0.d0)), dimension(3)		:: VAbinsize, velvect
 
-	!Determine bin size
-	VAbinsize(:) = domain(:) / nbins(:)
-
 	! Add kinetic part of heatflux tensor for all molecules
 	do n = 1, np
 
+        !Determine bin size (removing halo as evbins arrays doesn't include halo)
+        bin(:) = get_bin_molno(n)-nhb
+
 		!Assign to bins using integer division
-		ibin = ceiling((r(1,n)+halfdomain(1))/VAbinsize(1))	!Establish current bin
+		ibin = bin(1)	!Establish current bin
 		if (ibin .gt. imax) cycle ! ibin = maxbin		!Prevents out of range values
 		if (ibin .lt. imin) cycle ! ibin = minbin		!Prevents out of range values
-		jbin = ceiling((r(2,n)+halfdomain(2))/VAbinsize(2)) 	!Establish current bin
+		jbin = bin(2) 	!Establish current bin
 		if (jbin .gt. jmax) cycle ! jbin = maxbin 		!Prevents out of range values
 		if (jbin .lt. jmin) cycle ! jbin = minbin		!Prevents out of range values
-		kbin = ceiling((r(3,n)+halfdomain(3))/VAbinsize(3)) 	!Establish current bin
+		kbin = bin(3)	!Establish current bin
 		if (kbin .gt. kmax) cycle ! kbin = maxbin		!Prevents out of range values
 		if (kbin .lt. kmin) cycle ! kbin = minbin		!Prevents out of range values
 
@@ -4355,9 +4350,9 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
         else
             call get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings)
         endif
-		!print'(a,i9,8i5,12f10.5)', "Ncrossings ", iter, normal, bin1, bin2, size(rc,2), ri1, rc(:,1), rc(:,2), ri2
 	
         if (crossings) then
+		    !print'(a,i9,8i5,12f10.5)', "Ncrossings ", iter, normal, bin1, bin2, size(rc,2), ri1, rc(:,1), rc(:,2), ri2
             bs = 0
             bs(normal) = 1
             ri12   = ri1 - ri2		        !Molecule i trajectory between t-dt and t
@@ -4372,7 +4367,7 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
                 call ISR_mdt%get_surface_derivative(points, dSdr)
             endif
 
-            do i =1,size(rc,2)
+            do i=1,size(rc,2)
                 rci = rc(:,i)
                 rci(normal) = rci(normal) + eps
 				if (use_bilinear) then
@@ -4380,12 +4375,19 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
 				else
 					cbin(:) = get_bin(rci)
 				endif
+
                 if (normal .eq. 1 .and. use_bilinear) then
-                    cbin(normal) = cbins(normal)+1
+                    !if (cbins(i)+1 .ne. cbin(normal)) print'(a,i9,6i5,9f10.5)', "cross no ", iter, i, & 
+                    !                                size(rc,2), cbin, cbins(i)+1, ri1, rci, ri2
+                    !Set normal bin based on solution from bilinear crossinfs
+                    cbin(normal) = cbins(i)+1
                     crossdir = sign(1.d0,(ri12(1) - ri12(2)*dSdr(i,1) - ri12(3)*dSdr(i,2)))
 				else
                     crossdir  = sign(1.d0, ri12(normal))
                 endif
+    		    !if (size(rc,2) .gt. 1) print'(a,i9,6i5,9f10.5)', "cross no ", iter, i, size(rc,2), & 
+                !                       ISR_mdt%get_bin(rci, nbins, nhb), cbins(i), ri1, rci, ri2
+                !if (cbin(normal) .ne. cbins(normal)) stop "Error"
 
                 fluxes(cbin(1),cbin(2),cbin(3),:,normal) = & 
                     fluxes(cbin(1),cbin(2),cbin(3),:,normal) + crossdir*quantity(:)
@@ -7581,6 +7583,7 @@ contains
         character(32)                   :: filename, debug_outfile
         integer                         :: n,i,j,ixyz, jxyz,resolution,fittype,normal, clustNo, bins(3)
         integer, dimension(:), allocatable :: pivots
+        double precision                :: zeromode, maprange
         double precision                :: tolerance, alpha, tau, eps, ns, area
         double precision, dimension(3)  :: bintop, binbot, box !Used in CV
         double precision,dimension(6)   :: extents
@@ -7612,6 +7615,13 @@ contains
             tau =  II_tau ! 1.d0
             eps =  II_eps !0.00000001d0
             ns =  II_ns !0.8d0
+            !box = (/globaldomain(2), globaldomain(3), globaldomain(1)/)
+            !bins = (/nbins(2), nbins(3), nbins(1)/)
+            !ixyz = mod(normal,3)+1
+            !jxyz = mod(normal+1,3)+1
+            !area = box(ixyz)*box(jxyz)
+            !qm = int(0.5*sqrt(area)/alpha)
+            !qu = qm
 
             if (first_time) then
                 call ISR%initialise(globaldomain, normal, alpha, eps)   ! initialise
@@ -7714,9 +7724,14 @@ contains
                     !ISR%coeff(:)=coeffmdt(:)  !Set to fixed initial value
 
                     !DEBUG - write surface out
-                    !call ISR%sample_surface((/1, 100, 100/), vertices)
-                    !call write_wavexyz(vertices)
-                    !call write_waveobj(vertices, iter)
+                    if (CA_generate_xyz .eq. 1) then
+                        call ISR%sample_surface((/1, 200, 200/), vertices)
+                        call write_wave_xyz(vertices)
+                    elseif (CA_generate_xyz .eq. 2) then
+                        call ISR%sample_surface((/1, 200, 200/), vertices)
+                        call write_waveobj(vertices, iter)
+                    endif
+
 
 !                    !Write vmd xyz file for debugging
 !                    if (write_cluster_header) then
@@ -7750,6 +7765,28 @@ contains
                     !call surface_from_modes(points, 3, q_vectors, modes, elevation)
                     !intnscshift(1:np) = ceiling(elevation(1:np)/binsize(1))
                     intnscshift(1:np) = elevation(1:np)
+
+                    !Loop and include map range
+	                !maprange = 5.d0
+                    !transition = 3.d0
+                    call ISR%get_zero_mode(zeromode)
+                    !intrinsic_shift_window_bot = zeromode-maprange
+                    !intrinsic_shift_window_top = zeromode+maprange
+                    !intrinsic_shift_transition_bot = intrinsic_shift_window_bot-transition
+                    !intrinsic_shift_transition_top = intrinsic_shift_window_top-transition
+
+                    do i = 1,np
+	                !    if ((r(1,i) .lt. intrinsic_shift_window_bot) .or. & 
+	                !    	(r(1,i) .gt. intrinsic_shift_window_top)) then
+                    !        intnscshift(i) = 0.d0 !zeromode
+                    !    else if (r(1,i) .lt. intrinsic_shift_window_bot .and. r(1,i) .gt. intrinsic_shift_transition_bot) then
+                    !        intnscshift(i) = (elevation(i) - zeromode)*(r(1,i)-intrinsic_shift_transition_bot)/transition
+                    !    else if (r(1,i) .gt. intrinsic_shift_window_top .and. r(1,i) .lt. intrinsic_shift_transition_top) then
+                    !        intnscshift(i) = (elevation(i) - zeromode)*(r(1,i)-intrinsic_shift_window_top)/transition
+                    !    else
+                            intnscshift(i) = elevation(i) - zeromode
+                    !    endif
+                    enddo
 
 !                    area = 0.d0 ! box(2)*box(3)
 !                    do i =1,size(q_vectors,2)
@@ -9295,8 +9332,8 @@ subroutine get_interface_from_clusters()
                                  write_cluster_xyz, &
                                  destroy_clusters
     use linked_list, only : cluster
-    use computational_constants_MD, only : CA_rd, CA_min_nghbr, iter, &
-                                           tplot, intrinsic_interface_outflag, &
+    use computational_constants_MD, only : CA_rd, CA_min_nghbr, CA_generate_xyz, & 
+                                           iter, tplot, intrinsic_interface_outflag, &
                                            CV_conserve
     implicit none
 
@@ -9310,7 +9347,7 @@ subroutine get_interface_from_clusters()
         if (any(intrinsic_interface_outflag .eq. (/1,2/))) then
             call get_cluster_properties(cluster, rd, min_ngbr)
         endif
-        !call write_cluster_xyz(cluster, min_ngbr)
+        if (CA_generate_xyz .eq. 1) call write_cluster_xyz(cluster, min_ngbr)
         call destroy_clusters(cluster)
     endif
 

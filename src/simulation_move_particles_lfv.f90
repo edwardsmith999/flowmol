@@ -373,7 +373,7 @@ contains
             endif
 
             do n=1,nthermo
-			    Q(n)        = 0.1*thermostatnp(n) * delta_t
+			    Q(n)        = 0.1d0*thermostatnp(n) * delta_t
                 if (thermostatnp(n) .gt. 0.d0) then
     			    dzeta_dt(n) = (mv2sum(n) - (nd*thermostatnp(n) + 1) & 
                                    *thermostattemperature(n)) / Q(n)
@@ -413,7 +413,7 @@ contains
 				r(:,n) = r(:,n) + delta_t * v(:,n)	!Position calculated from velocity
 			case (thermo)
 				!Nose Hoover Thermostatted Molecule
-                                tr = get_therm_region(n)
+                tr = get_therm_region(n)
 				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
 				r(1,n) = r(1,n)    +     v(1,n)*delta_t			
 				v(2,n) = v(2,n)*ascale(tr) + a(2,n)*delta_t*bscale(tr)
@@ -447,7 +447,7 @@ contains
 				v(3,n) = v(3,n)*ascale(tr) + a(3,n)*delta_t*bscale(tr)
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t	+ slidev(3,n)*delta_t
 			case (PUT_thermo)
-                                tr = get_therm_region(n)
+                tr = get_therm_region(n)
 				!Profile unbiased thermostat (Nose-Hoover)
 	        	v(:,n) = v(:,n)*ascale(tr) + (a(:,n)+zeta*U(:,n))*delta_t*bscale(tr)
 				r(:,n) = r(:,n)        + v(:,n)*delta_t			

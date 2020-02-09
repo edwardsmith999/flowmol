@@ -74,7 +74,7 @@ O_CUDA = $(CU_CUDA_MD_FILES:.cu=.o) $(F90_CUDA_MD_FILES:.f90=.o)
 O_CONTINUUM = $(F90_CONTINUUM:.f90=.o)
 O_MD_P = $(addprefix obj/,$(F90_MD_FILES_P:.f90=.o))
 O_ASSEMBLY_FILES = $(addprefix obj/,$(ASSEMBLY_FILES:.s=.o))
-O_LAPACK_FILES = $(addprefix obj/,$(LAPACK_FILES:lapack.f90=.o)) lapack-3.8.0/lib*
+O_LAPACK_FILES = $(addprefix obj/,$(LAPACK_FILES:lapack.f90=.o))# lapack-3.8.0/lib*
 
 
 # If coupled, link to static library coupler.a
@@ -100,7 +100,9 @@ s:
 p:
 	@make $(MD_EXE)
 p_lapack:
-	@make MD_EXE_LAPACK "FPP_FLAGS=-cpp -DUSE_LAPACK=1" "LDFLAGS=lapack-3.8.0/lib*"
+	@make MD_EXE_LAPACK "FPP_FLAGS=-cpp -DUSE_LAPACK=1 -fPIC" "LDFLAGS=lapack-3.8.0/lib*"
+p_sys_lapack:
+	@make MD_EXE_LAPACK "FPP_FLAGS=-cpp -DUSE_LAPACK=1 -fPIC" "LDFLAGS=-llapack -lblas"
 s_cuda:
 	@make md_CUDA.exe
 s_cuda_emulate:

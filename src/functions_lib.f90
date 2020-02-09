@@ -1960,7 +1960,7 @@ subroutine write_waveobj(vertices, writeiter)
 
 end subroutine write_waveobj
 
-subroutine write_wavexyz(vertices)
+subroutine write_wave_xyz(vertices)
     implicit none
 
     real(kind(0.d0)), dimension(:,:,:), intent(in), allocatable :: vertices
@@ -1986,7 +1986,7 @@ subroutine write_wavexyz(vertices)
     enddo
     close(fileno)
 
-end subroutine write_wavexyz
+end subroutine write_wave_xyz
 
 
 !-------------------------------------------------------------------------------------
