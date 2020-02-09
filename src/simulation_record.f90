@@ -246,24 +246,24 @@ contains
 
         integer :: ixyz
 		
-		bin = ISR%get_bin(r(:,n), nbins, nhb)
+		!bin = ISR%get_bin(r(:,n), nbins, nhb)
 
         !bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n))/binsize(1))+nhb(1)
-        ! bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n)+0.5d0*binsize(1))/binsize(1))+nhb(1) !HALF SHIFT
-        ! bin(2) = ceiling((r(2,n)+halfdomain(2))/binsize(2))+nhb(2)
-        ! bin(3) = ceiling((r(3,n)+halfdomain(3))/binsize(3))+nhb(3)
+        bin(1) = ceiling((r(1,n)+halfdomain(1)-intnscshift(n)+0.5d0*binsize(1))/binsize(1))+nhb(1) !HALF SHIFT
+        bin(2) = ceiling((r(2,n)+halfdomain(2))/binsize(2))+nhb(2)
+        bin(3) = ceiling((r(3,n)+halfdomain(3))/binsize(3))+nhb(3)
 
         ! !bin = bin_from_integer_division(r(:,n))
         ! !bin(1) = bin(1) - intnscshift(n)
 
         ! !Prevents out of range values
         ! !do ixyz=1,3
-        ! ixyz = 1
-		! if (bin(ixyz) > nbins(ixyz)+nhb(ixyz)) then
-            ! bin(ixyz) = nbins(ixyz)+nhb(ixyz)
-        ! elseif (bin(ixyz) < 1 ) then
-            ! bin(ixyz) = 1   
-        ! endif
+        ixyz = 1
+		if (bin(ixyz) > nbins(ixyz)+nhb(ixyz)) then
+			bin(ixyz) = nbins(ixyz)+nhb(ixyz)
+        elseif (bin(ixyz) < 1 ) then
+			bin(ixyz) = 1   
+        endif
         !enddo
 
     end function bin_molno_from_full_intrinsic
@@ -586,7 +586,7 @@ contains
             allocate(elevation(4))
             !Factor of two as can be maximum of two per surface
             allocate(temp(3, 2*sum(abs(bin1-bin2))))
-            if (present(cbins)) allocate(cbinstemp(abs(bin1(n)-bin2(n))))
+            if (present(cbins)) allocate(cbinstemp(2*sum(abs(bin1-bin2))))
 
             !loop over bin range
             do i = minbin, maxbin-1
@@ -609,6 +609,7 @@ contains
                         yt(j) = (jb-nhb(t1)  )*binsize(t1)-0.5d0*ISR_mdt%box(t1)
                         j = j + 1
                     enddo
+					stop "get_crossings_bilinear, bins closer"
                 endif
 
                 !Use either distance between molecules or binside
@@ -7562,7 +7563,7 @@ contains
                                                mflux_outflag, Nsurfevo_outflag, nhb
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, write_wavexyz
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
-        use arrays_MD, only : tag, r, intnscshift
+        use arrays_MD, only : tag, r, intnscshift, glob_no	
         use librarymod, only : heaviside  =>  heaviside_a1!, fit_intrinsic_surface, fit_intrinsic_surface_modes
         use intrinsic_module, only : fit_intrinsic_surface, fit_intrinsic_surface_modes
         use calculated_properties_MD, only : nbins, nbinso, binsize, mass_surface_flux
@@ -7587,6 +7588,7 @@ contains
         double precision,dimension(:),allocatable :: x,y,z,f,pt,pb, elevation
         double precision,dimension(:),allocatable,save :: coeffmdt
         double precision,dimension(:,:),allocatable :: rnp, extents_grid
+        double precision,dimension(:,:),allocatable :: molnos, clustmolnos
         double precision,dimension(:,:),allocatable, save :: points
         double precision,dimension(:,:,:),allocatable :: vertices
 
@@ -7610,13 +7612,6 @@ contains
             tau =  II_tau ! 1.d0
             eps =  II_eps !0.00000001d0
             ns =  II_ns !0.8d0
-            !box = (/globaldomain(2), globaldomain(3), globaldomain(1)/)
-            !bins = (/nbins(2), nbins(3), nbins(1)/)
-            !ixyz = mod(normal,3)+1
-            !jxyz = mod(normal+1,3)+1
-            !area = box(ixyz)*box(jxyz)
-            !qm = int(0.5*sqrt(area)/alpha)
-            !qu = qm
 
             if (first_time) then
                 call ISR%initialise(globaldomain, normal, alpha, eps)   ! initialise
@@ -7628,8 +7623,8 @@ contains
             !Only recheck external molecules of cluster every tplot timesteps
             if (mod(iter,tplot) .eq. 0) then
                 !Get cluster data into array
-                call cluster_to_array(self, clustNo, rnp, min_ngbr)
-
+                call cluster_to_array(self, clustNo, r, min_ngbr, rnp)
+				
                 !print*, "Size of cluster = ", size(rnp,2)
 
                 !x normal is the tested appears to work
@@ -7657,6 +7652,19 @@ contains
                     if (allocated(ISR%pivots)) deallocate(ISR%pivots)
                     allocate(ISR%pivots(size(pivots,1)))
                     ISR%pivots = pivots
+					
+					!Get global molecule numbers in cluster
+					!if (.not. allocated(molnos)) allocate(molnos(1,np))
+					!molnos(1,:) = glob_no(1:np)
+					!call cluster_to_array(self, clustNo, molnos, min_ngbr, clustmolnos)
+					
+					!Write molecules different in two clusters
+					!do i=1,size(pivots)
+					!	write(586410,*), iter, i, clustmolnos(1,pivots(i))
+					!enddo
+					
+					!Write out surface modes to file
+					!call ISR_mdt%write_modes(iter)
 
                     !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
                     if (first_time_coeff) then
@@ -7922,7 +7930,7 @@ contains
             if (N .ne. 0) then
                 !print*, clustno, N, mainclusterNo
                 if (clustno .eq. mainclusterNo) then
-                    call cluster_to_array(self, clustno, rnp, min_ngbr, rnp_ex)
+                    call cluster_to_array(self, clustno, r, min_ngbr, rnp, rnp_ex)
                     do i=1,size(rnp,2) !Cluster size can be larger than rnp as min_ngbr excluded
                         write(fileunit1,'(a1,3f18.8)') "c", rnp(:,i)
 !                        if (any(rnp(:,i)+0.5d0*globaldomain .gt. globaldomain)) then 
@@ -7947,7 +7955,7 @@ contains
                         countwritten3 = countwritten3 + size(ISR%pivots,1)
                     endif
                 else
-                    call cluster_to_array(self, clustno, rnp, 0)
+                    call cluster_to_array(self, clustno, r, 0, rnp)
                     do i=1,size(rnp,2)
                         write(fileunit2,'(a1,3f18.8)') "c", rnp(:,i)
                     enddo
@@ -8703,14 +8711,15 @@ contains
     end subroutine CompressClusters
 
 
-    subroutine cluster_to_array(self, clustNo, array, min_ngbr, array_exlude)
+    subroutine cluster_to_array(self, clustNo, qnty_array, min_ngbr, array, array_exlude)
         use computational_constants_MD, only : globaldomain
-        use arrays_MD, only : r
         use physical_constants_MD, only : np
         implicit none
 
         type(clusterinfo),intent(in)    :: self
         integer, intent(in)             :: clustNo, min_ngbr
+		!qnty_array is the vector of molecular properties to get (r, v, a, molno)
+        double precision, dimension(:,:), allocatable, intent(in) :: qnty_array
         double precision, dimension(:,:), allocatable, intent(out) :: array
         double precision, dimension(:,:), allocatable, intent(out), optional :: array_exlude
 
@@ -8722,9 +8731,9 @@ contains
         !For all clusters which are not empty
         Nmols = self%Nlist(clustNo)
         if (Nmols .gt. 0) then
-            allocate(temp(3,Nmols)); m = 0
+            allocate(temp(size(qnty_array,1),Nmols)); m = 0
             if (present(array_exlude)) then
-                allocate(temp_ex(3,Nmols)); o = 0
+                allocate(temp_ex(size(qnty_array,1),Nmols)); o = 0
             endif
             current => self%head(clustNo)%point
             !Loop through all cluster molecules         
@@ -8734,7 +8743,7 @@ contains
                 if (current%molno .le. np) then
                     if (self%clusterngbrs(current%molno) .ge. min_ngbr) then
                         m = m + 1
-                        temp(:,m) = r(:,current%molno)
+                        temp(:,m) = qnty_array(:,current%molno)
                         !if (any(r(:,current%molno)+0.5d0*globaldomain .gt. globaldomain)) then 
                         !    print*, "Cluster to array - outside domain", m, r(:,current%molno), current%molno
                             !stop "Error in write_cluster_xyz"
@@ -8742,7 +8751,7 @@ contains
                     else
                         if (present(array_exlude)) then
                             o = o + 1
-                            temp_ex(:,o) = r(:, current%molno)
+                            temp_ex(:,o) = qnty_array(:, current%molno)
                         endif
                         !print'(a,2i5,3f10.5,2(a,i3),a)', "Cluster to array ", clustNo, current%molno, r(:,current%molno), & 
                         !        " has ", self%clusterngbrs(current%molno) ," which is fewer than ", min_ngbr, " neighbours"
@@ -8753,10 +8762,10 @@ contains
                 current => old
             enddo
         endif
-        allocate(array(3,m)); array=0.d0
+        allocate(array(size(qnty_array,1),m)); array=0.d0
         array(:,:) = temp(:,1:m)
         if (present(array_exlude)) then
-            allocate(array_exlude(3,o)); array_exlude=0.d0
+            allocate(array_exlude(size(qnty_array,1),o)); array_exlude=0.d0
             array_exlude(:,:) = temp_ex(:,1:o)
         endif
 

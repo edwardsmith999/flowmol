@@ -62,6 +62,7 @@ module intrinsic_module
 		    procedure :: get_surface_derivative => get_real_surface_derivative
             procedure :: get_bin => get_bin_from_surface
 		    procedure :: sample_surface => sample_intrinsic_surface
+		    procedure :: write_modes => write_modes
 
     end type intrinsic_surface_real
 
@@ -726,6 +727,35 @@ subroutine sample_intrinsic_surface(self, nbins, vertices, writeiter)
     if (writeobj) close(fileno)
 
 end subroutine sample_intrinsic_surface
+
+
+subroutine write_modes(self, writeiter)
+    use librarymod, only : get_new_fileunit, get_Timestep_FileName
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    integer, intent(in) :: writeiter
+
+
+    integer 		:: fileno
+    integer 		:: j, ui, vi
+    character(200)  :: outfile_t
+
+	fileno = get_new_fileunit() 
+	call get_Timestep_FileName(writeiter,"./results/surfacemodes",outfile_t)
+	open(fileno, file=trim(outfile_t))
+
+    do ui = -self%qm, self%qm
+    do vi = -self%qm, self%qm
+        j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
+        write(fileno, '(3i12,f25.18)') ui, vi, j, self%coeff(j)
+    enddo
+    enddo
+
+    close(fileno)
+
+end subroutine write_modes
 
 
 subroutine get_initial_pivots(points, ISR, pivots)
