@@ -537,7 +537,7 @@ contains
         integer                 :: maxbin, minbin, minTbin, maxTbin
         real(kind(0.d0))        :: pt, r12(3)
 
-        integer :: flag, ss, Ns, cross, bc
+        integer :: flag, ss, Ns, cross, bc, tempsize
         integer, dimension(3) :: bin, bin_mdt
         integer, dimension(:), allocatable :: cbinstemp
 
@@ -576,11 +576,16 @@ contains
             zrt = max(r1(t2), r2(t2))
 
             allocate(points(4,3))
-            allocate(elevation(4))
             !Factor of two as can be maximum of two per surface
-            allocate(temp(3, 2*sum(abs(bin1-bin2))))
-            if (present(cbins)) allocate(cbinstemp(2*sum(abs(bin1-bin2))))
-
+			tempsize = 1
+			do i=1,3
+				minTbin = min(bin1(i), bin2(i))
+				maxTbin = max(bin1(i), bin2(i))
+				tempsize = tempsize * (maxTbin-minTbin+1)
+			enddo
+            allocate(temp(3, 2*tempsize))
+            if (present(cbins)) allocate(cbinstemp(2*tempsize))
+			
             !loop over bin range
             bc = 1
             do i = minbin, maxbin-1
@@ -627,16 +632,15 @@ contains
                 j = 1
                 do jb = 1, size(yb,1)
                 do kb = 1, size(zb,1)
-
-                    points(:,n) = 0.d0 !Not used
+				
+                    points(:,n) = 0.5d0*(r1(ISR_mdt%normal)+r2(ISR_mdt%normal)) !Not used
                     points(1,t1) = yb(jb); points(1,t2) = zb(kb)
                     points(2,t1) = yb(jb); points(2,t2) = zt(kb) 
                     points(3,t1) = yt(jb); points(3,t2) = zb(kb) 
                     points(4,t1) = yt(jb); points(4,t2) = zt(kb) 
 
                     !Get surface in x as a function of y and z
-                    elevation = 0.d0
-                    call ISR_mdt%get_surface(points, elevation)
+                    call ISR_mdt%get_surface(points, elevation, include_zeromode=.false.)
 
                     !Shift by current bin
 !                    elevation(:) = elevation(:) & 
@@ -7562,8 +7566,9 @@ contains
         use computational_constants_MD, only : iter, tplot, thermo_tags, thermo, &
                                                free, globaldomain, intrinsic_interface_outflag, &
                                                II_normal, II_alpha, II_tau, II_eps, II_ns, &
-                                               mflux_outflag, Nsurfevo_outflag, nhb
-        use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, write_wavexyz
+                                               mflux_outflag, Nsurfevo_outflag, nhb, CA_generate_xyz
+        use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, & 
+								write_wave_xyz, write_waveobj
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
         use arrays_MD, only : tag, r, intnscshift, glob_no	
         use librarymod, only : heaviside  =>  heaviside_a1!, fit_intrinsic_surface, fit_intrinsic_surface_modes
@@ -7615,13 +7620,6 @@ contains
             tau =  II_tau ! 1.d0
             eps =  II_eps !0.00000001d0
             ns =  II_ns !0.8d0
-            !box = (/globaldomain(2), globaldomain(3), globaldomain(1)/)
-            !bins = (/nbins(2), nbins(3), nbins(1)/)
-            !ixyz = mod(normal,3)+1
-            !jxyz = mod(normal+1,3)+1
-            !area = box(ixyz)*box(jxyz)
-            !qm = int(0.5*sqrt(area)/alpha)
-            !qu = qm
 
             if (first_time) then
                 call ISR%initialise(globaldomain, normal, alpha, eps)   ! initialise
@@ -7760,33 +7758,11 @@ contains
                     points(:,1) = r(1,1:np)
                     points(:,2) = r(2,1:np)
                     points(:,3) = r(3,1:np)
-                    call ISR%get_surface(points, elevation)
+                    call ISR%get_surface(points, elevation, include_zeromode=.false.)
                     !call real_surface_from_modes(points, box, normal, qm, qu, coeff, elevation)
                     !call surface_from_modes(points, 3, q_vectors, modes, elevation)
                     !intnscshift(1:np) = ceiling(elevation(1:np)/binsize(1))
                     intnscshift(1:np) = elevation(1:np)
-
-                    !Loop and include map range
-	                !maprange = 5.d0
-                    !transition = 3.d0
-                    call ISR%get_zero_mode(zeromode)
-                    !intrinsic_shift_window_bot = zeromode-maprange
-                    !intrinsic_shift_window_top = zeromode+maprange
-                    !intrinsic_shift_transition_bot = intrinsic_shift_window_bot-transition
-                    !intrinsic_shift_transition_top = intrinsic_shift_window_top-transition
-
-                    do i = 1,np
-	                !    if ((r(1,i) .lt. intrinsic_shift_window_bot) .or. & 
-	                !    	(r(1,i) .gt. intrinsic_shift_window_top)) then
-                    !        intnscshift(i) = 0.d0 !zeromode
-                    !    else if (r(1,i) .lt. intrinsic_shift_window_bot .and. r(1,i) .gt. intrinsic_shift_transition_bot) then
-                    !        intnscshift(i) = (elevation(i) - zeromode)*(r(1,i)-intrinsic_shift_transition_bot)/transition
-                    !    else if (r(1,i) .gt. intrinsic_shift_window_top .and. r(1,i) .lt. intrinsic_shift_transition_top) then
-                    !        intnscshift(i) = (elevation(i) - zeromode)*(r(1,i)-intrinsic_shift_window_top)/transition
-                    !    else
-                            intnscshift(i) = elevation(i) - zeromode
-                    !    endif
-                    enddo
 
 !                    area = 0.d0 ! box(2)*box(3)
 !                    do i =1,size(q_vectors,2)
