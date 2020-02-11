@@ -2024,7 +2024,7 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
 
     character(*),intent(in)   :: gastype
 
-    integer :: i, j, n, nl, nx, ny, nz, proc_start_molno
+    integer :: i, j, n, nl, nx, ny, nz, proc_start_molno,lg
     integer, dimension(nd) :: p_units_lb, p_units_ub 
     integer, dimension(nproc) :: proc_nps
     real(kind(0.d0)) :: domain_top, domain_bottom, solid_density, density_ratio_sl
@@ -2123,6 +2123,11 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
     !Molecules per unit FCC structure (3D)
     n  = 0      !Initialise global np counter n
     nl = 0      !Initialise local np counter nl
+    if (lg_direction .eq. 1) then
+        lg = 2
+    elseif (lg_direction .eq. 2) then
+        lg = 1
+    endif
 
     !Inner loop in y (useful for setting connectivity)
     do nz=p_units_lb(3),p_units_ub(3)
@@ -2173,8 +2178,8 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
             call wall_textures(texture_type,(rc(:)-globaldomain(:)/2.d0),solid_bottom,solid_top)
 
             !If outside solid region, randomly remove molecules from lattice
-            if (rc(2)-globaldomain(2)/2.d0 .gt. (solid_bottom(2) - globaldomain(2)/2.d0) .and. & 
-                rc(2)-globaldomain(2)/2.d0 .lt. (globaldomain(2)/2.d0  -  solid_top(2))) then
+            if (rc(lg)-globaldomain(lg)/2.d0 .gt. (solid_bottom(lg) - globaldomain(lg)/2.d0) .and. & 
+                rc(lg)-globaldomain(lg)/2.d0 .lt. (globaldomain(lg)/2.d0  -  solid_top(lg))) then
                 !cycle
                 call random_number(rand)
                 if (rand .gt. density_ratio_sl) cycle
@@ -2288,11 +2293,17 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
                                 if (rand .gt. density_ratio_gl) cycle   
                             endif
                         elseif (lg_direction .eq. 2) then
-                            y = rc(2)
-                            if (y .gt. lg_fract*globaldomain(2)) then
+                            x = rc(1)
+                            if (x .gt. 0.5*lg_fract*globaldomain(1)) then
                                 call random_number(rand)
                                 if (rand .gt. density_ratio_gl) cycle   
                             endif
+                            !y = rc(2)
+                            !y = y-0.5*globaldomain(2)
+                            !if (abs(y) - 0.5*lg_fract*globaldomain(2) .gt. 0.d0) then
+                            !    call random_number(rand)
+                            !    if (rand .gt. density_ratio_gl) cycle   
+                            !endif
                         else
                             call error_abort("lg_direction specified by second argument to LIQUID_FRACTION must be 1 or 2")
                         endif

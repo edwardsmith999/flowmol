@@ -3548,7 +3548,7 @@ subroutine VA_stress_io()
         !Kinetic
         !Allocate buf with halo padding and 3x3 stresses reordered as 9 vector.
         allocate(buf(nbinso(1), nbinso(2), nbinso(3), nresults))
-        buf = 0.d0; 
+        buf = 0.d0 
         buf(1+nhb(1):nbins(1)+nhb(1),1+nhb(2):nbins(2)+nhb(2),1+nhb(3):nbins(3)+nhb(3),1:nresults) = &
             reshape(vvbin,(/nbins(1),nbins(2),nbins(3),nresults/))
         call write_arrays(buf,nresults,trim(prefix_dir)//'results/pVA_k',m)
