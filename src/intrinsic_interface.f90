@@ -63,10 +63,16 @@ module intrinsic_module
 		    procedure :: get_zero_mode => get_zero_mode
             procedure :: get_bin => get_bin_from_surface
 		    procedure :: sample_surface => sample_intrinsic_surface
+		    procedure :: write_modes => write_modes
 
     end type intrinsic_surface_real
 
+    !Wave function using array or single value
+    interface wave_function
+        module procedure wave_function_, wave_function_single
+    end interface
 
+    private wave_function_, wave_function_single
 contains 
 
 
@@ -144,25 +150,43 @@ end function check_uv
 
 !Function 
 
-function wave_function(x, u, Lx)
+function wave_function_(x, u, Lx)
     implicit none
 
     integer,intent(in) :: u
     real(kind(0.d0)),intent(in) :: Lx
     real(kind(0.d0)),intent(in),dimension(:) :: x
 
-    real(kind(0.d0)),dimension(size(x))    :: wave_function
+    real(kind(0.d0)),dimension(size(x))    :: wave_function_
     integer :: i
 
     do i =1,size(x,1)
         if (u .ge. 0) then
-            wave_function(i) = cos(2.d0 * pi * u * x(i) / Lx)
+            wave_function_(i) = cos(2.d0 * pi * u * x(i) / Lx)
         else
-            wave_function(i) = sin(2.d0 * pi * abs(u) * x(i) / Lx)
+            wave_function_(i) = sin(2.d0 * pi * abs(u) * x(i) / Lx)
         endif
     enddo
 
-end function wave_function
+end function wave_function_
+
+
+function wave_function_single(x, u, Lx)
+    implicit none
+
+    integer,intent(in) :: u
+    real(kind(0.d0)),intent(in) :: Lx
+    real(kind(0.d0)),intent(in) :: x
+
+    real(kind(0.d0))   :: wave_function_single
+
+	if (u .ge. 0) then
+		wave_function_single = cos(2.d0 * pi * u * x / Lx)
+	else
+		wave_function_single = sin(2.d0 * pi * abs(u) * x / Lx)
+	endif
+
+end function wave_function_single
 
 
 function derivative_wave_function(x, u, Lx)
@@ -293,16 +317,18 @@ subroutine update_real_surface(self, points)
 end subroutine update_real_surface
 
 
-subroutine get_real_surface(self, points, elevation, qu)
+subroutine get_real_surface(self, points, elevation, include_zeromode, qu)
     implicit none
 
 	class(intrinsic_surface_real) :: self
 
+	logical, intent(in), optional :: include_zeromode
     double precision, intent(in), dimension(:,:), allocatable ::  points
     double precision, intent(in), optional ::  qu
     double precision, intent(out), dimension(:), allocatable :: elevation
 
     integer :: j, ui, vi, qu_
+    double precision :: zeromode
 
     if (present(qu)) then
         qu_ = qu
@@ -310,18 +336,112 @@ subroutine get_real_surface(self, points, elevation, qu)
         qu_ = self%qm
     endif
 
+    !Get elevation at point from sum of modes
     allocate(elevation(size(points,1)))
     elevation = 0.d0
     do ui = -qu_, qu_
     do vi = -qu_, qu_
         j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
-        elevation(:) = elevation(:) + self%coeff(j) & 
-                     * wave_function(points(:,self%ixyz), ui, self%box(self%ixyz)) & 
-                     * wave_function(points(:,self%jxyz), vi, self%box(self%jxyz)) 
+        elevation(:) = elevation(:) + self%coeff(j) &
+                     * wave_function(points(:,self%ixyz), ui, self%box(self%ixyz)) &
+                     * wave_function(points(:,self%jxyz), vi, self%box(self%jxyz))
     enddo
     enddo
+	if (present(include_zeromode)) then
+		if (.not. include_zeromode) then
+			call self%get_zero_mode(zeromode)
+			elevation = elevation - zeromode
+		endif
+	endif
 
 end subroutine get_real_surface
+
+
+subroutine get_real_surface_binwidth(self, points, elevation, include_zeromode, maprange, qu)
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+	logical, intent(in), optional :: include_zeromode
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(in), optional ::  qu, maprange
+    double precision, intent(out), dimension(:), allocatable :: elevation
+
+    integer :: i, j, ui, vi, qu_
+	double precision :: surface_location,  transition
+	double precision :: intrinsic_shift_window_bot, intrinsic_shift_window_top
+	double precision :: intrinsic_shift_total_bot, intrinsic_shift_total_top
+
+    if (present(qu)) then
+        qu_ = qu
+    else
+        qu_ = self%qm
+    endif
+	
+	if (present(maprange) .or. present(include_zeromode)) then			
+		call self%get_zero_mode(surface_location)
+	endif
+
+	
+	if (present(maprange)) then
+		!Loop and include map range
+		transition = 3.d0
+		call self%get_zero_mode(surface_location)
+		intrinsic_shift_window_bot = surface_location-maprange
+		intrinsic_shift_window_top = surface_location+maprange
+		intrinsic_shift_total_bot = intrinsic_shift_window_bot-transition
+		intrinsic_shift_total_top = intrinsic_shift_window_top+transition
+	endif
+	
+	allocate(elevation(size(points,1)))
+	elevation = 0.d0
+	do i = 1, size(points,1)
+	
+		!We can exclude points outside of maprange from calculation of the intrinsic surface
+		if (present(maprange)) then
+			!print*, intrinsic_shift_total_bot, points(i,self%normal), intrinsic_shift_total_top
+			if ((points(i,self%normal) .lt. intrinsic_shift_total_bot) .or. & 
+			    (points(i,self%normal) .gt. intrinsic_shift_total_top)) then
+				elevation(i) = surface_location
+				cycle
+			endif
+		endif
+		
+		!Get elevation at point from sum of modes
+		do ui = -qu_, qu_
+		do vi = -qu_, qu_
+			j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
+			elevation(i) = elevation(i) + self%coeff(j) & 
+						* wave_function(points(i,self%ixyz), ui, self%box(self%ixyz)) & 
+						* wave_function(points(i,self%jxyz), vi, self%box(self%jxyz)) 
+		enddo
+		enddo
+
+		!Transition range to zero 
+		if (present(maprange)) then
+			if (points(i,self%normal) .lt. intrinsic_shift_window_bot .and. & 
+				points(i,self%normal) .gt. intrinsic_shift_total_bot) then
+				elevation(i) = (elevation(i)-surface_location) & 
+								*(points(i,self%normal)-intrinsic_shift_total_bot)/transition & 
+							   + surface_location
+			else if (points(i,self%normal) .gt. intrinsic_shift_window_top .and. & 
+					 points(i,self%normal) .le. intrinsic_shift_total_top) then
+				elevation(i) = (elevation(i)-surface_location) & 
+							   *(intrinsic_shift_window_top-points(i,self%normal))/transition & 
+							   + surface_location
+			endif
+		endif
+
+	enddo
+
+	!Remove zero mode if needed
+	if (present(include_zeromode)) then
+		if (.not. include_zeromode) then
+			elevation(:) = elevation(:) - surface_location
+		endif
+	endif
+
+end subroutine get_real_surface_binwidth
 
 subroutine get_real_surface_derivative(self, points, dSdr, qu)
     implicit none
@@ -398,23 +518,12 @@ function get_bin_from_surface(self, r, nbins, nhb) result(bin)
     i=self%ixyz
     j=self%jxyz
 	
-    !Add in a range over which the intrinsic deformation is applied
-	!maprange = 5.d0
-    call self%get_zero_mode(zeromode)
-	!if ((r(n) .lt. zeromode-maprange) .or. & 
-	!	(r(n) .gt. zeromode+maprange)) then
-	!	bin(n) = ceiling((r(n)+halfdomain(n)-zeromode+0.5d0*binsize(n))/binsize(n))+nhb(n)
-	!    bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb(i)
-	!	bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb(j)
-	!	return
-	!endif
-	
     allocate(points(1,3))
     points(1,:) = r(:)
-    call self%get_surface(points, elevation)
+    call self%get_surface(points, elevation, include_zeromode=.false.)
 
     !Added a shift by zero wavelength so surface is not at zero
-    bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1)+zeromode+0.5d0*binsize(n))/binsize(n))+nhb(n) !HALF SHIFT
+    bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1)+0.5d0*binsize(n))/binsize(n))+nhb(n) !HALF SHIFT
     bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb(i)
     bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb(j)
 
@@ -645,17 +754,17 @@ subroutine get_surface(self, points, elevation)
 
     elevation = 0.d0
     do n = 1,size(points,1)
-    do i = 1,size(self%q_vectors,2)
-    do j = 1,size(self%q_vectors,3)
-        !dotp(i,j) = dot_product(q_vectors(:,i,j), points(n, :))
-        dotp(i,j) = self%q_vectors(1,i,j) * points(n,self%ixyz) & 
-                  + self%q_vectors(2,i,j) * points(n,self%jxyz)
-        phase(i,j) = dcmplx(cos(dotp(i,j)), sin(dotp(i,j)))
-        !print'(3i7,8f10.5)', i,j,n,points(n, ixyz),points(n,jxyz),modes(i,j), & 
-        !                     phase(i,j), real(phase(i,j) * modes(i,j)), elevation(n)
-        elevation(n) = elevation(n) + real(phase(i,j) * self%modes(i,j))
-    enddo
-    enddo
+		do i = 1,size(self%q_vectors,2)
+		do j = 1,size(self%q_vectors,3)
+			!dotp(i,j) = dot_product(q_vectors(:,i,j), points(n, :))
+			dotp(i,j) = self%q_vectors(1,i,j) * points(n,self%ixyz) & 
+					  + self%q_vectors(2,i,j) * points(n,self%jxyz)
+			phase(i,j) = dcmplx(cos(dotp(i,j)), sin(dotp(i,j)))
+			!print'(3i7,8f10.5)', i,j,n,points(n, ixyz),points(n,jxyz),modes(i,j), & 
+			!                     phase(i,j), real(phase(i,j) * modes(i,j)), elevation(n)
+			elevation(n) = elevation(n) + real(phase(i,j) * self%modes(i,j))
+		enddo
+		enddo
     enddo
 
 end subroutine get_surface
@@ -738,6 +847,35 @@ subroutine sample_intrinsic_surface(self, nbins, vertices, writeiter)
     if (writeobj) close(fileno)
 
 end subroutine sample_intrinsic_surface
+
+
+subroutine write_modes(self, writeiter)
+    use librarymod, only : get_new_fileunit, get_Timestep_FileName
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    integer, intent(in) :: writeiter
+
+
+    integer 		:: fileno
+    integer 		:: j, ui, vi
+    character(200)  :: outfile_t
+
+	fileno = get_new_fileunit() 
+	call get_Timestep_FileName(writeiter,"./results/surfacemodes",outfile_t)
+	open(fileno, file=trim(outfile_t))
+
+    do ui = -self%qm, self%qm
+    do vi = -self%qm, self%qm
+        j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
+        write(fileno, '(3i12,f25.18)') ui, vi, j, self%coeff(j)
+    enddo
+    enddo
+
+    close(fileno)
+
+end subroutine write_modes
 
 
 subroutine get_initial_pivots(points, ISR, pivots)

@@ -34,7 +34,7 @@ subroutine setup_initial_record
     character(8)            :: the_date
     character(10)           :: the_time
     character(23)           :: file_names_t
-    character(23),parameter :: file_names(41) = &
+    character(23),parameter :: file_names(42) = &
                                 (/ "mslice      ", "mbins       ", "msnap       ",&
                                    "vslice      ", "vbins       ", "vsnap       ",&
                                    "pvirial     ", "pVA         ", "pVA_k       ",& 
@@ -48,7 +48,7 @@ subroutine setup_initial_record
                                    "msolv       ", "mpoly       ", "vpoly       ",&
                                    "vsolv       ", "ebins       ", "hfVA_k      ",&
                                    "hfVA_c      ", "hfVA        ", "msurf       ",&
-                                   "combin      ", "dsurf_mflux "                /) 
+                                   "combin      ", "dsurf_mflux ", "dsurf_vflux " /) 
 
     !Delete all files from previous run if number restarted
     if (irank.eq.iroot) then
