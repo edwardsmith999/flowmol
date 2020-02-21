@@ -322,10 +322,11 @@ subroutine get_real_surface(self, points, elevation, include_zeromode, qu)
 
 	class(intrinsic_surface_real) :: self
 
-	logical, intent(in), optional :: include_zeromode
     double precision, intent(in), dimension(:,:), allocatable ::  points
-    double precision, intent(in), optional ::  qu
     double precision, intent(out), dimension(:), allocatable :: elevation
+
+	logical, intent(in), optional :: include_zeromode
+    double precision, intent(in), optional ::  qu
 
     integer :: j, ui, vi, qu_
     double precision :: zeromode

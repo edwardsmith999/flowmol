@@ -208,7 +208,7 @@ subroutine simulation_compute_forces
 		!Forces calculated using cell lists
 		select case(potential_flag)
 		case(0)					!If simple LJ fluid
-			!print*, "simulation_compute_forces_LJ_cells switched off"
+            !print*, "simulation_compute_forces_LJ_cells switched off"
 			call simulation_compute_forces_LJ_cells
 		case default								
 			call error_abort("Potential flag/force_list incompatible - only LJ available with cell lists")

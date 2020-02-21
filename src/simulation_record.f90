@@ -4790,6 +4790,10 @@ subroutine control_volume_stresses_opt(fij, ri, rj)
 		CV_constraint%Pxy = Pxyface
 	endif
 
+    !Debug count interactions
+    !Ncount = Ncount + 1
+    !if (mod(Ncount,10000) .eq. 0) print*, "cumulative_flux_opt", Ncount, fij, ri, rj
+
 end subroutine control_volume_stresses_opt
 
 !-----------------------------------------------------------------------------------
@@ -7941,11 +7945,10 @@ contains
 					!Write out surface modes to file
 					!call ISR_mdt%write_modes(iter)
 
-                    !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
                     if (first_time_coeff) then
                         !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
                         !ISR%coeff = 0.d0 
-                        !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
+                        !print*, "DEBUG in get_cluster_properties, setting coeff to previous"
                         !ISR_mdt%coeff = ISR%coeff
                         allocate(coeffmdt(size(ISR%coeff,1)))
                         coeffmdt(:) = ISR%coeff(:)
@@ -7965,11 +7968,12 @@ contains
 !                        endif
                         !print*, "DEBUG in get_cluster_properties, setting coeff to intial"
                         !ISR%coeff(:)=coeffmdt(:)
+                        !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
                         !ISR%coeff = 0.d0 
                         !ISR%coeff(313)=ISR%coeff(313)+ 1.0*sin((iter-100000)/100.d0) !shift from sin(0) mode
                         !ISR_mdt%coeff = ISR%coeff
                         !ISR_mdt%coeff = 0.d0 
-                        !ISRmdt%coeff(313)= 0.1*sin((iter-100000-1)/1000.d0) !shift from sin(0) mode
+                        !ISR%coeff(313)= 2.d0*sin((iter-100000-1)/1000.d0) !shift from sin(0) mode
                         !ISR%coeff(312)=0.5d0 !sin (2*pi/Lx)
                         !ISR%coeff(314)=0.5d0
 
