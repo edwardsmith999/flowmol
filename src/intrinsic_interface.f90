@@ -520,7 +520,7 @@ function get_bin_from_surface(self, r, nbins, nhb) result(bin)
 	
     allocate(points(1,3))
     points(1,:) = r(:)
-    call self%get_surface(points, elevation, include_zeromode=.false.)
+    call self%get_surface(points, elevation, include_zeromode=.true.)
 
     !Added a shift by zero wavelength so surface is not at zero
     bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1)+0.5d0*binsize(n))/binsize(n))+nhb(n) !HALF SHIFT
