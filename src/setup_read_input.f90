@@ -878,7 +878,10 @@ subroutine setup_read_input
             if (ios .ne. 0) CA_min_nghbr = 0  ! Set to zero (i.e. default no minimum)
 		    read(1,*,iostat=ios) CA_generate_xyz   ! Output xyz files for vmd
             if (ios .ne. 0) CA_generate_xyz = 0  ! Set to zero (i.e. default no output)
-
+            if (CA_generate_xyz .ne. 0) then
+    		    read(1,*,iostat=ios) CA_generate_xyz_res   ! Resolution for output xyz files 
+                if (ios .ne. 0) CA_generate_xyz_res = 200  
+            endif
             ! If interface cutoff is less that interaction rcutoff
             ! then we can use the neighbourlist to get molecules in 
             ! interface region (N.B. need to use all interations)

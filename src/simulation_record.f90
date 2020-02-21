@@ -7832,7 +7832,8 @@ contains
         use computational_constants_MD, only : iter, tplot, thermo_tags, thermo, &
                                                free, globaldomain, intrinsic_interface_outflag, &
                                                II_normal, II_alpha, II_tau, II_eps, II_ns, &
-                                               mflux_outflag, Nsurfevo_outflag, nhb, CA_generate_xyz
+                                               mflux_outflag, Nsurfevo_outflag, nhb, & 
+                                               CA_generate_xyz, CA_generate_xyz_res
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, & 
 								write_wave_xyz, write_waveobj
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
@@ -7989,10 +7990,10 @@ contains
 
                     !DEBUG - write surface out
                     if (CA_generate_xyz .eq. 1) then
-                        call ISR%sample_surface((/1, 200, 200/), vertices)
+                        call ISR%sample_surface((/1, CA_generate_xyz_res, CA_generate_xyz_res/), vertices)
                         call write_wave_xyz(vertices)
                     elseif (CA_generate_xyz .eq. 2) then
-                        call ISR%sample_surface((/1, 200, 200/), vertices)
+                        call ISR%sample_surface((/1, CA_generate_xyz_res, CA_generate_xyz_res/), vertices)
                         call write_waveobj(vertices, iter)
                     endif
 
