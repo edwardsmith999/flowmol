@@ -78,7 +78,7 @@ subroutine setup_initialise_microstate()
         case('solid_liquid')
             call setup_initialise_solid_liquid
             call setup_location_tags(0)               !Setup locn of fixed mols
-        case('droplet2D','droplet3D','2phase','bubble')
+        case('droplet2D','droplet3D','2phase','bubble','film')
             call setup_initialise_solid_liquid_gas(config_special_case)
             call setup_location_tags(0)               !Setup locn of fixed mols
         case('2phase_surfactant_solution','2phase_surfactant_atsurface')
@@ -2307,6 +2307,15 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
                         else
                             call error_abort("lg_direction specified by second argument to LIQUID_FRACTION must be 1 or 2")
                         endif
+                    endif
+
+
+                case('film')
+                    !Gas is initialised for middle fraction of the domain in x
+                    y = rc(2)
+                    if (y .gt. 0.5*lg_fract*globaldomain(2)) then
+                        call random_number(rand)
+                        if (rand .gt. density_ratio_gl) cycle   
                     endif
 
                 case('bubble')
