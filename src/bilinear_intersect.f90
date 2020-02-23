@@ -125,7 +125,7 @@ subroutine bicubic_line_intersect(r, q, P, flag, uvsoln, pos)
     !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     integer :: i, num_sol, code ! number of solutions to the quadratic
     real(kind(0.d0)) :: ax, ay, az, bx, by, bz, cx, cy, cz
-    real(kind(0.d0)) :: rx, ry, rz, qx, qy, qz
+    real(kind(0.d0)) :: qx, qy, qz
     real(kind(0.d0)) :: dx, dy,dz, A, A1, A2, B, B1, B2, C, C1, C2, D, D1, D2
     real(kind(0.d0)) :: t2, u  ! the t values of the two roots
     real(kind(0.d0)), parameter :: ray_epsilon=1e-12
@@ -167,20 +167,15 @@ subroutine bicubic_line_intersect(r, q, P, flag, uvsoln, pos)
     cy = P01(2) - P00(2)
     cz = P01(3) - P00(3)
 
-    rx = r(1)
-    ry = r(2)
-    rz = r(3)
+    !rx = r(1)
+    !ry = r(2)
+    !rz = r(3)
 
     ! Retrieve the xyz of the q part of ray
     qx = q(1)
     qy = q(2)
     qz = q(3)
-
-    ! Find d w.r.t. x, y, z - subtracting r just after  
-    dx = P00(1) - r(1)
-    dy = P00(2) - r(2)
-    dz = P00(3) - r(3)
-
+	
     ! Find A1 and A2
     A1 = ax*qz - az*qx
     A2 = ay*qz - az*qy
@@ -192,6 +187,11 @@ subroutine bicubic_line_intersect(r, q, P, flag, uvsoln, pos)
     ! Find C1 and C2
     C1 = cx*qz - cz*qx
     C2 = cy*qz - cz*qy
+
+    ! Find d w.r.t. x, y, z - subtracting r just after  
+    dx = P00(1) - r(1)
+    dy = P00(2) - r(2)
+    dz = P00(3) - r(3)
 
     ! Find D1 and D2
     D1 = dx*qz - dz*qx
@@ -360,7 +360,12 @@ subroutine line_plane_intersect(ri, rij, P, intersect, normal, flag)
     integer, intent(out) :: flag
     real(kind(0.d0)), dimension(3,2), intent(out) :: intersect, normal
 
+    integer,save :: tcount
+    real(kind(0.d0)) :: t1, t2
+    real(kind(0.d0)),save :: timing
     real(kind(0.d0)), dimension(3,2) :: uv
+
+	call cpu_time(t1)
 
     call bicubic_line_intersect(ri, rij, P, flag, uv, intersect)
     if (flag .eq. 1) then
@@ -373,6 +378,15 @@ subroutine line_plane_intersect(ri, rij, P, intersect, normal, flag)
         intersect = -666
         normal = -666
     endif
+	
+	call cpu_time(t2)
+	timing = timing + t2 - t1
+	tcount = tcount + 1
+	if (mod(tcount,1000) .eq. 0) then
+		print*, "time for 1000 iters of line_plane_intersect", timing
+		timing = 0.d0
+		tcount = 0
+	endif
 
 end subroutine line_plane_intersect
 

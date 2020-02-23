@@ -47,13 +47,16 @@ module intrinsic_module
     type :: intrinsic_surface_real
 
         integer      :: normal, ixyz, jxyz, n_waves, n_waves2, qm
+		integer, dimension(2) :: smple_bins
+		double precision, dimension(2) :: smpl_binsize
+
         integer, dimension(:), allocatable     :: u, v
         integer, dimension(:), allocatable     :: pivots
 
         double precision  :: alpha, eps, area
         double precision, dimension(3) :: box
         double precision, dimension(:), allocatable     :: diag, coeff, coeff_mdt
-        double precision, dimension(:,:), allocatable   :: diag_matrix
+        double precision, dimension(:,:), allocatable   :: diag_matrix, intrnsc_smple
 
 	    contains
 		    procedure :: initialise  => initialise
@@ -62,8 +65,12 @@ module intrinsic_module
 		    procedure :: get_surface_derivative => get_real_surface_derivative
 		    procedure :: get_zero_mode => get_zero_mode
             procedure :: get_bin => get_bin_from_surface
+			procedure :: get_tangent_bins => get_tangent_bins
 		    procedure :: sample_surface => sample_intrinsic_surface
 		    procedure :: write_modes => write_modes
+		    procedure :: update_sampled_surface => update_sampled_surface
+		    procedure :: get_sample_tangent_cell => get_sample_tangent_cell
+		    procedure :: get_sampled_surface => get_sampled_surface
 
     end type intrinsic_surface_real
 
@@ -329,6 +336,12 @@ subroutine get_real_surface(self, points, elevation, include_zeromode, qu)
 
     integer :: j, ui, vi, qu_
     double precision :: zeromode
+	
+	integer,save :: tcount
+    real(kind(0.d0)) :: t1, t2
+    real(kind(0.d0)),save :: timing
+
+	call cpu_time(t1)
 
     if (present(qu)) then
         qu_ = qu
@@ -352,6 +365,15 @@ subroutine get_real_surface(self, points, elevation, include_zeromode, qu)
 			call self%get_zero_mode(zeromode)
 			elevation = elevation - zeromode
 		endif
+	endif
+
+	call cpu_time(t2)
+	timing = timing + (t2 - t1)/size(points,1)
+	tcount = tcount + 1
+	if (mod(tcount,100000) .eq. 0) then
+		print*, "time for 100000 iters of get_real_surface per point", timing
+		timing = 0.d0
+		tcount = 0
 	endif
 
 end subroutine get_real_surface
@@ -534,6 +556,34 @@ function get_bin_from_surface(self, r, nbins, nhb) result(bin)
     endif
 
 end function get_bin_from_surface
+
+
+
+
+
+!A version getting the explicit location from the intrinsic surface
+function get_tangent_bins(self, r, nbins, nhb) result(bin)
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    real(kind(0.d0)),intent(in),dimension(3) :: r
+    integer,dimension(3),intent(in)		     :: nbins, nhb
+
+    integer,dimension(2)	                 :: bin
+
+    integer :: n, i, j
+    real(kind(0.d0)), dimension(3) :: halfdomain, binsize
+    
+    binsize = self%box/float(nbins)
+    halfdomain = 0.5*self%box
+    i=self%ixyz
+    j=self%jxyz
+	
+    bin(1) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb(i)
+    bin(2) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb(j)
+
+end function get_tangent_bins
 
 !subroutine get_real_surface_derivative(self, points, dir, dSdr, qu)
 !    implicit none
@@ -847,6 +897,106 @@ subroutine sample_intrinsic_surface(self, nbins, vertices, writeiter)
     if (writeobj) close(fileno)
 
 end subroutine sample_intrinsic_surface
+
+
+subroutine update_sampled_surface(self, nbins)
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    integer,intent(in),dimension(2) :: nbins
+
+    logical          :: debug=.true., writeobj=.false.
+    logical, save    :: first_time = .true.
+    integer          :: j, k
+    real(kind(0.d0)) :: ysb, yst, zsb, zst, binsize(2)
+    real(kind(0.d0)), dimension(:), allocatable :: elevation
+    real(kind(0.d0)), dimension(:,:), allocatable :: points
+
+    allocate(points(1,3))
+	if (first_time) then
+		if (allocated(self%intrnsc_smple)) deallocate(self%intrnsc_smple)
+		self%smple_bins(1) = nbins(1); self%smple_bins(2) = nbins(2) 
+		self%smpl_binsize(1) = self%box(self%ixyz)/dble(self%smple_bins(1))
+		self%smpl_binsize(2) = self%box(self%jxyz)/dble(self%smple_bins(2))	
+		allocate(self%intrnsc_smple(nbins(1)+1, nbins(2)+1))
+		first_time = .false.
+	endif
+
+    do j = 1,self%smple_bins(1)+1
+    do k = 1,self%smple_bins(2)+1
+        ysb = float(j-1)*self%smpl_binsize(1)-0.5d0*self%box(self%ixyz)
+        !yst = float(j  )*self%smpl_binsize(1)-0.5d0*self%box(self%ixyz)
+        zsb = float(k-1)*self%smpl_binsize(2)-0.5d0*self%box(self%jxyz)
+        !zst = float(k  )*self%smpl_binsize(2)-0.5d0*self%box(self%jxyz)
+
+        points(1,self%ixyz) = ysb; points(1,self%jxyz) = zsb !Bottom left
+        !points(2,self%ixyz) = yst; points(2,self%jxyz) = zsb !Bottom right
+        !points(3,self%ixyz) = ysb; points(3,self%jxyz) = zst !Top left
+        !points(2,self%ixyz) = yst; points(2,self%jxyz) = zst !Top right
+		
+		!print'(a,2i5,8f10.5	)', "sample_surface", j,k,points(:,self%ixyz),points(:,self%jxyz)
+
+        call self%get_surface(points, elevation, include_zeromode=.false.)
+        self%intrnsc_smple(j  ,k  ) = elevation(1)
+        !self%intrnsc_smple(j+1,k  ) = elevation(2)
+        !self%intrnsc_smple(j  ,k+1) = elevation(3)
+        !self%intrnsc_smple(j+1,k+1) = elevation(4)
+		       
+    enddo
+    enddo
+
+end subroutine update_sampled_surface
+
+function get_sample_tangent_cell(self, r) result(cell)
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    real(kind(0.d0)),intent(in),dimension(3) :: r
+    integer,dimension(2)	                 :: cell
+
+	cell(1) = ceiling((r(self%ixyz)+0.5d0*self%box(self%ixyz))/self%smpl_binsize(1))
+	cell(2) = ceiling((r(self%jxyz)+0.5d0*self%box(self%jxyz))/self%smpl_binsize(2))
+
+end function get_sample_tangent_cell
+
+
+subroutine get_sampled_surface(self, r, points)
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    double precision,intent(in),dimension(3) :: r
+    real(kind(0.d0)), dimension(:,:), intent(out), allocatable :: points
+
+    integer          :: j, k, cells(2)
+    real(kind(0.d0)) :: ysb, yst, zsb, zst
+    real(kind(0.d0)), dimension(:), allocatable :: elevation
+
+	cells = self%get_sample_tangent_cell(r)
+	j = cells(1); k = cells(2)
+
+	ysb = float(j-1)*self%smpl_binsize(1)-0.5d0*self%box(self%ixyz)
+	yst = float(j  )*self%smpl_binsize(1)-0.5d0*self%box(self%ixyz)
+	zsb = float(k-1)*self%smpl_binsize(2)-0.5d0*self%box(self%jxyz)
+	zst = float(k  )*self%smpl_binsize(2)-0.5d0*self%box(self%jxyz)
+
+    allocate(points(4,3))
+	points(1, self%normal)=self%intrnsc_smple(j  ,k  )
+	points(2, self%normal)=self%intrnsc_smple(j+1,k  )
+	points(3, self%normal)=self%intrnsc_smple(j  ,k+1)
+	points(4, self%normal)=self%intrnsc_smple(j+1,k+1)
+
+	points(1,self%ixyz) = ysb; points(1,self%jxyz) = zsb !Bottom left
+	points(2,self%ixyz) = yst; points(2,self%jxyz) = zsb !Bottom right
+	points(3,self%ixyz) = ysb; points(3,self%jxyz) = zst !Top left
+	points(4,self%ixyz) = yst; points(4,self%jxyz) = zst !Top right
+	
+	!print'(a,3f10.5,2i5,8f10.5)', "get_sampled_surface", r,j,k,ysb,yst,zsb,zst, points(:, self%normal)
+
+end subroutine get_sampled_surface
+
 
 
 subroutine write_modes(self, writeiter)
