@@ -727,7 +727,7 @@ subroutine simulation_header
     case('droplet2D','droplet3D','2phase', & 
          '2phase_surfactant_solution',  & 
          '2phase_surfactant_atsurface', & 
-          '2phase_LJ')
+          '2phase_LJ',"film")
         write(fileunit,*) 'Liquid density ; liquid_density ;',liquid_density
         write(fileunit,*) 'Gas density ; gas_density ;',gas_density
         write(fileunit,*) 'Liquid_Fraction ; lg_fract ;',lg_fract

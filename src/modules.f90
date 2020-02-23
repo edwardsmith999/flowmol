@@ -176,7 +176,8 @@ module computational_constants_MD
 	integer	:: & 
         cluster_analysis_outflag, &     !Cluster analysis 
         CA_min_nghbr, &                 ! Minimum number of neighbours
-        CA_generate_xyz                 ! Generate xyz files for vmd
+        CA_generate_xyz, &              ! Generate xyz files for vmd
+        CA_generate_xyz_res             ! Resolution of generated xyz files
     real(kind(0.d0)) :: CA_rd           ! Cutoff length for cluster search
 
     !Intrinsic interface coefficients

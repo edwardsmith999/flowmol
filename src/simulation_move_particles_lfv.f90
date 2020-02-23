@@ -278,13 +278,15 @@ contains
 
         if (nthermo .eq. 1) then
             get_therm_region = 1 
-        else
+        else if (nthermo .eq. 2) then
             rglob =globalise(r(:,n))
             if (rglob(2) .gt. 0.d0) then
                 get_therm_region = 1
             else
                 get_therm_region = 2
             endif
+        else
+            stop "More than two thermostat regions not supported"
         endif
 
     end function get_therm_region
@@ -373,7 +375,7 @@ contains
             endif
 
             do n=1,nthermo
-			    Q(n)        = 0.1d0*thermostatnp(n) * delta_t
+			    Q(n) = 0.1d0*thermostatnp(n) * delta_t
                 if (thermostatnp(n) .gt. 0.d0) then
     			    dzeta_dt(n) = (mv2sum(n) - (nd*thermostatnp(n) + 1) & 
                                    *thermostattemperature(n)) / Q(n)
@@ -421,7 +423,8 @@ contains
 				v(3,n) = v(3,n)*ascale(tr) + a(3,n)*delta_t*bscale(tr)
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t
 			case (teth_thermo)
-                                tr = get_therm_region(n)
+                tr = get_therm_region(n)
+                !print*, n, tr, thermostattemperature(tr),  globalise(r(:,n))
 				!Thermostatted Tethered molecules unfixed with no sliding velocity
 				call tether_force(n)
 				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
@@ -437,7 +440,7 @@ contains
 				v(:,n) = v(:,n) + delta_t * a(:,n) 							!Velocity calculated from acceleration
 				r(:,n) = r(:,n) + delta_t * v(:,n) + delta_t*slidev(:,n)	!Position calculated from velocity+slidevel
 			case (teth_thermo_slide)
-                                tr = get_therm_region(n)
+                tr = get_therm_region(n)
 				!Thermostatted Tethered molecules unfixed with sliding velocity
 				call tether_force(n)
 				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)

@@ -329,10 +329,11 @@ subroutine get_real_surface(self, points, elevation, include_zeromode, qu)
 
 	class(intrinsic_surface_real) :: self
 
-	logical, intent(in), optional :: include_zeromode
     double precision, intent(in), dimension(:,:), allocatable ::  points
-    double precision, intent(in), optional ::  qu
     double precision, intent(out), dimension(:), allocatable :: elevation
+
+	logical, intent(in), optional :: include_zeromode
+    double precision, intent(in), optional ::  qu
 
     integer :: j, ui, vi, qu_
     double precision :: zeromode
@@ -542,7 +543,7 @@ function get_bin_from_surface(self, r, nbins, nhb) result(bin)
 	
     allocate(points(1,3))
     points(1,:) = r(:)
-    call self%get_surface(points, elevation, include_zeromode=.false.)
+    call self%get_surface(points, elevation, include_zeromode=.true.)
 
     !Added a shift by zero wavelength so surface is not at zero
     bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1)+0.5d0*binsize(n))/binsize(n))+nhb(n) !HALF SHIFT

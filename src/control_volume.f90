@@ -574,7 +574,16 @@ contains
 					+sum(F_ext), sum(totalsurf), sum(self%X(i,j,k,:)),   & 
 					 sum(self%X_minus_t(i,j,k,:))
 				check_ok = .false.
-			endif
+            endif
+            !if (abs(sum(totalpressure)) .gt. 1e-4 .and. abs(conserved) .lt. 0.000000001d0) then
+				!print'(a,i8,4i4,7f11.5,f22.18)','DEBUG non zero totalpressure', iter,irank,i,j,k, & 
+				!	 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
+				!	+sum(F_ext), sum(totalsurf), sum(self%X(i,j,k,:)),   & 
+				!	 sum(self%X_minus_t(i,j,k,:))
+			!	print'(a,i8,4i4,7f11.5,f22.18)','DEBUG non zero totalpressure', iter,irank,i,j,k, & 
+			!		 conserved, sum(totalpressure), & !self%Pxy_minus_t(i,j,k,1,1)/self%binsize(1),self%Pxy_minus_t(i,j,k,1,4)/self%binsize(1),& 
+            !        -sum(totalflux),sum(dvelocitydt), sum(totalsurf), sum(self%X(i,j,k,:)),   & 
+			!		 sum(self%X_minus_t(i,j,k,:))
 			!endif
 		enddo
 		enddo

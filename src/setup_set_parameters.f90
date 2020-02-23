@@ -1427,7 +1427,7 @@ subroutine set_parameters_global_domain
              'droplet2D','droplet3D','2phase', & 
              '2phase_surfactant_solution', & 
              '2phase_surfactant_atsurface', &
-              '2phase_LJ','bubble')
+              '2phase_LJ','bubble','film')
 
 			volume=1	!Set domain size to unity for loop below
 			do ixyz=1,nd
