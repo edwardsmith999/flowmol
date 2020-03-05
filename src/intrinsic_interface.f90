@@ -39,7 +39,7 @@ module intrinsic_module
 	    contains
 		    procedure :: initialise  => compute_q_vectors
 		    procedure :: update_surface => update_surface_modes
-		    procedure :: get_surface => get_surface
+		    procedure :: get_surface => get_surface_complex
 !		    procedure :: sample_surface => sample_intrinsic_surface
 
     end type intrinsic_surface_complex
@@ -47,16 +47,17 @@ module intrinsic_module
     type :: intrinsic_surface_real
 
         integer      :: normal, ixyz, jxyz, n_waves, n_waves2, qm
-		integer, dimension(2) :: smple_bins
-		double precision, dimension(2) :: smpl_binsize
+		integer, dimension(3)  :: nbins, nhb
 
         integer, dimension(:), allocatable     :: u, v
         integer, dimension(:), allocatable     :: pivots
 
         double precision  :: alpha, eps, area
-        double precision, dimension(3) :: box
+        double precision, dimension(3) :: box, binsize
         double precision, dimension(:), allocatable     :: diag, coeff, coeff_mdt
         double precision, dimension(:,:), allocatable   :: diag_matrix, intrnsc_smple
+        double precision, dimension(:,:,:,:), allocatable :: Abilinear
+
 
 	    contains
 		    procedure :: initialise  => initialise
@@ -66,13 +67,32 @@ module intrinsic_module
 		    procedure :: get_zero_mode => get_zero_mode
             procedure :: get_bin => get_bin_from_surface
 			procedure :: get_tangent_bins => get_tangent_bins
-		    procedure :: sample_surface => sample_intrinsic_surface
 		    procedure :: write_modes => write_modes
-		    procedure :: update_sampled_surface => update_sampled_surface
-		    procedure :: get_sample_tangent_cell => get_sample_tangent_cell
+		    procedure :: sample_surface => sample_intrinsic_surface
+		    !procedure :: get_sample_tangent_cell => get_sample_tangent_cell
 		    procedure :: get_sampled_surface => get_sampled_surface
+			procedure :: fit_intrinsic_surface => fit_intrinsic_surface_modes
+			procedure :: get_crossings => get_crossings_bilinear
 
     end type intrinsic_surface_real
+	
+	type, extends(intrinsic_surface_real) :: intrinsic_surface_bilinear
+
+		contains
+		    procedure :: get_surface => get_bilinear_surface
+		    procedure :: get_surface_derivative => get_bilinear_surface_derivative
+    		procedure :: update_sampled_surface => update_sampled_surface
+			procedure :: fit_intrinsic_surface => fit_intrinsic_surface_bilinear
+			procedure :: get_surface_bilinear => get_surface_bilinear
+			procedure :: paramterise_bilinear_surface => paramterise_bilinear_surface
+
+	end type intrinsic_surface_bilinear
+
+	!An object which allows localised surface calculations
+	! type, extends(intrinsic_surface_real) :: intrinsic_surface_real_binwidth
+		! contains
+		    ! procedure :: get_surface => get_real_surface_binwidth
+	! end type intrinsic_surface_real_binwidth
 
     !Wave function using array or single value
     interface wave_function
@@ -218,12 +238,14 @@ function derivative_wave_function(x, u, Lx)
 
 end function derivative_wave_function
 
-subroutine initialise(self, box, normal, alpha, eps)
+subroutine initialise(self, box, normal, alpha, eps, nbins, nhb)
     implicit none
 
 	class(intrinsic_surface_real) :: self
 
     integer, intent(in)         :: normal
+	
+    integer, intent(in), dimension(3)  :: nbins, nhb
     double precision, intent(in) :: alpha, eps
     double precision, intent(in), dimension(3) :: box
 
@@ -235,6 +257,9 @@ subroutine initialise(self, box, normal, alpha, eps)
     self%eps = eps
     self%ixyz = mod(normal,3)+1
     self%jxyz = mod(normal+1,3)+1
+	self%nbins = nbins
+	self%nhb = nhb
+	self%binsize = box/float(nbins)
 
     self%area = box(self%ixyz)*box(self%jxyz)
     self%qm = int(sqrt(self%area)/alpha)
@@ -309,7 +334,7 @@ subroutine update_real_surface(self, points)
 
     !Check surface we just fitted actually matches our points
     if (debug) then
-        call self%get_surface(points, surf)
+        call get_real_surface(self, points, surf)
         do j = 1, size(points,1)
             print*, "update_real_surface DEBUG ON Elevation vs points = ", & 
 					j, surf(j) , points(j,self%normal), &
@@ -356,7 +381,7 @@ subroutine get_real_surface(self, points, elevation, include_zeromode, qu)
     do ui = -qu_, qu_
     do vi = -qu_, qu_
         j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
-        elevation(:) = elevation(:) + self%coeff(j) &
+        elevation = elevation + self%coeff(j) &
                      * wave_function(points(:,self%ixyz), ui, self%box(self%ixyz)) &
                      * wave_function(points(:,self%jxyz), vi, self%box(self%jxyz))
     enddo
@@ -504,6 +529,71 @@ subroutine get_real_surface_derivative(self, points, dSdr, qu)
 end subroutine get_real_surface_derivative
 
 
+
+
+subroutine get_bilinear_surface(self, points, elevation, include_zeromode, qu)
+    implicit none
+
+	class(intrinsic_surface_bilinear) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(out), dimension(:), allocatable :: elevation
+
+	logical, intent(in), optional :: include_zeromode
+    double precision, intent(in), optional ::  qu
+
+	integer :: i, j, k, n, bins(2)
+    double precision :: ysb, yst, zsb, zst
+    double precision, dimension(:), allocatable :: elevationtest, elevationtest2
+    double precision, dimension(:,:), allocatable :: p
+
+	!Test real against bilinear
+	allocate(elevation(size(points,1)))
+	allocate(p(1,3))
+	do i =1,size(points,1)
+		bins = self%get_tangent_bins(points(i,:))
+		j = bins(1); k = bins(2)
+		p(1,:) = points(i,:)
+        ! ysb = float(j-1-self%nhb(self%ixyz))*self%binsize(self%ixyz)-0.5d0*self%box(self%ixyz)
+        ! zsb = float(k-1-self%nhb(self%jxyz))*self%binsize(self%jxyz)-0.5d0*self%box(self%jxyz)
+		! yst = float(j  -self%nhb(self%ixyz))*self%binsize(self%ixyz)-0.5d0*self%box(self%ixyz)
+		! zst = float(k  -self%nhb(self%jxyz))*self%binsize(self%jxyz)-0.5d0*self%box(self%jxyz)
+        ! P(2,self%ixyz) = ysb; P(2,self%jxyz) = zsb
+        ! P(3,self%ixyz) = yst; P(3,self%jxyz) = zsb 
+        ! P(4,self%ixyz) = ysb; P(4,self%jxyz) = zst 
+        ! P(5,self%ixyz) = yst; P(5,self%jxyz) = zst
+		! call get_real_surface(self, P, elevationtest2, include_zeromode, qu)
+
+		call self%get_surface_bilinear(P, self%Abilinear(:,:,j,k), elevationtest)
+		elevation(i) = elevationtest(1)
+		! do n=1,size(P,1)
+			! print'(a,4i5,5f10.5)', "get_bilinear_surface", i, j, k, n, p(n,self%ixyz), & 
+				! p(n,self%jxyz), elevationtest(n), elevationtest2(n), elevationtest(n)-elevationtest2(n)
+		! enddo
+	enddo
+
+	!call get_real_surface(self, points, elevation, include_zeromode, qu)
+
+end subroutine get_bilinear_surface
+
+
+subroutine get_bilinear_surface_derivative(self, points, dSdr, qu)
+    implicit none
+
+	class(intrinsic_surface_bilinear) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(in), optional ::  qu
+    double precision, intent(out), dimension(:,:), allocatable :: dSdr
+
+    integer :: j, ui, vi, qu_
+
+	call get_real_surface_derivative(self, points, dSdr, qu)
+
+end subroutine get_bilinear_surface_derivative
+
+
+
 subroutine get_zero_mode(self, zeromode)
     implicit none
 
@@ -525,42 +615,47 @@ function get_bin_from_surface(self, r, nbins, nhb) result(bin)
 	class(intrinsic_surface_real) :: self
 
     real(kind(0.d0)),intent(in),dimension(3) :: r
-    integer,dimension(3),intent(in)		     :: nbins, nhb
+    integer,dimension(3),intent(in),optional     :: nbins, nhb
 
     integer,dimension(3)	                 :: bin
 
     integer :: n, i, j
+    integer,dimension(3) 	:: nbins_, nhb_
     real(kind(0.d0)) :: maprange, zeromode
     real(kind(0.d0)), dimension(3) :: halfdomain, binsize
     real(kind(0.d0)), allocatable, dimension(:) :: elevation
     real(kind(0.d0)), allocatable, dimension(:,:) :: points
 
-    binsize = self%box/float(nbins)
+	if (present(nbins) .and. present(nhb)) then
+		binsize = self%box/float(nbins)
+		nhb_ = nhb
+		nbins_ = nbins
+	else
+		binsize = self%binsize
+		nhb_ = self%nhb
+		nbins_ = self%nbins
+	endif
     halfdomain = 0.5*self%box
     n=self%normal
     i=self%ixyz
     j=self%jxyz
-	
+
     allocate(points(1,3))
     points(1,:) = r(:)
     call self%get_surface(points, elevation, include_zeromode=.true.)
 
     !Added a shift by zero wavelength so surface is not at zero
-    bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1)+0.5d0*binsize(n))/binsize(n))+nhb(n) !HALF SHIFT
-    bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb(i)
-    bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb(j)
+    bin(n) = ceiling((r(n)+halfdomain(n)-elevation(1)+0.5d0*binsize(n))/binsize(n))+nhb_(n) !HALF SHIFT
+    bin(i) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb_(i)
+    bin(j) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb_(j)
 
-	if (bin(n) > nbins(n)+nhb(n)) then
-        bin(n) = nbins(n)+nhb(n)
+	if (bin(n) > nbins_(n)+nhb_(n)) then
+        bin(n) = nbins_(n)+nhb_(n)
     elseif (bin(n) < 1 ) then
         bin(n) = 1
     endif
 
 end function get_bin_from_surface
-
-
-
-
 
 !A version getting the explicit location from the intrinsic surface
 function get_tangent_bins(self, r, nbins, nhb) result(bin)
@@ -569,22 +664,245 @@ function get_tangent_bins(self, r, nbins, nhb) result(bin)
 	class(intrinsic_surface_real) :: self
 
     real(kind(0.d0)),intent(in),dimension(3) :: r
-    integer,dimension(3),intent(in)		     :: nbins, nhb
+    integer,dimension(3),intent(in),optional    :: nbins, nhb
 
     integer,dimension(2)	                 :: bin
 
     integer :: n, i, j
+    integer,dimension(3) 	:: nbins_, nhb_
     real(kind(0.d0)), dimension(3) :: halfdomain, binsize
+	
+	if (present(nbins) .and. present(nhb)) then
+		binsize = self%box/float(nbins)
+		nhb_ = nhb
+		nbins_ = nbins
+	else
+		binsize = self%binsize
+		nhb_ = self%nhb
+		nbins_ = self%nbins
+	endif
     
-    binsize = self%box/float(nbins)
     halfdomain = 0.5*self%box
     i=self%ixyz
     j=self%jxyz
 	
-    bin(1) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb(i)
-    bin(2) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb(j)
+    bin(1) = ceiling((r(i)+halfdomain(i))/binsize(i))+nhb_(i)
+    bin(2) = ceiling((r(j)+halfdomain(j))/binsize(j))+nhb_(j)
 
 end function get_tangent_bins
+
+
+
+
+subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cbins)
+	use bilnear_intersect, only : line_plane_intersect
+	implicit none
+
+	class(intrinsic_surface_real) :: self
+
+	integer, intent(in)                      :: n   !normal
+	integer, intent(in), dimension(3) 	     :: bin1, bin2
+	real(kind(0.d0)),intent(in),dimension(3) :: r1, r2
+	
+	logical, intent(out)                    :: crossings
+	integer,intent(out), optional, dimension(:), allocatable :: cbins
+	real(kind(0.d0)),intent(out),dimension(:,:), allocatable :: rc
+
+	integer                 :: t1, t2, i, j, k, jb, kb, ixyz
+	integer                 :: maxbin, minbin, minTbin, maxTbin
+	real(kind(0.d0))        :: pt, r12(3)
+
+	integer :: flag, ss, Ns, cross, bc, tempsize
+	integer, dimension(3) :: bin, bin_mdt
+	integer, dimension(:), allocatable :: cbinstemp
+
+	real(kind(0.d0)) :: yrb, yrt, zrb, zrt, s, ds
+	real(kind(0.d0)),save :: maxerror
+	real(kind(0.d0)) :: y(2,2), z(2,2), P(2,2,3), A(2,2), rb(3)
+	real(kind(0.d0)), dimension(:), allocatable :: elevation
+	real(kind(0.d0)),dimension(3,2)  :: intersect, normal, intersect2
+	real(kind(0.d0)),dimension(:,:), allocatable  :: points, points2, temp
+
+	if (bin1(n) .eq. bin2(n)) then
+		crossings = .false.
+	else
+		crossings = .true.
+
+		!Tangents
+		if (self%normal .ne. n) stop "Error in get_crossings_bilinear, normal not consistent with surface"
+		if (self%ixyz .ne. mod(n,3)+1) stop "Error in get_crossings_bilinear, normal not consistent with surface"
+		if (self%jxyz .ne. mod(n+1,3)+1) stop "Error in get_crossings_bilinear, normal not consistent with surface"
+		t1 = self%ixyz !mod(n,3)+1
+		t2 = self%jxyz !mod(n+1,3)+1
+
+		minbin = min(bin1(n), bin2(n))
+		maxbin = max(bin1(n), bin2(n))
+
+		r12   = r2 - r1  !Molecule i trajectory between t-dt and t
+		where (abs(r12) .lt. 0.000001d0) r12 = 0.000001d0
+
+		!Get positions of molecules which
+		!describe a bounding box
+		yrb = min(r1(t1), r2(t1))
+		yrt = max(r1(t1), r2(t1))
+		zrb = min(r1(t2), r2(t2))
+		zrt = max(r1(t2), r2(t2))
+
+		allocate(points(4,3))
+		allocate(points2(4,3))
+		!Factor of two as can be maximum of two per surface
+		tempsize = 1
+		do i=1,3
+			minTbin = min(bin1(i), bin2(i))
+			maxTbin = max(bin1(i), bin2(i))
+			tempsize = tempsize * (maxTbin-minTbin+1)
+		enddo
+		allocate(temp(3, 2*tempsize))
+		if (present(cbins)) allocate(cbinstemp(2*tempsize))
+
+		! First sample at r1 
+		Ns = maxbin-minbin
+		ds = 1.d0 / real(Ns, kind(0.d0))
+		s = ds
+		
+		!loop over bin range
+		bc = 1
+		do i = minbin, maxbin-1
+
+			! Loop over all samples, s varies from 0 to 1
+			! Position of sample on line
+			rb(:) = r1(:) + s*r12(:)
+			yrb = min(r1(t1), rb(t1))
+			yrt = max(r1(t1), rb(t1))
+			zrb = min(r1(t2), rb(t2))
+			zrt = max(r1(t2), rb(t2))
+			!print'(a,3i5,10f10.5)', "patch", i, bc, Ns, s, r1(:), rb(:), r2(:)
+			!print'(a,3i5,8f10.5)', "patch", i, bc, Ns, s, rb(:), yrb, yrt, zrb, zrt
+			s = s + ds
+
+			!Use distance between molecules
+			!to create a bilinear patch
+			points(:,n) = rb(n) !Not used
+			points(1,t1) = yrb; points(1,t2) = zrb
+			points(2,t1) = yrb; points(2,t2) = zrt 
+			points(3,t1) = yrt; points(3,t2) = zrb 
+			points(4,t1) = yrt; points(4,t2) = zrt
+
+			!Get surface in x as a function of y and z
+			call self%get_surface(points, elevation, include_zeromode=.true.)
+
+			!Normal direction used in line plane intersect
+			!Shift by current bin
+			points(:,n) = elevation(:) & 
+						  + (i-1*self%nhb(n)-0.5d0)*self%binsize(n) &
+						  -0.5d0*self%box(n) 
+
+			!Get a patch of P values to use in bilinear patch & line calculation
+			P(:,:,1) = reshape(points(:,n ), (/2,2/))
+			P(:,:,2) = reshape(points(:,t1), (/2,2/))
+			P(:,:,3) = reshape(points(:,t2), (/2,2/))
+
+			!print'(a,2i5,18f10.5)', "x_bilinear", i,j, p(1,1,:), P(1,2,:), P(2,1,:), p(2,2,:), r1(:), r12(:)
+
+			!Special case of flat surface causes problems so need to handle separatly
+			if (P(1,1,1) .eq. P(2,1,1) .and. &
+				P(2,1,1) .eq. P(1,2,1) .and. &
+				P(1,2,1) .eq. P(2,2,1)) then
+				intersect = -666
+				intersect(1,1) = P(1,1,1)
+				intersect(2,1) = r1(t1)+(r12(t1)/r12(n))*(intersect(1,1)-r1(n))            
+				intersect(3,1) = r1(t2)+(r12(t2)/r12(n))*(intersect(1,1)-r1(n))
+				flag = 1
+			else
+				call line_plane_intersect(r1, r12, P, intersect, normal, flag)
+			endif
+			
+			
+			!Get surface sampled from bins
+			! call self%get_sampled_surface(rb, points2)
+			! points2(:,n) = points2(:,n) & 
+						  ! + (i-1*nhb(n)-0.5d0)*binsize(n) &
+						  ! -0.5d0*self%box(n)
+			! P(:,:,1) = reshape(points2(:,n ), (/2,2/))
+			! P(:,:,2) = reshape(points2(:,t1), (/2,2/))
+			! P(:,:,3) = reshape(points2(:,t2), (/2,2/))
+			! call line_plane_intersect(r1, r12, P, intersect2, normal, flag)
+			! if (abs(intersect2(1,1)+666) .lt. 1e-7) then
+				! intersect2(:,1) = r1(:) + (s-0.5d0*ds)*r12(:)
+			! endif
+			! !if (all(abs(intersect2(:,1)+666) .gt. 1e-7)) then
+				! print'(a,13f10.5)', "Elevation check ", & 
+					! r1, rb, points2(:,n), intersect(:,1)-intersect2(:,1)
+			!endif
+
+			
+			!print*, 'line_plane_intersect output', i, r1(1), points(1,n), r2(1), bin1(1)-self%nhb(1), yrb, yrt, zrb, zrt, intersect
+			!Loop over intersects and add to temp
+			do ixyz=1,size(intersect,2)
+				if (all(abs(intersect(:,ixyz)+666) .gt. 1e-7)) then
+					!if (size(intersect,2) .ne. 1) print'(a,3i5,9f10.5)', "intrsect", ixyz, i, bc, r1, intersect(:,ixyz), r2
+					temp(:,bc) = intersect(:,ixyz)
+					if (present(cbins)) cbinstemp(bc) = i
+					bc = bc + 1
+				endif
+			enddo
+
+		enddo
+
+		!print'(a,4i6,6f10.5)', "Crossings ", maxbin-minbin, size(yb,1), size(zb,1), bc, r1, r2
+
+		!Copy array of intersects to rc
+		if (bc .gt. 1) then
+			allocate(rc(3, bc-1))
+			rc = temp(:,1:bc-1)
+			if (present(cbins)) then
+				allocate(cbins(bc-1))
+				cbins = cbinstemp(1:bc-1)
+			endif
+		else
+			print*, "Warning in get_crossings_bilinear - no crossings found ", minbin, maxbin, r1, r2
+			! Crossing of bilinear differs from Fourier surface
+			! Walk line between two points and try to get location of crossing
+			Ns = maxbin-minbin+1
+			if (allocated(points)) deallocate(points)
+			allocate(points(Ns+2,3))
+			ds = 1.d0 / real(Ns, kind(0.d0))
+			! First sample at r1 
+			s = -ds
+			! Loop over all samples, s varies from 0 to 1
+			bin_mdt = bin1
+			do ss = 1, Ns+2
+				! Position of sample on line
+				points(ss,:) = r1(:) + s*r12(:)
+				bin = self%get_bin(points(ss,:), self%nbins, self%nhb)
+				!print*, "Points on line", s, points(ss,:), bin, bin_mdt, &
+				!bin(self%normal) .ne. bin_mdt(self%normal), self%normal
+				!If bin changes then must be a crossing
+				cross = bin(self%normal) - bin_mdt(self%normal) 
+				if (cross .eq. 1) then
+					allocate(rc(3, 1))
+					rc(:, 1) = r1(:) + (s-0.5d0*ds)*r12(:)
+					!print*, "Crossing found", rc, bin, s-0.5d0*ds
+					if (present(cbins)) then
+						allocate(cbins(1))
+						if (cross .gt. 0) then
+							cbins(1) = bin_mdt(self%normal)
+						else 
+							cbins(1) = bin(self%normal)
+						endif
+					endif
+					exit
+				endif
+				bin_mdt = bin
+				s = s + ds
+			end do	
+			!call self%get_surface(points, elevation)
+			!print*, "Elevations", elevation+ (bin1(n)-1*nhb(n))*binsize(n)-0.5d0*self%box(self%normal)
+			!stop "Error get_crossings_bilinear - interactions must be missed"
+		endif
+	endif
+
+end subroutine get_crossings_bilinear
 
 !subroutine get_real_surface_derivative(self, points, dir, dSdr, qu)
 !    implicit none
@@ -772,7 +1090,7 @@ subroutine update_surface_modes(self, points)
 
     !Check surface we just fitted actually matches our points
     if (debug) then
-        call self%get_surface(points, surf)
+        call get_surface_complex(self, points, surf)
         do i = 1, size(points,1)
             print*, "Elevation vs points = ", i, surf(i) , points(i,self%normal), &
                      surf(i)-points(i,self%normal),   surf(i)/points(i,self%normal)
@@ -786,7 +1104,7 @@ end subroutine update_surface_modes
 
 
 
-subroutine get_surface(self, points, elevation)
+subroutine get_surface_complex(self, points, elevation)
     implicit none
 
 	class(intrinsic_surface_complex) :: self
@@ -818,7 +1136,7 @@ subroutine get_surface(self, points, elevation)
 		enddo
     enddo
 
-end subroutine get_surface
+end subroutine get_surface_complex
 
 
 
@@ -874,7 +1192,7 @@ subroutine sample_intrinsic_surface(self, nbins, vertices, writeiter)
         points(3,self%ixyz) = ysb; points(3,self%jxyz) = zst !Top left
         points(4,self%ixyz) = yst; points(4,self%jxyz) = zst !Top right
 
-        call self%get_surface(points, elevation)
+        call get_real_surface(self, points, elevation)
         !call surface_from_modes(points, 3, q_vectors, modes, elevation)
         do i = 1, 4
             vertices(v,i,:) = (/elevation(i), points(i,self%ixyz), points(i,self%jxyz)/)
@@ -899,68 +1217,128 @@ subroutine sample_intrinsic_surface(self, nbins, vertices, writeiter)
 
 end subroutine sample_intrinsic_surface
 
+!Update the saved array of samples of the surface to use for efficient 
+!calculation of crossings and bin values
 
-subroutine update_sampled_surface(self, nbins)
+
+subroutine update_sampled_surface(self, nbins, nhb)
     implicit none
 
-	class(intrinsic_surface_real) :: self
+	class(intrinsic_surface_bilinear) :: self
 
-    integer,intent(in),dimension(2) :: nbins
+    integer,intent(in),dimension(3), optional :: nbins, nhb
 
     logical          :: debug=.true., writeobj=.false.
     logical, save    :: first_time = .true.
     integer          :: j, k
-    real(kind(0.d0)) :: ysb, yst, zsb, zst, binsize(2)
-    real(kind(0.d0)), dimension(:), allocatable :: elevation
-    real(kind(0.d0)), dimension(:,:), allocatable :: points
+    real(kind(0.d0)) :: ysb, yst, zsb, zst, binsize(3), A(2,2)
+    real(kind(0.d0)), dimension(:), allocatable :: elevation, elevationtest
+    real(kind(0.d0)), dimension(:,:), allocatable :: points, P, pointstest
 
+    integer,dimension(3) 	:: nbins_, nhb_
+ 	
+	if (present(nbins) .and. present(nhb)) then
+		binsize = self%box/float(nbins)
+		nbins_ = nbins
+		nhb_ = nhb
+	else
+		binsize = self%binsize
+		nhb_ = self%nhb
+		nbins_ = self%nbins
+	endif
+	
     allocate(points(1,3))
+	allocate(P(2,2))
 	if (first_time) then
 		if (allocated(self%intrnsc_smple)) deallocate(self%intrnsc_smple)
-		self%smple_bins(1) = nbins(1); self%smple_bins(2) = nbins(2) 
-		self%smpl_binsize(1) = self%box(self%ixyz)/dble(self%smple_bins(1))
-		self%smpl_binsize(2) = self%box(self%jxyz)/dble(self%smple_bins(2))	
-		allocate(self%intrnsc_smple(nbins(1)+1, nbins(2)+1))
+		!self%smple_bins(1) = nbins_(self%ixyz); self%smple_bins(2) = nbins_(self%jxyz) 
+		!self%smpl_binsize(1) = self%box(self%ixyz)/dble(self%smple_bins(1))
+		!self%smpl_binsize(2) = self%box(self%jxyz)/dble(self%smple_bins(2))	
+		allocate(self%intrnsc_smple(self%nbins(self%ixyz)+1+2*self%nhb(self%ixyz), & 
+									self%nbins(self%jxyz)+1+2*self%nhb(self%jxyz)))
+		allocate(self%Abilinear(2,2,self%nbins(self%ixyz)+2*self%nhb(self%ixyz), & 
+									self%nbins(self%jxyz)+2*self%nhb(self%jxyz)))
 		first_time = .false.
 	endif
+	
+	!Debug
+	allocate(pointstest(4,3))
+	allocate(elevationtest(4))
+	
+    ! do j = 1,self%nbins(self%ixyz)+1+2*self%nhb(self%ixyz)
+    ! do k = 1,self%nbins(self%jxyz)+1+2*self%nhb(self%jxyz)
+        ! ysb = float(j-1-self%nhb(self%ixyz))*self%binsize(self%ixyz)-0.5d0*self%box(self%ixyz)
+        ! zsb = float(k-1-self%nhb(self%jxyz))*self%binsize(self%jxyz)-0.5d0*self%box(self%jxyz)
+        ! points(1,self%ixyz) = ysb; points(1,self%jxyz) = zsb !Bottom left
+        ! call get_real_surface(self, points, elevation, include_zeromode=.true.)
+        ! self%intrnsc_smple(j, k) = elevation(1)
 
-    do j = 1,self%smple_bins(1)+1
-    do k = 1,self%smple_bins(2)+1
-        ysb = float(j-1)*self%smpl_binsize(1)-0.5d0*self%box(self%ixyz)
-        !yst = float(j  )*self%smpl_binsize(1)-0.5d0*self%box(self%ixyz)
-        zsb = float(k-1)*self%smpl_binsize(2)-0.5d0*self%box(self%jxyz)
-        !zst = float(k  )*self%smpl_binsize(2)-0.5d0*self%box(self%jxyz)
+		! if (j .ge. 2 .and. k .ge. 2) then
+			! !Test Bilinear sample patch
+			! yst = float(j-self%nhb(self%ixyz))*self%binsize(self%ixyz)-0.5d0*self%box(self%ixyz)
+			! zst = float(k-self%nhb(self%jxyz))*self%binsize(self%jxyz)-0.5d0*self%box(self%jxyz)
+			! P(:,:) =  self%intrnsc_smple(j-1:j,k-1:k)
+			! call get_bilinear_surface_coeff((/ysb, yst/), (/zsb, zst/), P, A)
+			! self%Abilinear(:,:,j-1,k-1) = A(:,:)
+			! !Debug
+			! !pointstest(1,self%ixyz) = ysb; pointstest(1,self%jxyz) = zsb !Bottom left
+			! !pointstest(2,self%ixyz) = yst; pointstest(2,self%jxyz) = zsb !Bottom right
+			! !pointstest(3,self%ixyz) = ysb; pointstest(3,self%jxyz) = zst !Top left
+			! !pointstest(4,self%ixyz) = yst; pointstest(4,self%jxyz) = zst !Top right
+			! !call self%get_surface_bilinear(pointstest, self%Abilinear(:,:,j-1,k-1), elevationtest)
+			! !print'(a,2i6,12f10.5)', "update_sampled_surface", j, k, ysb, zsb, yst, zst, & 
+			! !	  self%intrnsc_smple(j-1:j,k-1:k)-reshape(elevationtest, (/2,2/)), elevationtest
+			
+		! endif
 
-        points(1,self%ixyz) = ysb; points(1,self%jxyz) = zsb !Bottom left
-        !points(2,self%ixyz) = yst; points(2,self%jxyz) = zsb !Bottom right
-        !points(3,self%ixyz) = ysb; points(3,self%jxyz) = zst !Top left
-        !points(2,self%ixyz) = yst; points(2,self%jxyz) = zst !Top right
+    ! enddo
+    ! enddo
+
+
+    do j = 1,self%nbins(self%ixyz)+2*self%nhb(self%ixyz)
+    do k = 1,self%nbins(self%jxyz)+2*self%nhb(self%jxyz)
+        ysb = float(j-1-self%nhb(self%ixyz))*self%binsize(self%ixyz)-0.5d0*self%box(self%ixyz)
+        zsb = float(k-1-self%nhb(self%jxyz))*self%binsize(self%jxyz)-0.5d0*self%box(self%jxyz)
+		yst = float( j -self%nhb(self%ixyz))*self%binsize(self%ixyz)-0.5d0*self%box(self%ixyz)
+		zst = float( k -self%nhb(self%jxyz))*self%binsize(self%jxyz)-0.5d0*self%box(self%jxyz)
+
+		pointstest(1,self%ixyz) = ysb; pointstest(1,self%jxyz) = zsb !Bottom left
+		pointstest(2,self%ixyz) = yst; pointstest(2,self%jxyz) = zsb !Bottom right
+		pointstest(3,self%ixyz) = ysb; pointstest(3,self%jxyz) = zst !Top left
+		pointstest(4,self%ixyz) = yst; pointstest(4,self%jxyz) = zst !Top right
+
+        call get_real_surface(self, pointstest, elevation, include_zeromode=.true.)
+		pointstest(:,self%normal) = elevation
+        self%intrnsc_smple(j, k) = elevation(1)
+        self%intrnsc_smple(j+1, k) = elevation(2)
+        self%intrnsc_smple(j, k+1) = elevation(3)
+        self%intrnsc_smple(j+1, k+1) = elevation(4)
+
+		call self%paramterise_bilinear_surface(pointstest, A)
+		self%Abilinear(:,:,j,k) = A(:,:)
+
+		!DEBUG
+		!call self%get_surface_bilinear(pointstest, A, elevationtest)
+		!print'(a,2i4,12f10.5)', "sampled_surf", j, k, pointstest(:,self%normal)-elevationtest, & 
+		!			pointstest(:,self%ixyz), pointstest(:,self%jxyz)
 		
-		!print'(a,2i5,8f10.5	)', "sample_surface", j,k,points(:,self%ixyz),points(:,self%jxyz)
-
-        call self%get_surface(points, elevation, include_zeromode=.false.)
-        self%intrnsc_smple(j  ,k  ) = elevation(1)
-        !self%intrnsc_smple(j+1,k  ) = elevation(2)
-        !self%intrnsc_smple(j  ,k+1) = elevation(3)
-        !self%intrnsc_smple(j+1,k+1) = elevation(4)
-		       
     enddo
     enddo
-
+	
 end subroutine update_sampled_surface
 
-function get_sample_tangent_cell(self, r) result(cell)
-    implicit none
+! function get_sample_tangent_cell(self, r) result(cell)
+    ! implicit none
 
-	class(intrinsic_surface_real) :: self
+	! class(intrinsic_surface_real) :: self
 
-    real(kind(0.d0)),intent(in),dimension(3) :: r
-    integer,dimension(2)	                 :: cell
+    ! real(kind(0.d0)),intent(in),dimension(3) :: r
+    ! integer,dimension(2)	                 :: cell
 
-	cell(1) = ceiling((r(self%ixyz)+0.5d0*self%box(self%ixyz))/self%smpl_binsize(1))
-	cell(2) = ceiling((r(self%jxyz)+0.5d0*self%box(self%jxyz))/self%smpl_binsize(2))
+	! cell(1) = ceiling((r(self%ixyz)+0.5d0*self%box(self%ixyz))/self%binsize(1))
+	! cell(2) = ceiling((r(self%jxyz)+0.5d0*self%box(self%jxyz))/self%binsize(2))
 
-end function get_sample_tangent_cell
+! end function get_sample_tangent_cell
 
 
 subroutine get_sampled_surface(self, r, points)
@@ -975,13 +1353,13 @@ subroutine get_sampled_surface(self, r, points)
     real(kind(0.d0)) :: ysb, yst, zsb, zst
     real(kind(0.d0)), dimension(:), allocatable :: elevation
 
-	cells = self%get_sample_tangent_cell(r)
+	cells = self%get_tangent_bins(r)
 	j = cells(1); k = cells(2)
 
-	ysb = float(j-1)*self%smpl_binsize(1)-0.5d0*self%box(self%ixyz)
-	yst = float(j  )*self%smpl_binsize(1)-0.5d0*self%box(self%ixyz)
-	zsb = float(k-1)*self%smpl_binsize(2)-0.5d0*self%box(self%jxyz)
-	zst = float(k  )*self%smpl_binsize(2)-0.5d0*self%box(self%jxyz)
+	ysb = float(j-1+self%nhb(self%ixyz))*self%binsize(self%ixyz)-0.5d0*self%box(self%ixyz)
+	yst = float(j  +self%nhb(self%ixyz))*self%binsize(self%ixyz)-0.5d0*self%box(self%ixyz)
+	zsb = float(k-1+self%nhb(self%jxyz))*self%binsize(self%jxyz)-0.5d0*self%box(self%jxyz)
+	zst = float(k  +self%nhb(self%jxyz))*self%binsize(self%jxyz)-0.5d0*self%box(self%jxyz)
 
     allocate(points(4,3))
 	points(1, self%normal)=self%intrnsc_smple(j  ,k  )
@@ -1155,7 +1533,7 @@ subroutine update_pivots(points, ISR, pivots, tau, new_pivots)
     enddo
 
     !Recalculate surface at candidate pivot locations
-    call ISR%get_surface(candidates_pos, surf)
+    call get_real_surface(ISR, candidates_pos, surf)
 
     nPivots = 0
     allocate(updated_pivots(n))
@@ -1244,7 +1622,7 @@ end subroutine update_pivots_alt
 
 
 
-subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
+subroutine fit_intrinsic_surface_modes(self, points, tau, ns, pivots)
     !DEBUG DEBUGDEBUGDEBUG
     !use physical_constants_MD, only : np
     !use calculated_properties_MD, only : nbins
@@ -1253,7 +1631,7 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
 
     implicit none
 
-	type(intrinsic_surface_real), intent(in) :: ISR	! declare an instance
+	class(intrinsic_surface_real), intent(in) :: self	! declare an instance
 
     double precision, intent(in) :: tau, ns
     double precision, intent(in), dimension(:,:), allocatable ::  points
@@ -1270,10 +1648,10 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
 
     !Define things
     tau_ = max(tau, savetau)
-    ntarget = int(ns*ISR%area)
+    ntarget = int(ns*self%area)
 
     !Get initial pivots
-    call get_initial_pivots(points, ISR, initial_pivots)
+    call get_initial_pivots(points, self, initial_pivots)
     if (allocated(pivots)) deallocate(pivots)
     pivots = initial_pivots
 
@@ -1285,7 +1663,7 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
         !print*, "initial pivot pos = ", i, pivot_pos(i,:)
     enddo
 
-    call ISR%update_surface(pivot_pos)
+    call update_real_surface(self, pivot_pos)
 
 !    do i=1,sp
 !        print*, "Pivot error = ", pivot_pos(i,:), surf(i), pivot_pos(i,3)-surf(i)
@@ -1294,8 +1672,8 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
     do try = 1, maxtry
 
         !Get new pivots
-        !call update_pivots(points, ISR, pivots, tau_, new_pivots)
-        call update_pivots_alt(points, ISR, pivots, tau_, ns, new_pivots)
+        !call update_pivots(points, self, pivots, tau_, new_pivots)
+        call update_pivots_alt(points, self, pivots, tau_, ns, new_pivots)
 
         !Get new positions and new modes
         if (allocated(pivot_pos)) deallocate(pivot_pos)
@@ -1306,11 +1684,11 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
             !print*, "new pivot pos = ", i, pivot_pos(i,:)
         enddo
         !call get_surface_modes(pivot_pos, Qxy, modes_shape, Q, modes, eps)
-        call ISR%update_surface(pivot_pos)
+        call update_real_surface(self, pivot_pos)
 
         !Exit once we have converged to particles on surface / area = ns
         !print*, size(new_pivots)/area, size(new_pivots), area, ns 
-        !if (size(new_pivots)/ISR%area .gt. ns)  then
+        !if (size(new_pivots)/self%area .gt. ns)  then
         if (size(new_pivots) .ge. ntarget)  then
             deallocate(pivots)
             ! Truncate pivots to give ns as all positions in 
@@ -1324,9 +1702,9 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
 !            do i =1, 9
 !                initial_pivot_pos(i,:) = points(initial_pivots(i),:)
 !            enddo
-!            maxpivot = maxval(initial_pivot_pos(:,ISR%normal))
+!            maxpivot = maxval(initial_pivot_pos(:,self%normal))
 !            do i =1, ntarget
-!                diff = maxpivot - pivot_pos(i, ISR%normal)
+!                diff = maxpivot - pivot_pos(i, self%normal)
 !                print'(a,2i5,3f10.5,f18.8)', "new pivot pos = ", i, ntarget, pivot_pos(i,:), diff
 !            enddo
             !DEBUG DEBUG DEBUG DEBUG
@@ -1351,18 +1729,18 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
             !Plot updated surface error
             if (allocated(d)) deallocate(d)
             allocate(d(sp))
-            call ISR%get_surface(pivot_pos, surf)
+            call get_real_surface(self, pivot_pos, surf)
 
-            d = pivot_pos(:, ISR%normal) - surf(:)
+            d = pivot_pos(:, self%normal) - surf(:)
             Error = sqrt(sum(d * d) / size(d))
 
             print*, "Try no. = ", try, "No. pivots = ", size(pivots), & 
-                    "Error=", Error, "Area=", ISR%area, size(pivots)/ISR%area
+                    "Error=", Error, "Area=", self%area, size(pivots)/self%area
 
             if (Error .gt. 1e2) then
                 print*, "Solution appears to be diverging, reverting to initial pivots"
                 deallocate(pivots)
-                call get_initial_pivots(points, ISR, pivots)
+                call get_initial_pivots(points, self, pivots)
                 deallocate(pivot_pos)
                 sp = size(pivots,1)
                 allocate(pivot_pos(sp,3))
@@ -1370,7 +1748,7 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
                     pivot_pos(i,:) = points(pivots(i),:)
                     !print*, "initial pivot pos = ", i, pivot_pos(i,:)
                 enddo
-                call ISR%update_surface(pivot_pos)
+                call update_real_surface(self, pivot_pos)
 
             endif
         endif
@@ -1381,9 +1759,9 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
     !DEBUG DEBUG DEBUG DEBUG
 !    if (allocated(d)) deallocate(d)
 !    allocate(d(sp))
-!    call ISR%get_surface(pivot_pos, surf)
+!    call self%get_surface(pivot_pos, surf)
 
-!    d = pivot_pos(:, ISR%normal) - surf(:)
+!    d = pivot_pos(:, self%normal) - surf(:)
 !    Error = sqrt(sum(d * d) / size(d))
 !    print*, "fit_intrinsic_surface_modes", try, Error, ntarget
     !DEBUG DEBUG DEBUG DEBUG
@@ -1391,6 +1769,18 @@ subroutine fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
 end subroutine fit_intrinsic_surface_modes
 
 !Save coefficiients to matrix for bilinear 
+! x - coordinates of corners x = [x1, x2]
+! y - coordinate of corners y = [y1, y1]
+! P - elevation at 4 corners P = [P11, P12, P21, P22]
+!
+!    2,1______2,2
+!       |     |
+!       |_____|
+!    1,1      1,2
+!    
+! A - coefficient matrix for bilinear form 
+! f = A0 + A1*x + A2*y + A3*x*y
+
 subroutine get_bilinear_surface_coeff(x, y, P, A)
     implicit none
 
@@ -1400,6 +1790,7 @@ subroutine get_bilinear_surface_coeff(x, y, P, A)
     real(kind(0.d0)) :: x1, x2, y1, y2, x12, y12, d
     x1 = x(1); x2 = x(2)
     y1 = y(1); y2 = y(2)
+	!Determinate
     x12 = x2 - x1; y12 = y2 - y1
     d = x12*y12
     A(1,1) = ( P(1,1)*x2*y2 - P(1,2)*x2*y1 - P(2,1)*x1*y2 + P(2,2)*x1*y1)/d
@@ -1409,122 +1800,149 @@ subroutine get_bilinear_surface_coeff(x, y, P, A)
 
 end subroutine get_bilinear_surface_coeff
 
+subroutine paramterise_bilinear_surface(self, P, A)
+    implicit none
+
+	class(intrinsic_surface_bilinear), intent(in) :: self	! declare an instance
+
+    real(kind(0.d0)),intent(in)  :: P(4,3)
+    real(kind(0.d0)),intent(out) :: A(2,2)
+    real(kind(0.d0)) :: x1, x2, y1, y2, x12, y12, d
+    x1 = P(1,self%ixyz); x2 = P(4,self%ixyz)
+    y1 = P(1,self%jxyz); y2 = P(4,self%jxyz)
+	!Determinate
+    x12 = x2 - x1; y12 = y2 - y1
+    d = x12*y12
+    A(1,1) = ( P(1,self%normal)*x2*y2 - P(3,self%normal)*x2*y1 - P(2,self%normal)*x1*y2 + P(4,self%normal)*x1*y1)/d
+    A(2,1) = (-P(1,self%normal)*y2    + P(3,self%normal)*y1    + P(2,self%normal)*y2    - P(4,self%normal)*y1   )/d
+    A(1,2) = (-P(1,self%normal)*x2    + P(3,self%normal)*x2    + P(2,self%normal)*x1    - P(4,self%normal)*x1   )/d
+    A(2,2) = ( P(1,self%normal)       - P(3,self%normal)       - P(2,self%normal)       + P(4,self%normal)      )/d
+
+end subroutine paramterise_bilinear_surface
+
 
 !Get surface position from positions for a known bin
-subroutine get_surface_bilinear(points, A, elevation)
+subroutine get_surface_bilinear(self, points, A, elevation)
     implicit none
+
+	class(intrinsic_surface_bilinear), intent(in) :: self	! declare an instance
 
     real(kind(0.d0)), intent(in), dimension(:,:), allocatable ::  points
     double precision, intent(in), dimension(2,2) :: A
     double precision, intent(out), dimension(:), allocatable :: elevation
 
-    integer :: n, ixyz, jxyz
+    integer :: n!, ixyz, jxyz
 
     allocate(elevation(size(points,1)))
     elevation = 0.d0
     do n=1,size(points,1)
-    do ixyz=1,2
-    do jxyz=1,2
-        elevation(n) = elevation(n) + A(ixyz, jxyz) & 
-                       *(points(n,1)**(ixyz-1))*(points(n,2)**(jxyz-1))
-    enddo
-    enddo
-    enddo
+        elevation(n) =  A(1,1) & 
+					  + A(2,1)*points(n,self%ixyz) & 
+					  + A(1,2)*points(n,self%jxyz) &
+					  + A(2,2)*points(n,self%ixyz)*points(n,self%jxyz)
+	enddo
+
+    ! do n=1,size(points,1)
+		! do ixyz=1,2
+		! do jxyz=1,2
+			! elevation(n) = elevation(n) + A(ixyz, jxyz) & 
+						   ! *(points(n,self%ixyz)**(ixyz-1))*(points(n,self%jxyz)**(jxyz-1))
+		! enddo
+		! enddo
+    ! enddo
 
 end subroutine get_surface_bilinear
 
 
-subroutine modes_surface_to_bilinear_surface(ISR, nbins, Abilinear)
+! subroutine modes_surface_to_bilinear_surface(ISR, nbins, Abilinear)
+    ! implicit none
+
+	! type(intrinsic_surface_real), intent(in) :: ISR	! declare an instance
+
+    ! integer,intent(in),dimension(3) :: nbins
+    ! real(kind(0.d0)),intent(out),dimension(:,:,:,:),allocatable ::Abilinear
+
+    ! logical          :: debug=.true.
+    ! logical, save    :: first_time = .true.
+    ! integer          :: i, j, k, n, ixyz, jxyz, gbin(3), fileno
+    ! real(kind(0.d0)) :: ysb, yst, zsb, zst, binsize(2)
+    ! real(kind(0.d0)) :: y(2,2), z(2,2), P(2,2), A(2,2)
+    ! real(kind(0.d0)), dimension(:), allocatable :: elevation
+    ! real(kind(0.d0)), dimension(:,:), allocatable :: points
+
+    ! !Start from the largest (end) value
+    ! ixyz = ISR%ixyz
+    ! jxyz = ISR%jxyz
+
+    ! allocate(Abilinear(2,2,nbins(ixyz), nbins(jxyz)))
+    ! allocate(points(4,2))
+
+    ! binsize(1) = ISR%box(ixyz)/dble(nbins(ixyz))
+    ! binsize(2) = ISR%box(jxyz)/dble(nbins(jxyz))
+
+    ! n = 1
+    ! do j = 1,nbins(ixyz)
+    ! do k = 1,nbins(jxyz)
+        ! !gbin = globalise_bin((/ 1, j, k /))
+        ! gbin(1) = j; gbin(2) = k
+        ! ysb = float(gbin(1)-1)*binsize(1)-0.5d0*ISR%box(ixyz)
+        ! yst = float(gbin(1)  )*binsize(1)-0.5d0*ISR%box(ixyz)
+        ! zsb = float(gbin(2)-1)*binsize(2)-0.5d0*ISR%box(jxyz)
+        ! zst = float(gbin(2)  )*binsize(2)-0.5d0*ISR%box(jxyz)
+
+        ! points(1,1) = ysb; points(1,2) = zsb
+        ! points(2,1) = yst; points(2,2) = zsb 
+        ! points(3,1) = ysb; points(3,2) = zst 
+        ! points(4,1) = yst; points(4,2) = zst 
+
+        ! call ISR%get_surface(points, elevation, include_zeromode=.true.)
+        ! !call surface_from_modes(points, 3, q_vectors, modes, elevation)
+        ! print*, "elevation modes", elevation(:)
+        ! P = reshape(elevation, (/2,2/))
+        ! call get_bilinear_surface_coeff((/ysb, yst/), (/zsb, zst/), P, A)
+        ! Abilinear(:,:,j,k) = A(:,:)
+
+        ! !DEBUG code here
+        ! call get_surface_bilinear(points, A, elevation)
+        ! !fileno = get_new_fileunit() 
+        ! !open(fileno, file="surface.obj")
+        ! do i =1, 4
+            ! if ((elevation(i)- P(mod(i+1,2)+1,int(ceiling(i/2.d0)))) .gt. 1e-10) then
+                ! print'(a,3i5,f16.4, 5f10.5, e18.8)', "elevation bilinear",j,k,i,A(:,:),points(i,:), &
+                                        ! elevation(i)-P(mod(i+1,2)+1,int(ceiling(i/2.d0)))
+            ! endif
+
+            ! !Write to wavefunction obj format
+            ! !write(fileno,'(a1, f15.8)') "v", points(i,1), points(i,2), elevation(i)
+        ! enddo
+        ! !write(fileno,'(a1, i8)'), "f", n, n+1, n+2, n+3
+       ! ! n = n + 4
+        ! !close(fileno)
+
+    ! enddo
+    ! enddo
+
+! end subroutine modes_surface_to_bilinear_surface
+
+
+subroutine fit_intrinsic_surface_bilinear(self, points, tau, ns, pivots)
     implicit none
 
-	type(intrinsic_surface_real), intent(in) :: ISR	! declare an instance
+	class(intrinsic_surface_bilinear), intent(in) :: self	! declare an instance
 
-    integer,intent(in),dimension(3) :: nbins
-    real(kind(0.d0)),intent(out),dimension(:,:,:,:),allocatable ::Abilinear
-
-    logical          :: debug=.true.
-    logical, save    :: first_time = .true.
-    integer          :: i, j, k, n, ixyz, jxyz, gbin(3), fileno
-    real(kind(0.d0)) :: ysb, yst, zsb, zst, binsize(2)
-    real(kind(0.d0)) :: y(2,2), z(2,2), P(2,2), A(2,2)
-    real(kind(0.d0)), dimension(:), allocatable :: elevation
-    real(kind(0.d0)), dimension(:,:), allocatable :: points
-
-    !Start from the largest (end) value
-    ixyz = mod(ISR%normal,3)+1
-    jxyz = mod(ISR%normal+1,3)+1
-
-    allocate(Abilinear(2,2,nbins(ixyz), nbins(jxyz)))
-    allocate(points(4,2))
-
-    binsize(1) = ISR%box(ixyz)/dble(nbins(ixyz))
-    binsize(2) = ISR%box(jxyz)/dble(nbins(jxyz))
-
-    n = 1
-    do j = 1,nbins(ixyz)
-    do k = 1,nbins(jxyz)
-        !gbin = globalise_bin((/ 1, j, k /))
-        gbin(1) = j; gbin(2) = k
-        ysb = float(gbin(1)-1)*binsize(1)-0.5d0*ISR%box(ixyz)
-        yst = float(gbin(1)  )*binsize(1)-0.5d0*ISR%box(ixyz)
-        zsb = float(gbin(2)-1)*binsize(2)-0.5d0*ISR%box(jxyz)
-        zst = float(gbin(2)  )*binsize(2)-0.5d0*ISR%box(jxyz)
-
-        points(1,1) = ysb; points(1,2) = zsb
-        points(2,1) = yst; points(2,2) = zsb 
-        points(3,1) = ysb; points(3,2) = zst 
-        points(4,1) = yst; points(4,2) = zst 
-
-        call ISR%get_surface(points, elevation)
-        !call surface_from_modes(points, 3, q_vectors, modes, elevation)
-        !print*, "elevation modes", elevation(:)
-        P = reshape(elevation, (/2,2/))
-        call get_bilinear_surface_coeff((/ysb, yst/), (/zsb, zst/), P, A)
-        Abilinear(:,:,j,k) = A(:,:)
-
-        !DEBUG code here
-        call get_surface_bilinear(points, A, elevation)
-        !fileno = get_new_fileunit() 
-        !open(fileno, file="surface.obj")
-        do i =1, 4
-            if ((elevation(i)- P(mod(i+1,2)+1,int(ceiling(i/2.d0)))) .gt. 1e-10) then
-                print'(a,3i5,f16.4, 5f10.5, e18.8)', "elevation bilinear",j,k,i,A(:,:),points(i,:), &
-                                        elevation(i)-P(mod(i+1,2)+1,int(ceiling(i/2.d0)))
-            endif
-
-            !Write to wavefunction obj format
-            !write(fileno,'(a1, f15.8)') "v", points(i,1), points(i,2), elevation(i)
-        enddo
-        !write(fileno,'(a1, i8)'), "f", n, n+1, n+2, n+3
-       ! n = n + 4
-        !close(fileno)
-
-    enddo
-    enddo
-
-end subroutine modes_surface_to_bilinear_surface
-
-
-subroutine fit_intrinsic_surface(points, ISR, nbins, tau, ns, Abilinear)
-    implicit none
-
-	type(intrinsic_surface_real), intent(in) :: ISR	! declare an instance
-
-    integer, dimension(3), intent(in) :: nbins
+    integer, dimension(:), allocatable, intent(inout) :: pivots
     double precision, intent(in) :: tau, ns
     double precision, intent(in), dimension(:,:), allocatable ::  points
-    double precision, intent(out), dimension(:,:,:,:), allocatable :: Abilinear
 
-    !Debug
-    integer :: ixyz, jxyz, i,j,k
-    double precision :: dx, dy
-    double precision, allocatable, dimension(:,:) :: checkpoint
-    integer, dimension(:), allocatable ::  pivots
+    call self%intrinsic_surface_real%fit_intrinsic_surface(points, tau, ns, pivots)
+	
+	!Update the saved surface at locations to use for quick surface 
+	!interaction calculations 
+	call self%update_sampled_surface(self%nbins, self%nhb)
 
-    call fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
-    call modes_surface_to_bilinear_surface(ISR, nbins, Abilinear)
+	!stop "end of fit_intrinsic_surface_bilinear"
 
-end subroutine fit_intrinsic_surface
+end subroutine fit_intrinsic_surface_bilinear
 
 
 

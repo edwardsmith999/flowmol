@@ -67,7 +67,7 @@ module module_record
 	use arrays_MD
 	use calculated_properties_MD
 	use polymer_info_MD
-    use intrinsic_module, only : intrinsic_surface_real, intrinsic_surface_mock
+    use intrinsic_module, only : intrinsic_surface_real, intrinsic_surface_bilinear
 
 #if __INTEL_COMPILER > 1200
     use boundary_MD, only: bforce_pdf_measure
@@ -76,7 +76,9 @@ module module_record
 #endif
 	real(kind(0.d0)) :: vel
     integer :: qm, qu
-	type(intrinsic_surface_real)		:: ISR, ISR_mdt	! declare an instance
+	class(intrinsic_surface_real), pointer :: ISR, ISR_mdt
+	type(intrinsic_surface_real), target		:: ISR_r, ISR_mdt_r	! declare an instance
+	type(intrinsic_surface_bilinear), target		:: ISR_b, ISR_mdt_b	! declare an instance
 	!real(kind(0.d0)), dimension(:,:,:), allocatable :: q_vectors
 	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: Abilinear
 
@@ -544,7 +546,7 @@ contains
                 ! Crossing of bilinear differs from Fourier surface
                 ! Walk line between two points and try to get location of crossing
                 Ns = 100
-                if (allocated(points)) deallocate(points)
+                if (allocated(points)) deallocate(points) 
                 allocate(points(Ns+2,3))
             	ds = 1.d0 / real(Ns, kind(0.d0))
             	! First sample at r1 
@@ -585,11 +587,7 @@ contains
     end subroutine get_crossings_bilinear
 
 
-
-
-
-
-    subroutine get_crossings_bilinear_opt2(r1, r2, bin1, bin2, n, rc, crossings, cbins)
+    subroutine get_crossings_bilinear_opt(r1, r2, bin1, bin2, n, rc, crossings, cbins)
         use computational_constants_MD, only : halfdomain, nhb
         use calculated_properties_MD, only : binsize
         use bilnear_intersect, only : line_plane_intersect
@@ -612,10 +610,11 @@ contains
         integer, dimension(:), allocatable :: cbinstemp
 
         real(kind(0.d0)) :: yrb, yrt, zrb, zrt, s, ds
+        real(kind(0.d0)),save :: maxerror
         real(kind(0.d0)) :: y(2,2), z(2,2), P(2,2,3), A(2,2), rb(3)
         real(kind(0.d0)), dimension(:), allocatable :: elevation
-        real(kind(0.d0)),dimension(3,2)  :: intersect, normal
-        real(kind(0.d0)),dimension(:,:), allocatable  :: points, temp
+        real(kind(0.d0)),dimension(3,2)  :: intersect, normal, intersect2
+        real(kind(0.d0)),dimension(:,:), allocatable  :: points, points2, temp
 
         if (bin1(n) .eq. bin2(n)) then
             crossings = .false.
@@ -643,6 +642,7 @@ contains
             zrt = max(r1(t2), r2(t2))
 
             allocate(points(4,3))
+            allocate(points2(4,3))
             !Factor of two as can be maximum of two per surface
 			tempsize = 1
 			do i=1,3
@@ -653,24 +653,6 @@ contains
             allocate(temp(3, 2*tempsize))
             if (present(cbins)) allocate(cbinstemp(2*tempsize))
 
-            !Use distance between molecules
-            !to create a bilinear patch
-            points(:,n) = rb(n) !Not used
-            points(1,t1) = yrb; points(1,t2) = zrb
-            points(2,t1) = yrb; points(2,t2) = zrt 
-            points(3,t1) = yrt; points(3,t2) = zrb 
-            points(4,t1) = yrt; points(4,t2) = zrt
-
-            !Get surface in x as a function of y and z
-            call ISR_mdt%get_surface(points, elevation, include_zeromode=.true.)
-
-            !Get a patch of P values to use in bilinear patch & line calculation
-            P(:,:,1) = reshape(points(:,n ), (/2,2/))
-            P(:,:,2) = reshape(points(:,t1), (/2,2/))
-            P(:,:,3) = reshape(points(:,t2), (/2,2/))
-
-            !print'(a,2i5,18f10.5)', "x_bilinear", p(1,1,:), P(1,2,:), P(2,1,:), p(2,2,:), r1(:), r12(:)
-
         	! First sample at r1 
             Ns = maxbin-minbin
         	ds = 1.d0 / real(Ns, kind(0.d0))
@@ -680,11 +662,40 @@ contains
             bc = 1
             do i = minbin, maxbin-1
 
+	            ! Loop over all samples, s varies from 0 to 1
+	            ! Position of sample on line
+	            rb(:) = r1(:) + s*r12(:)
+                yrb = min(r1(t1), rb(t1))
+                yrt = max(r1(t1), rb(t1))
+                zrb = min(r1(t2), rb(t2))
+                zrt = max(r1(t2), rb(t2))
+                !print'(a,3i5,10f10.5)', "patch", i, bc, Ns, s, r1(:), rb(:), r2(:)
+                !print'(a,3i5,8f10.5)', "patch", i, bc, Ns, s, rb(:), yrb, yrt, zrb, zrt
+	            s = s + ds
+
+                !Use distance between molecules
+                !to create a bilinear patch
+                points(:,n) = rb(n) !Not used
+                points(1,t1) = yrb; points(1,t2) = zrb
+                points(2,t1) = yrb; points(2,t2) = zrt 
+                points(3,t1) = yrt; points(3,t2) = zrb 
+                points(4,t1) = yrt; points(4,t2) = zrt
+
+                !Get surface in x as a function of y and z
+                call ISR_mdt%get_surface(points, elevation, include_zeromode=.true.)
+
                 !Normal direction used in line plane intersect
                 !Shift by current bin
-                P(:,:,1) = reshape(elevation, (/2,2/)) & 
-                            + (i-1*nhb(n)-0.5d0)*binsize(n) &
+                points(:,n) = elevation(:) & 
+                              + (i-1*nhb(n)-0.5d0)*binsize(n) &
                               -0.5d0*ISR_mdt%box(n) 
+
+                !Get a patch of P values to use in ` patch & line calculation
+                P(:,:,1) = reshape(points(:,n ), (/2,2/))
+                P(:,:,2) = reshape(points(:,t1), (/2,2/))
+                P(:,:,3) = reshape(points(:,t2), (/2,2/))
+
+                !print'(a,2i5,18f10.5)', "x_bilinear", i,j, p(1,1,:), P(1,2,:), P(2,1,:), p(2,2,:), r1(:), r12(:)
 
                 !Special case of flat surface causes problems so need to handle separatly
                 if (P(1,1,1) .eq. P(2,1,1) .and. &
@@ -698,16 +709,26 @@ contains
                 else
                     call line_plane_intersect(r1, r12, P, intersect, normal, flag)
                 endif
+				
+				
+				!Get surface sampled from bins
+				! call ISR_mdt%get_sampled_surface(rb, points2)
+				! points2(:,n) = points2(:,n) & 
+							  ! + (i-1*nhb(n)-0.5d0)*binsize(n) &
+                              ! -0.5d0*ISR_mdt%box(n)
+				! P(:,:,1) = reshape(points2(:,n ), (/2,2/))
+                ! P(:,:,2) = reshape(points2(:,t1), (/2,2/))
+                ! P(:,:,3) = reshape(points2(:,t2), (/2,2/))
+				! call line_plane_intersect(r1, r12, P, intersect2, normal, flag)
+				! if (abs(intersect2(1,1)+666) .lt. 1e-7) then
+					! intersect2(:,1) = r1(:) + (s-0.5d0*ds)*r12(:)
+				! endif
+				! !if (all(abs(intersect2(:,1)+666) .gt. 1e-7)) then
+					! print'(a,13f10.5)', "Elevation check ", & 
+						! r1, rb, points2(:,n), intersect(:,1)-intersect2(:,1)
+				!endif
 
-                ! Loop over all samples, s varies from 0 to 1
-                ! Position of sample on line
-                !rb(:) = r1(:) + s*r12(:)
-                !yrb = min(r1(t1), rb(t1))
-                !yrt = max(r1(t1), rb(t1))
-                !zrb = min(r1(t2), rb(t2))
-                !zrt = max(r1(t2), rb(t2))
-                !s = s + ds
-
+				
                 !print*, 'line_plane_intersect output', i, r1(1), elevation(1), r2(1), bin1(1)-nhb(1), yrb, yrt, zrb, zrt, intersect
                 !Loop over intersects and add to temp
                 do ixyz=1,size(intersect,2)
@@ -719,21 +740,6 @@ contains
                     endif
                 enddo
 
-            enddo
-
-            deallocate(elevation)
-            deallocate(points)
-            allocate(points(bc,3))
-            do ixyz = 1, bc-1
-                points(ixyz,1) = temp(1,ixyz)
-                points(ixyz,2) = temp(2,ixyz)
-                points(ixyz,3) = temp(3,ixyz)
-            enddo
-            call ISR_mdt%get_surface(points, elevation, include_zeromode=.true.)
-            do ixyz = 1, bc-1
-                print'(a, i5, 10f10.5)', "Error in crossing", ixyz, &
-                                     r1(:), elevation(ixyz), & 
-                                    points(ixyz, :), r2(:)
             enddo
 
             !print'(a,4i6,6f10.5)', "Crossings ", maxbin-minbin, size(yb,1), size(zb,1), bc, r1, r2
@@ -766,7 +772,7 @@ contains
                     !bin(ISR_mdt%normal) .ne. bin_mdt(ISR_mdt%normal), ISR_mdt%normal
                     !If bin changes then must be a crossing
                     cross = bin(ISR_mdt%normal) - bin_mdt(ISR_mdt%normal) 
-                    if (cross .ne. 0) then
+                    if (cross .eq. 1) then
                         allocate(rc(3, 1))
                         rc(:, 1) = r1(:) + (s-0.5d0*ds)*r12(:)
                         !print*, "Crossing found", rc, bin, s-0.5d0*ds
@@ -789,15 +795,12 @@ contains
             endif
         endif
 
-    end subroutine get_crossings_bilinear_opt2
+    end subroutine get_crossings_bilinear_opt
 
 
 
-
-
-
-    subroutine get_crossings_bilinear_opt(r1, r2, bin1, bin2, n, rc, crossings, cbins)
-        use computational_constants_MD, only : halfdomain, nhb
+    subroutine get_crossings_bilinear_lookup(r1, r2, bin1, bin2, n, rc, crossings, cbins)
+      use computational_constants_MD, only : halfdomain, nhb
         use calculated_properties_MD, only : binsize
         use bilnear_intersect, only : line_plane_intersect
         implicit none
@@ -819,6 +822,7 @@ contains
         integer, dimension(:), allocatable :: cbinstemp
 
         real(kind(0.d0)) :: yrb, yrt, zrb, zrt, s, ds
+        real(kind(0.d0)),save :: maxerror
         real(kind(0.d0)) :: y(2,2), z(2,2), P(2,2,3), A(2,2), rb(3)
         real(kind(0.d0)), dimension(:), allocatable :: elevation
         real(kind(0.d0)),dimension(3,2)  :: intersect, normal
@@ -872,39 +876,23 @@ contains
 	            ! Loop over all samples, s varies from 0 to 1
 	            ! Position of sample on line
 	            rb(:) = r1(:) + s*r12(:)
-                yrb = min(r1(t1), rb(t1))
-                yrt = max(r1(t1), rb(t1))
-                zrb = min(r1(t2), rb(t2))
-                zrt = max(r1(t2), rb(t2))
-                !print'(a,3i5,10f10.5)', "patch", i, bc, Ns, s, r1(:), rb(:), r2(:)
-                !print'(a,3i5,8f10.5)', "patch", i, bc, Ns, s, rb(:), yrb, yrt, zrb, zrt
 	            s = s + ds
 
-                !Use distance between molecules
-                !to create a bilinear patch
-                points(:,n) = rb(n) !Not used
-                points(1,t1) = yrb; points(1,t2) = zrb
-                points(2,t1) = yrb; points(2,t2) = zrt 
-                points(3,t1) = yrt; points(3,t2) = zrb 
-                points(4,t1) = yrt; points(4,t2) = zrt
-
-                !Get surface in x as a function of y and z
-                call ISR_mdt%get_surface(points, elevation, include_zeromode=.true.)
-
-                !Shift by current bin
-                elevation(:) = elevation(:) & 
-                              + (i-1*nhb(n)-0.5d0)*binsize(n) &
-                              -0.5d0*ISR_mdt%box(n) 
-
-                !Normal direction used in line plane intersect
-                points(:,n) = elevation(:)
-
-                !Get a patch of P values to use in bilinear patch & line calculation
-                P(:,:,1) = reshape(points(:,n ), (/2,2/))
+				!Get surface sampled from bins
+				call ISR_mdt%get_sampled_surface(rb, points)
+				points(:,n) = points(:,n) & 
+							  + (i-1*nhb(n)-0.5d0)*binsize(n) &
+                              -0.5d0*ISR_mdt%box(n)
+				P(:,:,1) = reshape(points(:,n ), (/2,2/))
                 P(:,:,2) = reshape(points(:,t1), (/2,2/))
                 P(:,:,3) = reshape(points(:,t2), (/2,2/))
-
-                !print'(a,2i5,18f10.5)', "x_bilinear", i,j, p(1,1,:), P(1,2,:), P(2,1,:), p(2,2,:), r1(:), r12(:)
+				call line_plane_intersect(r1, r12, P, intersect, normal, flag)
+				!If intersect not found, just assume it's half way
+				if (abs(intersect(1,1)+666) .lt. 1e-7) then
+					intersect(:,1) = r1(:) + (s-0.5d0*ds)*r12(:)
+				endif
+						
+				!print'(a,2i5,18f10.5)', "x_bilinear", i,j, p(1,1,:), P(1,2,:), P(2,1,:), p(2,2,:), r1(:), r12(:)
 
                 !Special case of flat surface causes problems so need to handle separatly
                 if (P(1,1,1) .eq. P(2,1,1) .and. &
@@ -962,7 +950,7 @@ contains
                     !bin(ISR_mdt%normal) .ne. bin_mdt(ISR_mdt%normal), ISR_mdt%normal
                     !If bin changes then must be a crossing
                     cross = bin(ISR_mdt%normal) - bin_mdt(ISR_mdt%normal) 
-                    if (cross .ne. 0) then
+                    if (cross .eq. 1) then
                         allocate(rc(3, 1))
                         rc(:, 1) = r1(:) + (s-0.5d0*ds)*r12(:)
                         !print*, "Crossing found", rc, bin, s-0.5d0*ds
@@ -985,7 +973,9 @@ contains
             endif
         endif
 
-    end subroutine get_crossings_bilinear_opt
+
+    end subroutine get_crossings_bilinear_lookup
+
 
 
 end module module_record
@@ -1001,13 +991,8 @@ subroutine setup_assign_get_bins_fn()
     if (cluster_analysis_outflag .eq. 1 .and.  & 
         any(intrinsic_interface_outflag .eq. (/1,2/))) then
         call get_interface_from_clusters()
-        if (intrinsic_interface_outflag .eq. 1) then
-            get_bin => bin_from_full_intrinsic
-            get_bin_molno => bin_molno_from_full_intrinsic
-        elseif (intrinsic_interface_outflag .eq. 2) then
-            get_bin => bin_from_bilinear
-            stop "Error in simulation_record - cluster_analysis_outflag=2 needs get_bin_molno"
-        endif
+		get_bin => bin_from_full_intrinsic
+		get_bin_molno => bin_molno_from_full_intrinsic
     elseif (cluster_analysis_outflag .eq. 2) then
         call sl_interface_from_binaverage()
     else
@@ -4577,8 +4562,8 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
     real(kind(0.d0)),dimension(:,:), allocatable :: rc, rcx, rcy, rcz, dSdr
 
     if (use_bilinear) then
-        bin1(:) = ISR_mdt%get_bin(ri1, nbins, nhb)
-        bin2(:) = ISR_mdt%get_bin(ri2, nbins, nhb)
+        bin1(:) = ISR_mdt%get_bin(ri1)
+        bin2(:) = ISR_mdt%get_bin(ri2)
     else
         bin1 = get_bin(ri1)
         bin2 = get_bin(ri2)
@@ -4591,7 +4576,7 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
     do normal=1,3
         if (use_bilinear .and. normal .eq. ISR_mdt%normal) then
             !Redefine bins here
-            call get_crossings_bilinear_opt(ri1, ri2, bin1, bin2, normal, rc, crossings, cbins)
+            call ISR_mdt%get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings, cbins)
         else
             call get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings)
         endif
@@ -4616,7 +4601,9 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
                 rci = rc(:,i)
                 rci(normal) = rci(normal) + eps
 				if (use_bilinear) then
-					cbin(:) = ISR_mdt%get_bin(rci, nbins, nhb)
+					!Whole point of cbins return was to avoid another expensive get_bin call
+					!VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+					cbin(:) = ISR_mdt%get_bin(rci)
 				else
 					cbin(:) = get_bin(rci)
 				endif
@@ -4633,7 +4620,7 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
     		    !if (size(rc,2) .gt. 1) print'(a,i9,6i5,9f10.5)', "cross no ", iter, i, size(rc,2), & 
                 !                       ISR_mdt%get_bin(rci, nbins, nhb), cbins(i), ri1, rci, ri2
                 !if (cbin(normal) .ne. cbins(normal)) stop "Error"
-
+				!print*, "CBINS", rci, cbin, bin1, bin2
                 fluxes(cbin(1),cbin(2),cbin(3),:,normal) = & 
                     fluxes(cbin(1),cbin(2),cbin(3),:,normal) + crossdir*quantity(:)
                 fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),:,normal+3) = & 
@@ -4682,11 +4669,6 @@ subroutine cumulative_mass_flux_opt
     mass_flux(:,:,:,:) = fluxes(:,:,:,1,:)
 
 end subroutine cumulative_mass_flux_opt
-
-
-!=========================================================================
-! UNDER DEVELOPMENT UNDER DEVELOPMENT UNDER DEVELOPMENT UNDER DEVELOPMENT
-!=========================================================================
 
 subroutine cumulative_momentum_flux_opt(r_,v_,momentum_flux_,notcrossing)
 	use module_record, only : cluster_analysis_outflag, np, & 
@@ -4756,8 +4738,8 @@ subroutine control_volume_stresses_opt(fij, ri, rj)
     !print*, "ISR_mdt%coeff", maxval(ISR_mdt%coeff), sum(ISR_mdt%coeff)
 
 	if (cluster_analysis_outflag .eq. 1 .and.  & 
-	   any(intrinsic_interface_outflag .eq. (/1,2/)) .and. &
-        maxval(ISR_mdt%coeff) .gt. 1e-4) then
+	   any(intrinsic_interface_outflag .eq. (/1,2/))) then! .and. &
+        !maxval(ISR_mdt%coeff) .gt. 1e-4) then
 	   use_bilinear = .true.
 	else
 	   use_bilinear = .false.
@@ -7745,8 +7727,7 @@ contains
         use physical_constants_MD, only : pi
         use minpack_fit_funcs_mod, only : fn, cubic_fn, cubic_fn2D, & 
                                           cubic_fn2D_16coeff, curve_fit
-        use librarymod, only : least_squares, get_new_fileunit!, fit_intrinsic_surface
-        use intrinsic_module, only : fit_intrinsic_surface
+        use librarymod, only : least_squares, get_new_fileunit
         implicit none
 
         integer, intent(in) :: fittype
@@ -7837,15 +7818,16 @@ contains
                                                free, globaldomain, intrinsic_interface_outflag, &
                                                II_normal, II_alpha, II_tau, II_eps, II_ns, &
                                                mflux_outflag, Nsurfevo_outflag, nhb, & 
-                                               CA_generate_xyz, CA_generate_xyz_res
+                                               CA_generate_xyz, CA_generate_xyz_res, &
+											   mflux_outflag, vflux_outflag
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, & 
 								write_wave_xyz, write_waveobj
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
         use arrays_MD, only : tag, r, intnscshift, glob_no	
-        use librarymod, only : heaviside  =>  heaviside_a1!, fit_intrinsic_surface, fit_intrinsic_surface_modes
-        use intrinsic_module, only : fit_intrinsic_surface, fit_intrinsic_surface_modes
+        use librarymod, only : heaviside  =>  heaviside_a1
+        use intrinsic_module, only : fit_intrinsic_surface_bilinear, fit_intrinsic_surface_modes
         use calculated_properties_MD, only : nbins, nbinso, binsize, mass_surface_flux
-        use module_record, only : Abilinear, ISR, ISR_mdt
+        use module_record, only : Abilinear, ISR, ISR_mdt, ISR_r, ISR_mdt_r, ISR_b, ISR_mdt_b
         use interfaces, only : error_abort
         use cubic_surface_CV, only : cluster_CV_fn
         implicit none
@@ -7854,7 +7836,7 @@ contains
         integer, intent(in)                :: min_ngbr
         double precision, intent(in)       :: rd
 
-        logical, save :: write_cluster_header=.true.
+        logical, save :: write_cluster_header=.true., first_sample=.true.
         logical,save                    :: first_time=.true., first_time_coeff=.true.
         character(32)                   :: filename, debug_outfile
         integer                         :: n,i,j,ixyz, jxyz,resolution,fittype,normal, clustNo, bins(3)
@@ -7893,8 +7875,15 @@ contains
             ns =  II_ns !0.8d0
 
             if (first_time) then
-                call ISR%initialise(globaldomain, normal, alpha, eps)   ! initialise
-                call ISR_mdt%initialise(globaldomain, normal, alpha, eps)   ! initialise
+				if (intrinsic_interface_outflag .eq. 1) then
+					ISR => ISR_r
+					ISR_mdt => ISR_mdt_r
+				elseif (intrinsic_interface_outflag .eq. 2) then
+					ISR => ISR_b
+					ISR_mdt => ISR_mdt_b
+				endif
+                call ISR%initialise(globaldomain, normal, alpha, eps, nbins, nhb)   ! initialise
+                call ISR_mdt%initialise(globaldomain, normal, alpha, eps, nbins, nhb)   ! initialise
                 first_time = .false.
             endif
 
@@ -7916,90 +7905,104 @@ contains
                     points(i,3) = rnp(3,i)
                 enddo
 
+				!Copy previous object before updating
+				if (.not. first_time_coeff) then
+					!ISR%coeff = 0.d0
+					ISR_mdt%coeff = ISR%coeff
+				endif
+
                 !Get surface in terms of modes
                 if (intrinsic_interface_outflag .eq. 1) then
-                    !Copy previous object before updating
-                    if (.not. first_time_coeff) then
-                        !ISR%coeff = 0.d0
-                        ISR_mdt%coeff = ISR%coeff
-                    endif
-
                     !Fit intrinsic surface to next timestep
-                    call fit_intrinsic_surface_modes(points, ISR, tau, ns, pivots)
+                    call ISR%fit_intrinsic_surface(points, tau, ns, pivots)
+                else if (intrinsic_interface_outflag .eq. 2) then
+					call ISR%fit_intrinsic_surface(points, tau, ns, pivots)
+					!First attempt we also need previous surface defined
+					if (first_sample) then
+						!call fit_intrinsic_surface_bilinear(points, ISR_mdt, tau, ns, pivots, nbins, Abilinear)
+						!ISR_mdt%smple_bins = ISR%smple_bins
+						!ISR_mdt%smpl_binsize = ISR%smpl_binsize
+						allocate(ISR_mdt%intrnsc_smple(bins(ISR%ixyz), bins(ISR%jxyz)))
+						ISR_mdt%intrnsc_smple = ISR%intrnsc_smple
+						allocate(ISR_mdt%Abilinear(2,2,bins(ISR%ixyz), bins(ISR%jxyz)))
+						ISR_mdt%Abilinear = ISR%Abilinear
+						first_sample = .false.
+					endif
+                endif  
+				
+				!Set pivots in intrinsic surface
+				if (allocated(ISR%pivots)) deallocate(ISR%pivots)
+				allocate(ISR%pivots(size(pivots,1)))
+				ISR%pivots = pivots
+				
+				!Get global molecule numbers in cluster
+				!if (.not. allocated(molnos)) allocate(molnos(1,np))
+				!molnos(1,:) = glob_no(1:np)
+				!call cluster_to_array(self, clustNo, molnos, min_ngbr, clustmolnos)
+				
+				!Write molecules different in two clusters
+				!do i=1,size(pivots)
+				!	write(586410,*), iter, i, clustmolnos(1,pivots(i))
+				!enddo
+				
+				!Write out surface modes to file
+				!call ISR_mdt%write_modes(iter)
 
-                    !Set pivots in intrinsic surface
-                    if (allocated(ISR%pivots)) deallocate(ISR%pivots)
-                    allocate(ISR%pivots(size(pivots,1)))
-                    ISR%pivots = pivots
-					
-					!Get global molecule numbers in cluster
-					!if (.not. allocated(molnos)) allocate(molnos(1,np))
-					!molnos(1,:) = glob_no(1:np)
-					!call cluster_to_array(self, clustNo, molnos, min_ngbr, clustmolnos)
-					
-					!Write molecules different in two clusters
-					!do i=1,size(pivots)
-					!	write(586410,*), iter, i, clustmolnos(1,pivots(i))
-					!enddo
-					
-					!Write out surface modes to file
-					!call ISR_mdt%write_modes(iter)
-
-                    if (first_time_coeff) then
-                        !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
-                        !ISR%coeff = 0.d0 
-                        !print*, "DEBUG in get_cluster_properties, setting coeff to previous"
-                        !ISR_mdt%coeff = ISR%coeff
-                        allocate(coeffmdt(size(ISR%coeff,1)))
-                        coeffmdt(:) = ISR%coeff(:)
-                        first_time_coeff = .false.
+				if (first_time_coeff) then
+					!print*, "DEBUG in get_cluster_properties, setting coeff to zero"
+					!ISR%coeff = 0.d0 
+					!print*, "DEBUG in get_cluster_properties, setting coeff to previous"
+					!ISR_mdt%coeff = ISR%coeff
+					allocate(coeffmdt(size(ISR%coeff,1)))
+					coeffmdt(:) = ISR%coeff(:)
+					first_time_coeff = .false.
 
 !                        do i =1, size(rnp,2)
 !                            write(586410,*) i, rnp(:,i)
 !                        enddo
 
-                        !print*, "coeffmdt", maxval(abs(coeffmdt(1:310))), maxval(abs(coeffmdt(315:)))
-                    else
+					!print*, "coeffmdt", maxval(abs(coeffmdt(1:310))), maxval(abs(coeffmdt(315:)))
+				else
 !                        print*, mod(iter,10)
 !                        if (mod(iter,10) .eq. 0) then
 !                            print*, "DEBUG in get_cluster_properties coeff ", & 
 !                                    maxval(abs(ISR%coeff(1:310))), maxval(abs(ISR%coeff(315:)))
 !                            coeffmdt(:) = ISR_mdt%coeff(:) 
 !                        endif
-                        !print*, "DEBUG in get_cluster_properties, setting coeff to intial"
-                        !ISR%coeff(:)=coeffmdt(:)
-                        !print*, "DEBUG in get_cluster_properties, setting coeff to zero"
-                        !ISR%coeff = 0.d0 
-                        !ISR%coeff(313)=ISR%coeff(313)+ 1.0*sin((iter-100000)/100.d0) !shift from sin(0) mode
-                        !ISR_mdt%coeff = ISR%coeff
-                        !ISR_mdt%coeff = 0.d0 
-                        !ISR%coeff(313)= 2.d0*sin((iter-100000-1)/1000.d0) !shift from sin(0) mode
-                        !ISR%coeff(312)=0.5d0 !sin (2*pi/Lx)
-                        !ISR%coeff(314)=0.5d0
+					!print*, "DEBUG in get_cluster_properties, setting coeff to intial"
+					!ISR%coeff(:)=coeffmdt(:)
+					!print*, "DEBUG in get_cluster_properties, setting coeff to zero"
+					!ISR%coeff = 0.d0 
+					!ISR%coeff(313)=ISR%coeff(313)+ 1.0*sin((iter-100000)/100.d0) !shift from sin(0) mode
+					!ISR_mdt%coeff = ISR%coeff
+					!ISR_mdt%coeff = 0.d0 
+					!ISR%coeff(313)= 2.d0*sin((iter-100000-1)/1000.d0) !shift from sin(0) mode
+					!ISR%coeff(312)=0.5d0 !sin (2*pi/Lx)
+					!ISR%coeff(314)=0.5d0
 
-                        !Get surface crossings due to surface's evolution
-                        if (Nsurfevo_outflag .ne. 0) then
-                            call surface_evolution(ISR, ISR_mdt, 1, .false.)
-                        endif
-                        !print*, "coeff mdt", maxval(abs(ISR_mdt%coeff(1:310))), maxval(abs(ISR_mdt%coeff(315:)))
-                    endif
+					!Get surface crossings due to surface's evolution
+					if (Nsurfevo_outflag .ne. 0) then
+						call surface_evolution(ISR, ISR_mdt, 1, .false.)
+					endif
+					!print*, "coeff mdt", maxval(abs(ISR_mdt%coeff(1:310))), maxval(abs(ISR_mdt%coeff(315:)))
+				endif
 !                    else
 !                        ISR%coeff=coeffmdt
 !                    endif
-                    !ISR%coeff = 0.d0
-                    !ISR%coeff(313)=ISR%coeff(313) + 0.3d0  !shift from sin(0) mode
-                    !ISR%coeff(312)=0.4d0 !sin (2*pi/Lx)
-                    !ISR%coeff(314)=0.1d0 !sin (2*pi/Lx)
-                    !ISR%coeff(:)=coeffmdt(:)  !Set to fixed initial value
+				!ISR%coeff = 0.d0
+				!ISR%coeff(313)=ISR%coeff(313) + 0.3d0  !shift from sin(0) mode
+				!ISR%coeff(312)=0.4d0 !sin (2*pi/Lx)
+				!ISR%coeff(314)=0.1d0 !sin (2*pi/Lx)
+				!ISR%coeff(:)=coeffmdt(:)  !Set to fixed initial value
 
-                    !DEBUG - write surface out
-                    if (CA_generate_xyz .eq. 1) then
-                        call ISR%sample_surface((/1, CA_generate_xyz_res, CA_generate_xyz_res/), vertices)
-                        call write_wave_xyz(vertices)
-                    elseif (CA_generate_xyz .eq. 2) then
-                        call ISR%sample_surface((/1, CA_generate_xyz_res, CA_generate_xyz_res/), vertices)
-                        call write_waveobj(vertices, iter)
-                    endif
+				!DEBUG - write surface out
+				if (CA_generate_xyz .eq. 1) then
+					call ISR%sample_surface((/1, CA_generate_xyz_res, CA_generate_xyz_res/), vertices)
+					call write_wave_xyz(vertices)
+				elseif (CA_generate_xyz .eq. 2) then
+					call ISR%sample_surface((/1, CA_generate_xyz_res, CA_generate_xyz_res/), vertices)
+					call write_waveobj(vertices, iter)
+				endif
 
 
 !                    !Write vmd xyz file for debugging
@@ -8020,20 +8023,35 @@ contains
 !                        write(292847,'(a,3f18.8)') "Name", 0.d0, 0.d0, 0.d0
 !                    enddo
 !                    close(292847)
-                    !DEBUG - write surface out
+				!DEBUG - write surface out
 
 
-                    !Get shift for intrinsic surface for each molecule
-                    deallocate(points)
-                    allocate(points(np, nd))
-                    points(:,1) = r(1,1:np)
-                    points(:,2) = r(2,1:np)
-                    points(:,3) = r(3,1:np)
-                    call ISR%get_surface(points, elevation, include_zeromode=.true.)
-                    !call real_surface_from_modes(points, box, normal, qm, qu, coeff, elevation)
-                    !call surface_from_modes(points, 3, q_vectors, modes, elevation)
-                    !intnscshift(1:np) = ceiling(elevation(1:np)/binsize(1))
-                    intnscshift(1:np) = elevation(1:np)
+				!Get shift for intrinsic surface for each molecule
+				deallocate(points)
+				allocate(points(np, nd))
+				points(:,1) = r(1,1:np)
+				points(:,2) = r(2,1:np)
+				points(:,3) = r(3,1:np)
+				call ISR%get_surface(points, elevation, include_zeromode=.true.)
+				!call real_surface_from_modes(points, box, normal, qm, qu, coeff, elevation)
+				!call surface_from_modes(points, 3, q_vectors, modes, elevation)
+				!intnscshift(1:np) = ceiling(elevation(1:np)/binsize(1))
+				intnscshift(1:np) = elevation(1:np)
+
+				
+				!Get shift for grid of bins for surface crossing calculation
+				! if (mflux_outflag .eq. 1 .or. vflux_outflag .eq. 4) then
+					! call ISR%update_sampled_surface((/2*ISR%n_waves,2*ISR%n_waves/))
+					! !call ISR_mdt%update_sampled_surface((/2, 2/)*ISR_mdt%n_waves)
+					! if (first_sample) then
+						! ISR_mdt%smple_bins = ISR%smple_bins
+						! ISR_mdt%smpl_binsize = ISR%smpl_binsize
+						! allocate(ISR_mdt%intrnsc_smple(2*ISR%n_waves,2*ISR%n_waves))
+						! ISR_mdt%intrnsc_smple = ISR%intrnsc_smple
+						! first_sample = .false.
+					! endif
+				! endif
+				
 
 !                    area = 0.d0 ! box(2)*box(3)
 !                    do i =1,size(q_vectors,2)
@@ -8043,11 +8061,7 @@ contains
 !                                      !*abs(modes(i,j)*modes(i,j))
 !                    enddo
 !                    enddo
-!                    print*, "Surface Area", area
-
-                else if (intrinsic_interface_outflag .eq. 2) then
-                    call fit_intrinsic_surface(points, ISR, bins, tau, ns, Abilinear)
-                endif   
+!                    print*, "Surface Area", area 
 
                 !Write modes to file
         !        fileno = get_new_fileunit() 
