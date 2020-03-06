@@ -321,8 +321,8 @@ contains
 
             if (    ((CV_debug .eq. 1) .and. (conserved .ne. 0)) &
 			    .or. (i .ge. self%debug_CV(1) .and. (i .lt. self%debug_CV(1)+self%debug_CV_range(1)) .and.	& 
-                      j .eq. self%debug_CV(2) .and. (j .lt. self%debug_CV(2)+self%debug_CV_range(2)) .and. & 
-                      k .eq. self%debug_CV(3) .and. (k .lt. self%debug_CV(3)+self%debug_CV_range(3)))) then
+                      j .ge. self%debug_CV(2) .and. (j .lt. self%debug_CV(2)+self%debug_CV_range(2)) .and. & 
+                      k .ge. self%debug_CV(3) .and. (k .lt. self%debug_CV(3)+self%debug_CV_range(3)))) then
 				print'(a,i8,4i4,8f11.4)','Error_cubeCV_mass', iter,irank,i,j,k, & 
 					conserved, 0.d0, totalflux,self%dXdt(i,j,k), 0.d0, totalsurf, self%X_minus_t(i,j,k),self%X(i,j,k)
 !                print*, "CV Position = ", (i-self%nhb(1))*self%binsize(1)-0.5d0*self%domain(1), &
@@ -567,8 +567,8 @@ contains
 
 			if (     CV_debug .eq. 1 .and. (abs(conserved) .gt. 0.000000001d0) &
 			    .or. (i .ge. self%debug_CV(1) .and. i .lt. self%debug_CV(1)+self%debug_CV_range(1) .and.	& 
-                      j .eq. self%debug_CV(2) .and. j .lt. self%debug_CV(2)+self%debug_CV_range(2) .and. & 
-                      k .eq. self%debug_CV(3) .and. k .lt. self%debug_CV(3)+self%debug_CV_range(3))) then
+                      j .ge. self%debug_CV(2) .and. j .lt. self%debug_CV(2)+self%debug_CV_range(2) .and. & 
+                      k .ge. self%debug_CV(3) .and. k .lt. self%debug_CV(3)+self%debug_CV_range(3))) then
 				print'(a,i8,4i4,7f11.5,f22.18)','Error_in_momentum_flux', iter,irank,i,j,k, & 
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
 					+sum(F_ext), sum(totalsurf), sum(self%X(i,j,k,:)),   & 
@@ -818,8 +818,8 @@ contains
 			if(      (CV_debug .eq. 1) .and. & 
                 (abs(conserved/divider) .gt. 0.1d0) &
 			    .or. (i .ge. self%debug_CV(1) .and. i .lt. self%debug_CV(1)+self%debug_CV_range(1) .and.	& 
-                      j .eq. self%debug_CV(2) .and. j .lt. self%debug_CV(2)+self%debug_CV_range(2) .and. & 
-                      k .eq. self%debug_CV(3) .and. k .lt. self%debug_CV(3)+self%debug_CV_range(3))) then
+                      j .ge. self%debug_CV(2) .and. j .lt. self%debug_CV(2)+self%debug_CV_range(2) .and. & 
+                      k .ge. self%debug_CV(3) .and. k .lt. self%debug_CV(3)+self%debug_CV_range(3))) then
 
                 print'(a22,i8,4i4,2f13.6,e16.5,4f13.6)','Error_%age_energy_flux', iter,irank,i,j,k, & 
 					         conserved/divider, totalpower,-totalflux,denergydt, & 
