@@ -216,6 +216,7 @@ subroutine bicubic_line_intersect(r, q, P, flag, uvsoln, pos)
     uvsoln = -666
     pos = -666
 
+
     select case(num_sol)
     case(0)
         flag = 0 ! no solutions found
@@ -226,8 +227,8 @@ subroutine bicubic_line_intersect(r, q, P, flag, uvsoln, pos)
             (uv(1) > -ray_epsilon)) then
             call SrfEval(uv(1), uv(2), P, pos1)
             call computet(dir, orig, pos1, uv(3))
+			!print*, "ONE ROOT, uv, pos1", uv, pos1
             if (uv(3) > 0.d0) then
-                !print*, "ONE ROOT, uv, pos1", uv, pos1
                 flag = 1
                 uvsoln(:,1) = uv
                 pos(:,1) = pos1
@@ -242,7 +243,7 @@ subroutine bicubic_line_intersect(r, q, P, flag, uvsoln, pos)
         call getu(uv(2), A2, A1, B2, B1, C2, C1, D2, D1, uv(1))
         call SrfEval(uv(1),uv(2), P, pos1)
         call computet(dir, orig, pos1, uv(3))
-        !print*, "uv, pos1", uv, pos1
+        !print*, "Two roots: uv, pos1", uv, pos1
         if ((uv(1) < 1+ray_epsilon) .and. &
             (uv(1) > -ray_epsilon) .and. & 
             (uv(3) > 0.d0)) then
@@ -253,7 +254,7 @@ subroutine bicubic_line_intersect(r, q, P, flag, uvsoln, pos)
             if ((u < 1+ray_epsilon) .and. (u > ray_epsilon)) then
                 call SrfEval(u, vsol(2), P, pos2)
                 call computet(dir, orig, pos2, t2)
-                print*, "TWO ROOTS, uv, pos1, pos2", uv, pos1, pos2, t2
+                !print*, "TWO ROOTS, uv, pos1, pos2", uv, pos1, pos2, t2
                 if ((t2 < 0) .or. (uv(3) < t2)) then
                     flag = 1
                 else
@@ -269,9 +270,9 @@ subroutine bicubic_line_intersect(r, q, P, flag, uvsoln, pos)
         else ! doesn't fit in the root - try other one
             uv(2) = vsol(2)
             call getu(vsol(2), A2, A1, B2, B1, C2, C1, D2, D1, uv(1)) 
-            call SrfEval(uv(1), uv(2), P, pos1)
-            call computet(dir, orig, pos1, uv(3)) 
-            !print*, "NEXT uv, pos1", uv, pos1
+            call SrfEval(uv(1), uv(2), P, pos2)
+            call computet(dir, orig, pos2, uv(3)) 
+            !print*, "NEXT uv, pos2", uv, pos2
             if ((uv(1) < 1+ray_epsilon) .and. (uv(1) > -ray_epsilon) .and. (uv(3) > 0.d0)) then
                 flag = 1
                 uvsoln(:,1) = uv
@@ -382,14 +383,44 @@ subroutine line_plane_intersect(ri, rij, P, intersect, normal, flag)
 	call cpu_time(t2)
 	timing = timing + t2 - t1
 	tcount = tcount + 1
-	if (mod(tcount,1000) .eq. 0) then
-		print*, "time for 1000 iters of line_plane_intersect", timing
+	if (mod(tcount,1000000) .eq. 0) then
+		print*, "time for 1,000,000 iters of line_plane_intersect", timing
 		timing = 0.d0
 		tcount = 0
 	endif
 
 end subroutine line_plane_intersect
 
+
+
+subroutine line_patch_intersect(ri, rij, P, intersect, normal, flag)
+    implicit none
+
+
+    real(kind(0.d0)), dimension(3), intent(in) :: ri, rij
+    real(kind(0.d0)), dimension(2,2,3), intent(in) :: P
+
+    integer, intent(out) :: flag
+    real(kind(0.d0)), dimension(3,2), intent(out) :: intersect, normal
+
+	integer :: ixyz, flag_
+
+	call line_plane_intersect(ri, rij, P, intersect, normal, flag_)
+
+	!Only include crossing if within bounds of patch
+	flag = 0
+	do ixyz=1,flag_
+		if (intersect(2,ixyz) .gt. P(1,1,2) .and. &
+			intersect(2,ixyz) .le. P(2,2,2) .and. &
+			intersect(3,ixyz) .gt. P(1,1,3) .and. &
+			intersect(3,ixyz) .le. P(2,2,3)) then
+				flag = flag + 1
+		else
+			intersect = -666
+		endif
+	enddo
+
+end subroutine line_patch_intersect
 
 end module bilnear_intersect
 
