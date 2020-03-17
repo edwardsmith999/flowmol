@@ -574,6 +574,9 @@ contains
 					+sum(F_ext), sum(totalsurf), sum(self%X(i,j,k,:)),   & 
 					 sum(self%X_minus_t(i,j,k,:))
 				check_ok = .false.
+
+				print'(a,i8, 4i5, 9f10.5)', "surface stresses", iter,irank,i,j,k,totalpressure, self%Pxy_minus_t(i,j,k,1,:)
+
             endif
             !if (abs(sum(totalpressure)) .gt. 1e-4 .and. abs(conserved) .lt. 0.000000001d0) then
 				!print'(a,i8,4i4,7f11.5,f22.18)','DEBUG non zero totalpressure', iter,irank,i,j,k, & 

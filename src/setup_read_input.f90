@@ -1192,7 +1192,6 @@ subroutine setup_read_input
         		if (ios .ne. 0) then
                     debug_CV_range = (/ 1, 1, 1 /)
                 endif
-				print*, "debug_CV_range", debug_CV_range					
             endif
         endif
 	endif
