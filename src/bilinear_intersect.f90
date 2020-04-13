@@ -368,23 +368,37 @@ subroutine line_plane_intersect(ri, rij, P, intersect, normal, flag)
 
 	call cpu_time(t1)
 
-    call bicubic_line_intersect(ri, rij, P, flag, uv, intersect)
-    if (flag .eq. 1) then
-        !call SrfEval(uv(1), uv(2), P, intersect)
-        call surface_normal(uv(1,1), uv(2,1), P, normal(:,1))
-    else if (flag .eq. 2) then
-        call surface_normal(uv(1,1), uv(2,1), P, normal(:,1))
-        call surface_normal(uv(1,2), uv(2,2), P, normal(:,2))
-    else
-        intersect = -666
-        normal = -666
-    endif
+	!Special case of flat surface apparently causes problems so need to handle separatly
+	! if (abs(P(1,1,1)-P(2,1,1)) .lt. 1e-10 .and. &
+		! abs(P(2,1,1)-P(1,2,1)) .lt. 1e-10 .and. &
+		! abs(P(1,2,1)-P(2,2,1)) .lt. 1e-10) then
+		! intersect = -666
+		! intersect(1,1) = P(1,1,1)
+		! intersect(2,1) = ri(2)+(rij(3)/rij(1))*(intersect(1,1)-ri(1))            
+		! intersect(3,1) = ri(3)+(rij(3)/rij(1))*(intersect(1,1)-ri(1))
+		! flag = 1
+		! normal(:,1) = (/1.d0, 0.d0, 0.d0/)
+	! else
+		!Otherwise full bicubic calculation
+		call bicubic_line_intersect(ri, rij, P, flag, uv, intersect)
+		if (flag .eq. 1) then
+			!call SrfEval(uv(1), uv(2), P, intersect)
+			call surface_normal(uv(1,1), uv(2,1), P, normal(:,1))
+		else if (flag .eq. 2) then
+			call surface_normal(uv(1,1), uv(2,1), P, normal(:,1))
+			call surface_normal(uv(1,2), uv(2,2), P, normal(:,2))
+		else
+			intersect = -666
+			normal = -666
+		endif
+	!endif
+
 	
 	call cpu_time(t2)
 	timing = timing + t2 - t1
 	tcount = tcount + 1
-	if (mod(tcount,1000000) .eq. 0) then
-		print*, "time for 1,000,000 iters of line_plane_intersect", timing
+	if (mod(tcount,10000000) .eq. 0) then
+		print*, "time for 10,000,000 iters of line_plane_intersect", timing
 		timing = 0.d0
 		tcount = 0
 	endif
@@ -407,6 +421,21 @@ subroutine line_patch_intersect(ri, rij, P, intersect, normal, flag)
 
 	call line_plane_intersect(ri, rij, P, intersect, normal, flag_)
 
+	! if ((abs(P(1,1,1) - 6.840576141) .lt. 1e-6) .and. & 
+		! (abs(P(2,1,1) - 7.154295108) .lt. 1e-6) .and. & 
+		! (abs(P(1,2,1) - 7.058386324) .lt. 1e-6) .and. & 
+		! (abs(P(2,2,1) - 7.402599709) .lt. 1e-6)) then
+		! if (flag_ .ne. 0) print*, "Intersect", intersect
+	! endif
+
+	! if ((abs(P(1,1,1) - (6.840576141-0.17508)) .lt. 1e-3) .and. & 
+		! (abs(P(2,1,1) - (7.154295108-0.17508)) .lt. 1e-3) .and. & 
+		! (abs(P(1,2,1) - (7.058386324-0.17508)) .lt. 1e-3) .and. & 
+		! (abs(P(2,2,1) - (7.402599709-0.17508)) .lt. 1e-3)) then
+		! if (flag_ .ne. 0) print*, "Intersect", intersect
+	! endif
+
+
 	!Only include crossing if within bounds of patch
 	flag = 0
 	do ixyz=1,flag_
@@ -414,7 +443,7 @@ subroutine line_patch_intersect(ri, rij, P, intersect, normal, flag)
 			intersect(2,ixyz) .le. P(2,2,2) .and. &
 			intersect(3,ixyz) .gt. P(1,1,3) .and. &
 			intersect(3,ixyz) .le. P(2,2,3)) then
-				flag = flag + 1
+			flag = flag + 1
 		else
 			intersect = -666
 		endif

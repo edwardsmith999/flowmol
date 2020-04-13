@@ -3962,7 +3962,7 @@ subroutine surface_stress_io()
     use messenger_bin_handler, only : swaphalos
     implicit none
 
-    integer                                             :: ixyz,m,nresults
+    integer                                             :: ixyz,m,nresults, i,j,k
     real(kind(0.d0))                                    :: binface
     real(kind(0.d0)),allocatable,dimension(:,:,:,:)     :: Pxyface_temp
 
@@ -3989,6 +3989,16 @@ subroutine surface_stress_io()
     !Store surface stress value in CV data object
     if (CV_debug .ne. 0) then
         call CVcheck_momentum%update_Pxy(Pxyface)
+
+		! do i =136,137
+		! do j =18,19
+		! do k =18,19
+			! print'(a,i8,3i5, 6f11.4)', "Pxyface ", iter, i, j, k, &
+						! Pxyface(i,j,k,1,:)
+		! enddo
+		! enddo
+		! enddo
+
     endif
 
     !Write surface pressures to file

@@ -1815,11 +1815,18 @@ subroutine bubble_sort_r(vec)
 
 end subroutine bubble_sort_r
 
-subroutine Qsort_r(A)
+subroutine Qsort_r(A, indices)
 
+    integer, allocatable, dimension(:), optional :: indices
     double precision, allocatable, intent(in out), dimension(:) :: A
-    call Qsort(A)
-    A = A(ubound(A,1):lbound(A,1):-1)
+
+	if (present(indices)) then
+		call Qsort(A, indices)
+		indices = indices(ubound(indices,1):lbound(indices,1):-1)
+	else
+		call Qsort(A)
+	endif
+	A = A(ubound(A,1):lbound(A,1):-1)
 
 end subroutine Qsort_r
 

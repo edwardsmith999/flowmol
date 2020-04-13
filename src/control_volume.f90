@@ -569,13 +569,13 @@ contains
 			    .or. (i .ge. self%debug_CV(1) .and. i .lt. self%debug_CV(1)+self%debug_CV_range(1) .and.	& 
                       j .ge. self%debug_CV(2) .and. j .lt. self%debug_CV(2)+self%debug_CV_range(2) .and. & 
                       k .ge. self%debug_CV(3) .and. k .lt. self%debug_CV(3)+self%debug_CV_range(3))) then
-				print'(a,i8,4i4,7f11.5,f22.18)','Error_in_momentum_flux', iter,irank,i,j,k, & 
+				print'(a,i8,4i4,7f13.5,f22.16)','Error_in_momentum_flux', iter,irank,i,j,k, & 
 					 conserved, sum(totalpressure),-sum(totalflux),sum(dvelocitydt), & 
 					+sum(F_ext), sum(totalsurf), sum(self%X(i,j,k,:)),   & 
 					 sum(self%X_minus_t(i,j,k,:))
 				check_ok = .false.
 
-				print'(a,i8, 4i5, 9f10.5)', "surface stresses", iter,irank,i,j,k,totalpressure, self%Pxy_minus_t(i,j,k,1,:)
+				print'(a,i8, 4i5, 3f18.5, 6f11.5)', "surface stresses", iter,irank,i,j,k,totalpressure, self%Pxy_minus_t(i,j,k,1,:)
 
             endif
             !if (abs(sum(totalpressure)) .gt. 1e-4 .and. abs(conserved) .lt. 0.000000001d0) then
