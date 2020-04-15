@@ -255,16 +255,16 @@ subroutine bicubic_line_intersect(r, q, P, flag, uvsoln, pos)
                 call SrfEval(u, vsol(2), P, pos2)
                 call computet(dir, orig, pos2, t2)
                 !print*, "TWO ROOTS, uv, pos1, pos2", uv, pos1, pos2, t2
-                if ((t2 < 0) .or. (uv(3) < t2)) then
-                    flag = 1
+				pos(:,2) = pos2
+				flag = 2
+                if ((t2 < 0) .or. (uv(3) <= t2)) then
+                    ! t2 not valid or t1 is better
                 else
                     ! other wise both t2 > 0 and t2 < t1
                     uv(2) = vsol(2)
                     uv(1) = u
                     uv(3) = t2
                     uvsoln(:,2) = uv
-                    pos(:,2) = pos2
-                    flag = 2
                 endif
             endif
         else ! doesn't fit in the root - try other one
