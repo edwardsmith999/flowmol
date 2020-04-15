@@ -1420,6 +1420,44 @@ end function sphereisev
 ! end function sphere2cart
 
 
+! Take existing array, double size and copy contents
+! written for a case with 2 dimension and extend second
+! as this is what I needed
+
+subroutine extend_array1d_int(A)
+	implicit none
+
+	integer, dimension(:), allocatable, intent(inout) :: A
+
+	integer :: oldsize, newsize
+	integer, dimension(:), allocatable :: temp
+
+	oldsize = size(A,1)
+	call move_alloc(A, temp)
+	newsize = oldsize*2
+	allocate(A(newsize))
+	A(1:size(temp,1)) = temp
+
+end subroutine extend_array1d_int
+
+subroutine extend_array2d(A)
+	implicit none
+
+	double precision, dimension(:,:), allocatable, intent(inout) :: A
+
+	integer :: oldsize, newsize, d
+	double precision, dimension(:,:), allocatable :: temp
+
+	d = size(A,1)
+	oldsize = size(A,2)
+	call move_alloc(A, temp)
+	newsize = oldsize*2
+	allocate(A(d,newsize))
+	A(:,1:size(temp,2)) = temp
+
+end subroutine extend_array2d
+
+
 !LINSPACE Linearly spaced vector.
 !
 !   LINSPACE(X1, X2, N) generates N points between X1 and X2.

@@ -313,9 +313,9 @@ contains
 						+(self%flux(i,j,k,2) - self%flux(i,j,k,5)) & 
 						+(self%flux(i,j,k,3) - self%flux(i,j,k,6))
 
-			totalsurf =  (self%surf(i,j,k,1) - self%surf(i,j,k,4)) &
-						+(self%surf(i,j,k,2) - self%surf(i,j,k,5)) & 
-						+(self%surf(i,j,k,3) - self%surf(i,j,k,6))
+			totalsurf =  (self%surf_mdt(i,j,k,1) - self%surf_mdt(i,j,k,4)) &
+						+(self%surf_mdt(i,j,k,2) - self%surf_mdt(i,j,k,5)) & 
+						+(self%surf_mdt(i,j,k,3) - self%surf_mdt(i,j,k,6))
 
             conserved = totalflux-self%dXdt(i,j,k)+totalsurf
 
@@ -557,9 +557,9 @@ contains
 			!drhou/dt
 			dvelocitydt =  self%dxdt(i,j,k,:)/(self%delta_t*self%N_ave)
 
-			totalsurf =  (self%surf(i,j,k,:,1) - self%surf(i,j,k,:,4))/self%binsize(1) &
-						+(self%surf(i,j,k,:,2) - self%surf(i,j,k,:,5))/self%binsize(2) & 
-						+(self%surf(i,j,k,:,3) - self%surf(i,j,k,:,6))/self%binsize(3)
+			totalsurf =  (self%surf_mdt(i,j,k,:,1) - self%surf_mdt(i,j,k,:,4))/self%binsize(1) &
+						+(self%surf_mdt(i,j,k,:,2) - self%surf_mdt(i,j,k,:,5))/self%binsize(2) & 
+						+(self%surf_mdt(i,j,k,:,3) - self%surf_mdt(i,j,k,:,6))/self%binsize(3)
 
 			!Verify that CV momentum is exactly conservative
 			conserved = sum(totalpressure+totalflux-dvelocitydt-F_ext+totalsurf)

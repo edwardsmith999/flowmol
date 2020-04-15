@@ -206,7 +206,7 @@ contains
         real(kind(0.d0)),intent(in),dimension(3) :: r
 	    integer,dimension(3) 					 :: bin
 
-		bin = ISR%get_bin(r)
+		bin = ISR_mdt%get_bin(r)
 
     end function bin_from_full_intrinsic
 
@@ -4574,20 +4574,21 @@ module flux_opt
 
 contains
 
-subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
-	use module_record
+subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR)
+	use module_record, only : get_bin, get_crossings, nd, intrinsic_surface_real, &
+							ISR_b, iter
     use librarymod, only : CV_surface_flux, imaxloc!, heaviside  =>  heaviside_a1
     use module_set_parameters, only : mass
 	use CV_objects, only : CVcheck_momentum
     implicit none
 
-    logical, intent(in) :: use_bilinear
     real(kind(0.d0)),dimension(3), intent(in)	:: ri1,ri2
 	real(kind(0.d0)),dimension(:), allocatable, intent(in) :: quantity
 	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable, intent(inout)	:: fluxes
 
-    logical, save                   :: first_time=.true.
+	class(intrinsic_surface_real), intent(in), optional	:: ISR
 
+    logical, save                   :: first_time=.true.
 
     logical                         :: crossings, crossings_test, changed
 	integer							:: jxyz,i,j,k,n,normal,n1,t1,t2,ixyz, Xcount
@@ -4602,12 +4603,12 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
 
 	changed = .false.
 
-    if (use_bilinear) then
-        bin1(:) = ISR_mdt%get_bin(ri1)
-        bin2(:) = ISR_mdt%get_bin(ri2)
-		n1=ISR_mdt%normal
-		t1=ISR_mdt%ixyz
-		t2=ISR_mdt%jxyz
+    if (present(ISR)) then
+        bin1(:) = ISR%get_bin(ri1)
+        bin2(:) = ISR%get_bin(ri2)
+		n1=ISR%normal
+		t1=ISR%ixyz
+		t2=ISR%jxyz
     else
         bin1 = get_bin(ri1)
         bin2 = get_bin(ri2)
@@ -4616,10 +4617,10 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
 	Xcount = 0
     do normal=1,3
 
-        if (use_bilinear .and. (normal .eq. n1)) then
+        if (present(ISR) .and. (normal .eq. n1)) then
 
             !Redefine bins here
-            call ISR_mdt%get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings, cbins)
+            call ISR%get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings, cbins)
 
 			!DEBUG Match to flat surface case DEBUG
 			! call get_crossings_test(ri1, ri2, bin1, bin2, normal, rc_test, crossings_test)
@@ -4658,31 +4659,31 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
             ri12   = ri1 - ri2		        !Molecule i trajectory between t-dt and t
             where (abs(ri12) .lt. 0.000001d0) ri12 = 0.000001d0
 
-            if (use_bilinear .and. (normal .eq. n1)) then
+            if (present(ISR) .and. (normal .eq. n1)) then
                 if (allocated(points)) deallocate(points)
                 allocate(points(size(rc,2), nd))
                 points(:,1) = rc(1,:)
                 points(:,2) = rc(2,:)
                 points(:,3) = rc(3,:)
-                call ISR_mdt%get_surface_derivative(points, dSdr)
+                call ISR%get_surface_derivative(points, dSdr)
             endif
 
             do i=1,size(rc,2)
                 rci = rc(:,i)
                 rci(normal) = rci(normal) + eps
-				if (use_bilinear) then
+				if (present(ISR)) then
 					!Whole point of cbins return was to avoid another expensive get_bin call
 					!VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-					cbin(:) = ISR_mdt%get_bin(rci)
+					cbin(:) = ISR%get_bin(rci)
 				else
 					cbin(:) = get_bin(rci)
 				endif
 
-                if (use_bilinear .and. (normal .eq. n1)) then
+                if (present(ISR) .and. (normal .eq. n1)) then
                     !if (cbins(i)+1 .ne. cbin(normal)) print'(a,i9,6i5,9f10.5)', "cross no ", iter, i, & 
                     !                                size(rc,2), cbin, cbins(i)+1, ri1, rci, ri2
                     !Set normal bin based on solution from bilinear crossinfs
-                    !cbin(normal) = cbins(i)+1
+                    cbin(normal) = cbins(i)+1
 					!if (cbins(i)+1 .ne. cbin(normal)) print*, cbin(normal), cbins(i)+1 
                     crossdir = sign(1.d0,(ri12(n1) - ri12(t1)*dSdr(i,1) - ri12(t2)*dSdr(i,2)))
 				else
@@ -4690,7 +4691,7 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
                 endif
 
     		    !if (size(rc,2) .gt. 1) print'(a,i9,6i5,9f10.5)', "cross no ", iter, i, size(rc,2), & 
-                !                       ISR_mdt%get_bin(rci, nbins, nhb), cbins(i), ri1, rci, ri2
+                !                       ISR%get_bin(rci, nbins, nhb), cbins(i), ri1, rci, ri2
                 !if (cbin(normal) .ne. cbins(normal)) stop "Error"
 				!print*, "CBINS", rci, cbin, bin1, bin2
                 fluxes(cbin(1),cbin(2),cbin(3),:,normal) = & 
@@ -4698,59 +4699,60 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
                 fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),:,normal+3) = & 
                     fluxes(cbin(1),cbin(2),cbin(3),:,normal)
 
-				if ((cbin(1) .ge. CVcheck_momentum%debug_CV(1) .and. & 
-					 cbin(1) .lt. CVcheck_momentum%debug_CV(1)+CVcheck_momentum%debug_CV_range(1)) .and. & 
-				    (cbin(2) .ge. CVcheck_momentum%debug_CV(2) .and. &
-					 cbin(2) .lt. CVcheck_momentum%debug_CV(2)+CVcheck_momentum%debug_CV_range(2)) .and. & 
-				    (cbin(3) .ge. CVcheck_momentum%debug_CV(3) .and. & 
-					 cbin(3) .lt. CVcheck_momentum%debug_CV(3)+CVcheck_momentum%debug_CV_range(3))) then
-					print'(a,i8,2i3, 3i5,6f10.5,7f10.4)', "t crossing ", iter, i, normal, cbin, rci, & 
-								0.25*quantity(1)/(ISR%binsize(2)*ISR%binsize(3)), &
-								0.25*quantity(1)/(ISR%binsize(1)*ISR%binsize(3)), &
-								0.25*quantity(1)/(ISR%binsize(1)*ISR%binsize(2)),  &
-								0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,1)/(ISR%binsize(2)*ISR%binsize(3)), & 
-								0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,2)/(ISR%binsize(1)*ISR%binsize(3)), & 
-								0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,3)/(ISR%binsize(1)*ISR%binsize(2)), &
-								0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,4)/(ISR%binsize(2)*ISR%binsize(3)), & 
-								0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,5)/(ISR%binsize(1)*ISR%binsize(3)), & 
-								0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,6)/(ISR%binsize(1)*ISR%binsize(2)), &
-						   (fluxes(cbin(1),cbin(2),cbin(3),1,1)-fluxes(cbin(1),cbin(2),cbin(3),1,4))/ISR%binsize(1) &
-						  +(fluxes(cbin(1),cbin(2),cbin(3),1,2)-fluxes(cbin(1),cbin(2),cbin(3),1,5))/ISR%binsize(2) &
-						  +(fluxes(cbin(1),cbin(2),cbin(3),1,3)-fluxes(cbin(1),cbin(2),cbin(3),1,6))/ISR%binsize(3)
-					write(586410,*) iter, normal, ri1, rci, ri2, quantity
-					Xcount = Xcount + 1
-					write(292847,*) iter, cbin(1),cbin(2),cbin(3), ISR_mdt_b%binsize, ISR_mdt_b%indices_to_points(cbin(1),cbin(2),cbin(3))
-					changed = .true.
-				endif
-				if ((cbin(1)-bs(1) .ge. CVcheck_momentum%debug_CV(1) .and. & 
-					 cbin(1)-bs(1) .lt. CVcheck_momentum%debug_CV(1)+CVcheck_momentum%debug_CV_range(1)) .and. & 
-				    (cbin(2)-bs(2) .ge. CVcheck_momentum%debug_CV(2) .and. & 
-					 cbin(2)-bs(2) .lt. CVcheck_momentum%debug_CV(2)+CVcheck_momentum%debug_CV_range(2)) .and. & 
-				    (cbin(3)-bs(3) .ge. CVcheck_momentum%debug_CV(3) .and. & 
-					 cbin(3)-bs(3) .lt. CVcheck_momentum%debug_CV(3)+CVcheck_momentum%debug_CV_range(3))) then
-					print'(a,i8,2i3, 3i5,6f10.5,7f10.4)', "b crossing ", iter, i, normal, cbin-bs, rci, & 
-								0.25*quantity(1)/(ISR%binsize(2)*ISR%binsize(3)), &
-								0.25*quantity(1)/(ISR%binsize(1)*ISR%binsize(3)), & 
-								0.25*quantity(1)/(ISR%binsize(1)*ISR%binsize(2)),  &
-								0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,1)/(ISR%binsize(2)*ISR%binsize(3)), &
-								0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,2)/(ISR%binsize(1)*ISR%binsize(3)), &
-								0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,3)/(ISR%binsize(1)*ISR%binsize(2)), &
-								0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,4)/(ISR%binsize(2)*ISR%binsize(3)), &
-								0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,5)/(ISR%binsize(1)*ISR%binsize(3)), &
-								0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,6)/(ISR%binsize(1)*ISR%binsize(2)), &
-						   (fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,1)& 
-						   -fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,4))/ISR%binsize(1) &
-						  +(fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,2)& 
-						   -fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,5))/ISR%binsize(2) &
-						  +(fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,3)& 
-						   -fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,6))/ISR%binsize(3)
-					write(586410,*) iter, normal, ri1, rci, ri2, quantity
-					Xcount = Xcount + 1
-					write(292847,*) iter, cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3), ISR_mdt_b%binsize, & 
-						ISR_mdt_b%indices_to_points(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3))
-					changed = .true.
-				endif
-
+				! if (present(ISR)) then
+				! if ((cbin(1) .ge. CVcheck_momentum%debug_CV(1) .and. & 
+					 ! cbin(1) .lt. CVcheck_momentum%debug_CV(1)+CVcheck_momentum%debug_CV_range(1)) .and. & 
+				    ! (cbin(2) .ge. CVcheck_momentum%debug_CV(2) .and. &
+					 ! cbin(2) .lt. CVcheck_momentum%debug_CV(2)+CVcheck_momentum%debug_CV_range(2)) .and. & 
+				    ! (cbin(3) .ge. CVcheck_momentum%debug_CV(3) .and. & 
+					 ! cbin(3) .lt. CVcheck_momentum%debug_CV(3)+CVcheck_momentum%debug_CV_range(3))) then
+					! print'(a,i8,2i3, 3i5,6f10.5,7f10.4)', "t crossing ", iter, i, normal, cbin, rci, & 
+								! 0.25*quantity(1)/(ISR%binsize(2)*ISR%binsize(3)), &
+								! 0.25*quantity(1)/(ISR%binsize(1)*ISR%binsize(3)), &
+								! 0.25*quantity(1)/(ISR%binsize(1)*ISR%binsize(2)),  &
+								! 0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,1)/(ISR%binsize(2)*ISR%binsize(3)), & 
+								! 0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,2)/(ISR%binsize(1)*ISR%binsize(3)), & 
+								! 0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,3)/(ISR%binsize(1)*ISR%binsize(2)), &
+								! 0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,4)/(ISR%binsize(2)*ISR%binsize(3)), & 
+								! 0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,5)/(ISR%binsize(1)*ISR%binsize(3)), & 
+								! 0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,6)/(ISR%binsize(1)*ISR%binsize(2)), &
+						   ! (fluxes(cbin(1),cbin(2),cbin(3),1,1)-fluxes(cbin(1),cbin(2),cbin(3),1,4))/ISR%binsize(1) &
+						  ! +(fluxes(cbin(1),cbin(2),cbin(3),1,2)-fluxes(cbin(1),cbin(2),cbin(3),1,5))/ISR%binsize(2) &
+						  ! +(fluxes(cbin(1),cbin(2),cbin(3),1,3)-fluxes(cbin(1),cbin(2),cbin(3),1,6))/ISR%binsize(3)
+					! write(586410,*) iter, normal, ri1, rci, ri2, quantity
+					! Xcount = Xcount + 1
+					! write(292847,*) iter, cbin(1),cbin(2),cbin(3), ISR_b%binsize, ISR_b%indices_to_points(cbin(1),cbin(2),cbin(3))
+					! changed = .true.
+				! endif
+				! if ((cbin(1)-bs(1) .ge. CVcheck_momentum%debug_CV(1) .and. & 
+					 ! cbin(1)-bs(1) .lt. CVcheck_momentum%debug_CV(1)+CVcheck_momentum%debug_CV_range(1)) .and. & 
+				    ! (cbin(2)-bs(2) .ge. CVcheck_momentum%debug_CV(2) .and. & 
+					 ! cbin(2)-bs(2) .lt. CVcheck_momentum%debug_CV(2)+CVcheck_momentum%debug_CV_range(2)) .and. & 
+				    ! (cbin(3)-bs(3) .ge. CVcheck_momentum%debug_CV(3) .and. & 
+					 ! cbin(3)-bs(3) .lt. CVcheck_momentum%debug_CV(3)+CVcheck_momentum%debug_CV_range(3))) then
+					! print'(a,i8,2i3, 3i5,6f10.5,7f10.4)', "b crossing ", iter, i, normal, cbin-bs, rci, & 
+								! 0.25*quantity(1)/(ISR%binsize(2)*ISR%binsize(3)), &
+								! 0.25*quantity(1)/(ISR%binsize(1)*ISR%binsize(3)), & 
+								! 0.25*quantity(1)/(ISR%binsize(1)*ISR%binsize(2)),  &
+								! 0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,1)/(ISR%binsize(2)*ISR%binsize(3)), &
+								! 0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,2)/(ISR%binsize(1)*ISR%binsize(3)), &
+								! 0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,3)/(ISR%binsize(1)*ISR%binsize(2)), &
+								! 0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,4)/(ISR%binsize(2)*ISR%binsize(3)), &
+								! 0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,5)/(ISR%binsize(1)*ISR%binsize(3)), &
+								! 0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,6)/(ISR%binsize(1)*ISR%binsize(2)), &
+						   ! (fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,1)& 
+						   ! -fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,4))/ISR%binsize(1) &
+						  ! +(fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,2)& 
+						   ! -fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,5))/ISR%binsize(2) &
+						  ! +(fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,3)& 
+						   ! -fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,6))/ISR%binsize(3)
+					! write(586410,*) iter, normal, ri1, rci, ri2, quantity
+					! Xcount = Xcount + 1
+					! write(292847,*) iter, cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3), ISR_b%binsize, & 
+						! ISR_b%indices_to_points(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3))
+					! changed = .true.
+				! endif
+				! endif
 
 				! if (changed) then
 					! print*, ri1, ri2, bin1, bin2, rci
@@ -4785,7 +4787,8 @@ end subroutine cumulative_flux_opt
 
 subroutine cumulative_mass_flux_opt
 	use module_record, only : cluster_analysis_outflag, np, r, v, & 
-                              delta_t, intrinsic_interface_outflag, mass_flux
+                              delta_t, intrinsic_interface_outflag, & 
+							  mass_flux, ISR_mdt
     use module_set_parameters, only : mass
     implicit none
 
@@ -4812,7 +4815,11 @@ subroutine cumulative_mass_flux_opt
 		ri1(:) = r(:,n) 							!Molecule i at time t
 		ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
         quantity(1) = mass(n)
-        call cumulative_flux_opt(ri1, ri2, fluxes, quantity, use_bilinear)
+		if (use_bilinear) then
+			call cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR_mdt)
+		else
+			call cumulative_flux_opt(ri1, ri2, fluxes, quantity)
+		endif
     enddo
     mass_flux(:,:,:,:) = fluxes(:,:,:,1,:)
 
@@ -4820,7 +4827,8 @@ end subroutine cumulative_mass_flux_opt
 
 subroutine cumulative_momentum_flux_opt(r_,v_,momentum_flux_,notcrossing)
 	use module_record, only : cluster_analysis_outflag, np, & 
-                             delta_t, intrinsic_interface_outflag
+                             delta_t, intrinsic_interface_outflag, &
+							 ISR_mdt
    use module_set_parameters, only : mass
    implicit none
 
@@ -4854,8 +4862,11 @@ subroutine cumulative_momentum_flux_opt(r_,v_,momentum_flux_,notcrossing)
 		ri1(:) = r_(:,n) 							!Molecule i at time t
 		ri2(:) = r_(:,n)	- delta_t*v_(:,n)			!Molecule i at time t-dt
        quantity(:) = v_(:,n)
-       call cumulative_flux_opt(ri1, ri2, momentum_flux_, quantity, use_bilinear)
-
+		if (use_bilinear) then
+			call cumulative_flux_opt(ri1, ri2, momentum_flux_, quantity, ISR_mdt)
+		else
+			call cumulative_flux_opt(ri1, ri2, momentum_flux_, quantity)
+		endif
 		!Record mask of molecules which are currently crossing
 		if (present(notcrossing)) notcrossing(n) = 0
    enddo
@@ -4869,7 +4880,10 @@ end module flux_opt
 ! Stresses over each of the six surfaces of the cuboid
 
 subroutine control_volume_stresses_opt(fij, ri, rj)
-    use module_record
+    use module_record, only : ISR, Pxyface, void, initialstep, &
+							  CVforce_flag, CVforce_starttime, &
+							  cluster_analysis_outflag, iter, &
+							  intrinsic_interface_outflag
 	use CV_objects, only : CV_constraint
 	use flux_opt, only : cumulative_flux_opt
     implicit none
@@ -4880,19 +4894,10 @@ subroutine control_volume_stresses_opt(fij, ri, rj)
     integer :: ixyz, bini(3), binj(3)
     real(kind(0.d0)) :: zeromode, window, zl(3)
 
-	logical                         :: use_bilinear
 	real(kind(0.d0)),dimension(:), allocatable :: quantity
 
     !print*, "ISR_mdt%coeff", maxval(ISR_mdt%coeff), sum(ISR_mdt%coeff)
 
-	if (cluster_analysis_outflag .eq. 1 .and.  & 
-	   any(intrinsic_interface_outflag .eq. (/1,2/))) then! .and. &
-        !maxval(ISR_mdt%coeff) .gt. 1e-4) then
-	   use_bilinear = .true.
-	else
-	   use_bilinear = .false.
-	endif
-	
     !Limit calc to part of domain for debugging
     !window = 3.d0
     !call ISR_mdt%get_zero_mode(zeromode)
@@ -4913,7 +4918,13 @@ subroutine control_volume_stresses_opt(fij, ri, rj)
 
 	allocate(quantity(3))
 	quantity(:) = 2.d0*fij(:)
-	call cumulative_flux_opt(ri, rj, Pxyface, quantity, use_bilinear)
+	if (cluster_analysis_outflag .eq. 1 .and.  & 
+	   any(intrinsic_interface_outflag .eq. (/1,2/))) then! .and. &
+        !maxval(ISR_mdt%coeff) .gt. 1e-4) then
+		call cumulative_flux_opt(ri, rj, Pxyface, quantity, ISR)
+	else
+		call cumulative_flux_opt(ri, rj, Pxyface, quantity)
+	endif
 
 	!Add instantanous stress to CV record
 	if (CVforce_flag .ne. VOID .and. iter-initialstep+1 .ge. CVforce_starttime) then
@@ -8138,7 +8149,7 @@ contains
 				points(:,1) = r(1,1:np)
 				points(:,2) = r(2,1:np)
 				points(:,3) = r(3,1:np)
-				call ISR%get_surface(points, elevation, include_zeromode=.true.)
+				call ISR_mdt%get_surface(points, elevation, include_zeromode=.true.)
 				intnscshift(1:np) = elevation(1:np)
 
             endif
@@ -8375,7 +8386,7 @@ contains
         character(33)                      :: filename, debug_outfile
         double precision                   :: energy, crossdir, bintop, binbot
         double precision, dimension(2)     :: cross
-        double precision, dimension(3)     :: ri, velvect, rc, bs
+        double precision, dimension(3)     :: ri, vi, velvect, rc, bs
         double precision, dimension(:), allocatable :: clustCV, s, smdt
 
         double precision, dimension(:,:), allocatable ::  points
@@ -8398,7 +8409,10 @@ contains
         !Loop over all molecules and halos
         do n =1,np!+halo_np
 
-            ri(:) = r(:,n)
+			!Project velocity of particle forward to include 
+			!forces applied to i before volume evolved
+			ri(:) = r(:,n)
+			vi(:) = v(:,n) + delta_t*a(:,n)
 
             !Get bins, only normal part can be different
             bin(:) = ISR%get_bin(ri)
@@ -8434,7 +8448,7 @@ contains
 						endif
 						if (vflux_outflag .ne. 0) then		
 							momentum_surface_flux(b, bin(2), bin(3), :, 1) = &
-								momentum_surface_flux(b, bin(2), bin(3), :, 1) + crossdir*v(:,n)
+								momentum_surface_flux(b, bin(2), bin(3), :, 1) + crossdir*vi
 							momentum_surface_flux(b-1,bin(2),bin(3), :, 4) = & 
 								momentum_surface_flux(b,bin(2),bin(3), :, 1)
 						endif

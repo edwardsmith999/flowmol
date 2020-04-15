@@ -761,7 +761,7 @@ end function indices_to_points
 
 subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cbins)
 	use bilnear_intersect, only : line_plane_intersect, line_patch_intersect
-    use librarymod, only : Qsort
+    use librarymod, only : Qsort, extend_array2d, extend_array1d_int
 	implicit none
 
 	class(intrinsic_surface_bilinear) :: self
@@ -781,7 +781,7 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 	integer :: flag, ss, Ns, bc, tempsize, normbin, norm1, norm2
 	integer, dimension(2) :: tbin
 	integer, dimension(3) :: bin, bin_mdt, cbin, db, bt, bb
-	integer, dimension(:), allocatable :: cbinstemp, indices
+	integer, dimension(:), allocatable :: cbinstemp, cbinstemp2, indices
 	integer, dimension(:,:), allocatable :: binstemp
 
 	real(kind(0.d0)),save :: maxerror
@@ -791,9 +791,18 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
  	real(kind(0.d0)), dimension(3) :: rb, rs, re, bs1, bs2, rc1, rc2
 	real(kind(0.d0)), dimension(:), allocatable :: unordered_cross
 	real(kind(0.d0)),dimension(3,2)  :: intersect, normal, intersect2
-	real(kind(0.d0)),dimension(:,:), allocatable  :: points, temp, cross
+	real(kind(0.d0)),dimension(:,:), allocatable  :: points, temp, temp2, cross
 
-	integer,dimension(:,:,:), allocatable  :: bincount
+	logical, save :: first_bincount=.true.
+	integer :: ibin, jbin, kbin, maxcross
+	integer,dimension(:,:,:), allocatable, save  :: bincount
+
+	!DEBUG BINS
+	ibin = 146  
+	jbin = 37
+	kbin = 17
+	!DEBUG BINS
+
 
 	if (all(bin1 .eq. bin2)) then
 		crossings = .false.
@@ -864,8 +873,9 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 	!Go through crossings in order
 	bc = 0
 	!Pre allocate arrays to large enough for possible crossings
-	allocate(temp(3,32))
-	allocate(cbinstemp(32))
+	maxcross = 16
+	allocate(temp(3,maxcross))
+	if (present(cbins)) allocate(cbinstemp(maxcross))
 	do i=1,size(indices,1)-1
 		m = indices(i)
 		mp1 = indices(i+1)
@@ -888,10 +898,9 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 		bt = self%get_bin(rc1+eps*bs1) 
 		bb = self%get_bin(rc2-eps*bs2)
 
-
-		!if ((bin1(n) .eq. 149 .or. bin2(n) .eq. 149) .and. &
-		!	(bin1(t1) .eq. 18 .or. bin2(t1) .eq. 18) .and. &
-		!	(bin1(t2) .eq. 38 .or. bin2(t2) .eq. 38)) then
+		!if ((bin1(n) .eq. ibin .or. bin2(n) .eq. ibin) .and. &
+		!	(bin1(t1) .eq. jbin .or. bin2(t1) .eq. jbin) .and. &
+		!	(bin1(t2) .eq. kbin .or. bin2(t2) .eq. kbin)) then
 		!	print'(a,2i5,2f10.5,7i5, 6f10.5)', "bin calc", i, m, rc1(1), rc2(1), bin1(n), bt(n), bb(n), bin2(n), &
 		!			sign(1,bt(n)-bb(n)), norm1, norm2, r1, r2
 		!endif
@@ -935,9 +944,24 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 					 intersect(1,ixyz) .lt. rc2(1)) .or. &
 					(intersect(1,ixyz) .lt. rc1(1) .and. &
 					 intersect(1,ixyz) .gt. rc2(1))) then
-					!print'(a,6i5,10f10.5)', "norm Crossings", normbin, bt(n), bb(n), bc, 1, flag, & 
+
+					!DEBUG
+					!if ((j .eq. ibin) .and. &
+					!	(bb(t1) .eq. jbin) .and. &
+					!	(bb(t2) .eq. kbin)) then
+					!	print'(a,6i5,10f10.5)', "norm Crossings", j, bt(t1), bb(t2), bc, 1, flag, & 
 					!		 rc1(1), intersect(:,ixyz), rc2(1), points(:,n), (intersect(1,ixyz)-r1(1))/r12(1)
+					!endif
+					!DEBUG
+	
 					bc = bc + 1
+					!Not trivial/cheap to get a priori size of temp 
+					!so better to check extend if needed
+					if (bc .gt. maxcross) then
+						call extend_array2d(temp)
+						if (present(cbins)) call extend_array1d_int(cbinstemp)
+						maxcross = size(temp,2)
+					endif
 					temp(:,bc) = intersect(:,ixyz)
 					if (present(cbins)) cbinstemp(bc) = j
 
@@ -987,84 +1011,88 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 	endif
 
 	! !DEBUG PRINT ALL CROSSINGS
-	! if ((bin1(n) .eq. 149) .and. &
-		! (bin1(t1) .eq. 18) .and. &
-		! (bin1(t2) .eq. 38) .or. &
-		! (bin2(n) .eq. 149) .and. &
-		! (bin2(t1) .eq. 18) .and. &
-		! (bin2(t2) .eq. 38)) then
+	!ibin = 130  
+	!jbin = 29
+	!kbin = 9
+	! if ((bin1(n) .eq. ibin) .and. &
+		! (bin1(t1) .eq. jbin) .and. &
+		! (bin1(t2) .eq. kbin) .or. &
+		! (bin2(n) .eq. ibin) .and. &
+		! (bin2(t1) .eq. jbin) .and. &
+		! (bin2(t2) .eq. kbin)) then
 
+	! if (first_bincount) then
 		! allocate(bincount(self%nbins(n)+2*self%nhb(n), &
 						  ! self%nbins(t1)+2*self%nhb(t1), &
 						  ! self%nbins(t2)+2*self%nhb(t2)))
-		! bincount = 0
+		! first_bincount = .false.
+	! endif
+	! bincount = 0
 
-		! k = 1
-		! do i=1,size(indices,1)
-			! m = indices(i)
-			! do j=k,size(rc,2)
-				! if ((rc(1,j)-r1(1))/r12(1) .lt. cross(m,1)) then
-					! k = k + 1
-					! bt = self%get_bin(rc(:,j)+eps*(/1.d0, 0.d0, 0.d0/)) 
-					! bb = self%get_bin(rc(:,j)-eps*(/1.d0, 0.d0, 0.d0/))
+	! k = 1
+	! do i=1,size(indices,1)
+		! m = indices(i)
+		! do j=k,size(rc,2)
+			! if ((rc(1,j)-r1(1))/r12(1) .lt. cross(m,1)) then
+				! k = k + 1
+				! bt = self%get_bin(rc(:,j)+eps*(/1.d0, 0.d0, 0.d0/)) 
+				! bb = self%get_bin(rc(:,j)-eps*(/1.d0, 0.d0, 0.d0/))
 
-					! bincount(bt(n), bt(t1), bt(t2)) = bincount(bt(n), bt(t1), bt(t2)) + 1
-					! bincount(bb(n), bb(t1), bb(t2)) = bincount(bb(n), bb(t1), bb(t2)) + 1
-
-					! if ((bb(n) .eq. 149) .and. &
-						! (bb(t1) .eq. 18) .and. &
-						! (bb(t2) .eq. 38) .or. &
-						! (bt(n) .eq. 149) .and. &
-						! (bt(t1) .eq. 18) .and. &
-						! (bt(t2) .eq. 38)) then
-						! print'(a,i5,5f14.6,6i6)', "ordered crossings", & 
-							! i, (rc(1,j)-r1(1))/r12(1), rc(:,j), 1.d0, bb, bt
-					! endif
-				! endif
-			! enddo
-			! bs1 = (/0.,0.,0./)
-			! rc1 = cross(m  ,2:4)
-			! norm1 = cross(m  ,5) !normal from 1 to 3
-			! if (norm1 .ne. 0) then 
-				! bs1(norm1) = sign(1.d0,r12(norm1))
-				! bt = self%get_bin(rc1+eps*bs1) 
-				! bb = self%get_bin(rc1-eps*bs1)
 				! bincount(bt(n), bt(t1), bt(t2)) = bincount(bt(n), bt(t1), bt(t2)) + 1
 				! bincount(bb(n), bb(t1), bb(t2)) = bincount(bb(n), bb(t1), bb(t2)) + 1
-			! else
-				! !Line end points/molecules
-				! bt = self%get_bin(rc1)
-				! bincount(bt(n), bt(t1), bt(t2)) = bincount(bt(n), bt(t1), bt(t2)) + 1
-				! bb = 0.d0
-				! if (all(bt .ne. bin1) .and. all(bt .ne. bin2)) then
-					! print*, bt, bin1, bin2
-					! stop "Error, bin1 or 2 not equal to ends"
+
+				! if ((bb(n) .eq. ibin) .and. &
+					! (bb(t1) .eq. jbin) .and. &
+					! (bb(t2) .eq. kbin) .or. &
+					! (bt(n) .eq. ibin) .and. &
+					! (bt(t1) .eq. jbin) .and. &
+					! (bt(t2) .eq. kbin)) then
+					! print'(a,i5,5f14.6,6i6)', "ordered crossings", & 
+						! i, (rc(1,j)-r1(1))/r12(1), rc(:,j), 1.d0, bb, bt
 				! endif
 			! endif
-
-			! if ((bb(n) .eq. 149) .and. &
-				! (bb(t1) .eq. 18) .and. &
-				! (bb(t2) .eq. 38) .or. &
-				! (bt(n) .eq. 149) .and. &
-				! (bt(t1) .eq. 18) .and. &
-				! (bt(t2) .eq. 38)) then
-				! print'(a,i5,5f14.6,6i6)', "ordered crossings", i, cross(m,:), bb, bt
+		! enddo
+		! bs1 = (/0.,0.,0./)
+		! rc1 = cross(m  ,2:4)
+		! norm1 = cross(m  ,5) !normal from 1 to 3
+		! if (norm1 .ne. 0) then 
+			! bs1(norm1) = sign(1.d0,r12(norm1))
+			! bt = self%get_bin(rc1+eps*bs1) 
+			! bb = self%get_bin(rc1-eps*bs1)
+			! bincount(bt(n), bt(t1), bt(t2)) = bincount(bt(n), bt(t1), bt(t2)) + 1
+			! bincount(bb(n), bb(t1), bb(t2)) = bincount(bb(n), bb(t1), bb(t2)) + 1
+		! else
+			! !Line end points/molecules
+			! bt = self%get_bin(rc1)
+			! bincount(bt(n), bt(t1), bt(t2)) = bincount(bt(n), bt(t1), bt(t2)) + 1
+			! bb = 0.d0
+			! if (all(bt .ne. bin1) .and. all(bt .ne. bin2)) then
+				! print*, bt, bin1, bin2
+				! stop "Error, bin1 or 2 not equal to ends"
 			! endif
+		! endif
 
-		! enddo
+		! if ((bb(n) .eq. ibin) .and. &
+			! (bb(t1) .eq. jbin) .and. &
+			! (bb(t2) .eq. kbin) .or. &
+			! (bt(n) .eq. ibin) .and. &
+			! (bt(t1) .eq. jbin) .and. &
+			! (bt(t2) .eq. kbin)) then
+			! print'(a,i5,5f14.6,6i6)', "ordered crossings", i, cross(m,:), bb, bt
+		! endif
 
-		! do i=1,self%nbins(n)+2*self%nhb(n)
-		! do j=1,self%nbins(t1)+2*self%nhb(t1)
-		! do k=1,self%nbins(t2)+2*self%nhb(t2)
-			! if ((bincount(i,j,k) .ne. 0) .and. (bincount(i,j,k) .ne. 2)) then
-				! print*, i,j,k,bincount(i,j,k)
-				! stop
-			! endif
-		! enddo
-		! enddo
-		! enddo
+	! enddo
 
-	! endif
+	! do i=1,self%nbins(n)+2*self%nhb(n)
+	! do j=1,self%nbins(t1)+2*self%nhb(t1)
+	! do k=1,self%nbins(t2)+2*self%nhb(t2)
+		! if ((bincount(i,j,k) .ne. 0) .and. (bincount(i,j,k) .ne. 2)) then
+			! print*, "Bincount error", i,j,k,bincount(i,j,k)
+			! !stop
+		! endif
+	! enddo
+	! enddo
+	! enddo
 
 
 	!DEBUG PRINT ALL CROSSINGS
