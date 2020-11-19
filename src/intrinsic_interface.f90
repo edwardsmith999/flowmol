@@ -8,7 +8,7 @@ module intrinsic_module
 
     type :: intrinsic_surface_mock
 
-        integer      :: normal, ixyz, jxyz
+        integer      :: normal, ixyz, jxyz, topbot
         integer, dimension(2)  :: modes_shape
         !integer, dimension(:), allocatable     :: pivots
 
@@ -25,7 +25,7 @@ module intrinsic_module
 
     type :: intrinsic_surface_complex
 
-        integer      :: normal, ixyz, jxyz
+        integer      :: normal, ixyz, jxyz, topbot
         integer, dimension(2)  :: modes_shape
         !integer, dimension(:), allocatable     :: pivots
 
@@ -46,7 +46,7 @@ module intrinsic_module
 
     type :: intrinsic_surface_real
 
-        integer      :: normal, ixyz, jxyz, n_waves, n_waves2, qm
+        integer      :: normal, ixyz, jxyz, topbot, n_waves, n_waves2, qm
 		integer, dimension(3)  :: nbins, nhb
 
         integer, dimension(:), allocatable     :: u, v
@@ -110,12 +110,12 @@ module intrinsic_module
 contains 
 
 
-subroutine initialise_mock(self, box, normal, alpha, eps)
+subroutine initialise_mock(self, box, normal, alpha, eps, topbot)
     implicit none
 
 	class(intrinsic_surface_mock) :: self
 
-    integer, intent(in)         :: normal
+    integer, intent(in)         :: normal, topbot
     double precision, intent(in) :: alpha, eps
     double precision, intent(in), dimension(3) :: box
 
@@ -127,6 +127,7 @@ subroutine initialise_mock(self, box, normal, alpha, eps)
     self%eps = eps
     self%ixyz = mod(normal,3)+1
     self%jxyz = mod(normal+1,3)+1
+    self%topbot = topbot
 
 end subroutine initialise_mock
 
@@ -245,12 +246,12 @@ function derivative_wave_function(x, u, Lx)
 
 end function derivative_wave_function
 
-subroutine initialise(self, box, normal, alpha, eps, nbins, nhb)
+subroutine initialise(self, box, normal, alpha, eps, nbins, nhb, topbot)
     implicit none
 
 	class(intrinsic_surface_real) :: self
 
-    integer, intent(in)         :: normal
+    integer, intent(in)         :: normal, topbot
 	
     integer, intent(in), dimension(3)  :: nbins, nhb
     double precision, intent(in) :: alpha, eps
@@ -267,6 +268,7 @@ subroutine initialise(self, box, normal, alpha, eps, nbins, nhb)
 	self%nbins = nbins
 	self%nhb = nhb
 	self%binsize = box/float(nbins)
+    self%topbot = topbot
 
     self%area = box(self%ixyz)*box(self%jxyz)
     self%qm = int(sqrt(self%area)/alpha)
@@ -1783,13 +1785,13 @@ end subroutine get_flat_crossings
 !=========================================
 !=========================================
 
-subroutine compute_q_vectors(self, box, normal, alpha, eps)
+subroutine compute_q_vectors(self, box, normal, alpha, eps, topbot)
     use librarymod, only : meshgrid2d
     implicit none
 
 	class(intrinsic_surface_complex) :: self
 
-    integer, intent(in)         :: normal
+    integer, intent(in)         :: normal, topbot
     double precision, intent(in) :: alpha, eps
     double precision, intent(in), dimension(3) :: box
 
@@ -1809,6 +1811,7 @@ subroutine compute_q_vectors(self, box, normal, alpha, eps)
     self%box = box
     self%alpha = alpha
     self%eps = eps
+    self%topbot = topbot
     !save in object:
     !q_vectors : two 2D arrays forming the grid of q-values, similar
     !            to a meshgrid
@@ -1973,17 +1976,19 @@ end subroutine get_surface_complex
 
 
 
-subroutine sample_intrinsic_surface(self, nbins, vertices, writeiter)
+subroutine sample_intrinsic_surface(self, vertices, nbins, writeiter)
     use librarymod, only : get_new_fileunit, get_Timestep_FileName
     implicit none
 
 	class(intrinsic_surface_real) :: self
 
-    integer,intent(in),dimension(3) :: nbins
+    integer,intent(in),dimension(3), optional :: nbins
 
     real(kind(0.d0)), dimension(:,:,:),intent(out), allocatable :: vertices
     integer, intent(in), optional :: writeiter
 
+    integer,dimension(3) :: nbins_
+    real(kind(0.d0)),dimension(3) :: binsize
 
     logical          :: debug=.true., writeobj=.false.
     logical, save    :: first_time = .true.
@@ -1993,6 +1998,14 @@ subroutine sample_intrinsic_surface(self, nbins, vertices, writeiter)
     real(kind(0.d0)), dimension(:,:), allocatable :: points
     character(200) :: outfile_t, filename
 
+	if (present(nbins)) then
+		binsize = self%box/float(nbins)
+        nbins_ = nbins
+	else
+		binsize = self%binsize
+		nbins_ = self%nbins
+	endif
+
     if (present(writeiter)) then      
         writeobj = .true.
     else
@@ -2000,34 +2013,37 @@ subroutine sample_intrinsic_surface(self, nbins, vertices, writeiter)
     endif
 
     allocate(points(4,3))
-    allocate(vertices(nbins(self%ixyz)*nbins(self%jxyz),4,3))
+    allocate(vertices(nbins_(self%ixyz)*nbins_(self%jxyz),4,3))
 
     if (writeobj) then
-        fileno = get_new_fileunit() 
-        call get_Timestep_FileName(writeiter,"./results/surface",outfile_t)
+        fileno = get_new_fileunit()
+    	if (present(nbins)) then
+            call get_Timestep_FileName(writeiter,"./results/surface",outfile_t)
+        else
+            call get_Timestep_FileName(writeiter,"./results/bilinear",outfile_t)
+        endif
         write(filename,'(a,a4)') trim(outfile_t),'.obj'
         open(fileno, file=trim(filename))
     endif
 
     n = 1; v = 1
-    do j = 1,nbins(self%ixyz)
-    do k = 1,nbins(self%jxyz)
+    do j = 1,nbins_(self%ixyz)
+    do k = 1,nbins_(self%jxyz)
 
-		vert = self%index_to_vertex(j,k)
+		!vert = self%index_to_vertex(j,k)
+        vert(1) = float(j-1)*binsize(self%ixyz)-0.5d0*self%box(self%ixyz)
+        vert(3) = float(j  )*binsize(self%ixyz)-0.5d0*self%box(self%ixyz)
+        vert(2) = float(k-1)*binsize(self%jxyz)-0.5d0*self%box(self%jxyz)
+        vert(4) = float(k  )*binsize(self%jxyz)-0.5d0*self%box(self%jxyz)
+
 		points(1,self%ixyz) = vert(1); points(1,self%jxyz) = vert(2) !Bottom left
 		points(2,self%ixyz) = vert(3); points(2,self%jxyz) = vert(2) !Bottom right
 		points(3,self%ixyz) = vert(1); points(3,self%jxyz) = vert(4) !Top left
 		points(4,self%ixyz) = vert(3); points(4,self%jxyz) = vert(4) !Top right
-
-        ! ysb = float(j-1)*self%binsize(self%ixyz)-0.5d0*self%box(self%ixyz)
-        ! yst = float(j  )*self%binsize(self%ixyz)-0.5d0*self%box(self%ixyz)
-        ! zsb = float(k-1)*self%binsize(self%jxyz)-0.5d0*self%box(self%jxyz)
-        ! zst = float(k  )*self%binsize(self%jxyz)-0.5d0*self%box(self%jxyz)
-
-        ! points(1,self%ixyz) = ysb; points(1,self%jxyz) = zsb !Bottom left
-        ! points(2,self%ixyz) = yst; points(2,self%jxyz) = zsb !Bottom right
-        ! points(3,self%ixyz) = ysb; points(3,self%jxyz) = zst !Top left
-        ! points(4,self%ixyz) = yst; points(4,self%jxyz) = zst !Top right
+        !points(1,self%ixyz) = ysb; points(1,self%jxyz) = zsb !Bottom left
+        !points(2,self%ixyz) = yst; points(2,self%jxyz) = zsb !Bottom right
+        !points(3,self%ixyz) = ysb; points(3,self%jxyz) = zst !Top left
+        !points(4,self%ixyz) = yst; points(4,self%jxyz) = zst !Top right
 
         call get_real_surface(self, points, elevation)
         !call surface_from_modes(points, 3, q_vectors, modes, elevation)
@@ -2214,6 +2230,8 @@ subroutine get_initial_pivots(points, ISR, pivots)
 
     !Define bins
     bins = 3
+    !Take into account non-equal domain
+    bins(2) = int(bins(1)*ISR%box(ISR%ixyz)/ISR%box(ISR%jxyz))
     allocate(sectors(bins(1), bins(2)))
     sectors = 0
     Npivots = bins(1)*bins(2)
@@ -2233,28 +2251,49 @@ subroutine get_initial_pivots(points, ISR, pivots)
     z = points(:,ISR%normal)
     call Qsort(z, indices)
 
-    !print*, ixyz, jxyz, box(:), box(ixyz)/dble(bins(1))
-    do ind = size(z,1), 1, -1
-        nxy(1) = ceiling((points(indices(ind), ISR%ixyz) + 0.5d0*ISR%box(ISR%ixyz)) / binsize(1))
-        nxy(2) = ceiling((points(indices(ind), ISR%jxyz) + 0.5d0*ISR%box(ISR%jxyz)) / binsize(2))
+    if (ISR%topbot .eq. 1) then
+        do ind = size(z,1), 1, -1
+            nxy(1) = ceiling((points(indices(ind), ISR%ixyz) + 0.5d0*ISR%box(ISR%ixyz)) / binsize(1))
+            nxy(2) = ceiling((points(indices(ind), ISR%jxyz) + 0.5d0*ISR%box(ISR%jxyz)) / binsize(2))
 
-        if (nxy(1) .lt. 1 .or. nxy(2) .lt. 1 .or. & 
-            nxy(1) .gt. bins(1) .or. nxy(2) .gt. bins(2)) then
-            !print*, ind, nxy, points(indices(ind), :)
-            cycle
-        endif
-!        nxy(1) = floor(2.99999999999999999 * points(indices(ind), ixyz) / box(ixyz))+1
-!        nxy(2) = floor(2.99999999999999999 * points(indices(ind), jxyz) / box(jxyz))+1
-        if (sectors(nxy(1), nxy(2)) .eq. 0) then
-            pivots(Npivots) = indices(ind)
-            sectors(nxy(1), nxy(2)) = 1
-            Npivots = Npivots - 1
-            !print*, ind, Npivots, pivots(Npivots+1), points(indices(ind), ixyz), points(indices(ind), jxyz)
-        endif
-        if (sum(sectors) .ge. maxpivots) then
-            exit
-        endif
-    enddo
+            if (nxy(1) .lt. 1 .or. nxy(2) .lt. 1 .or. & 
+                nxy(1) .gt. bins(1) .or. nxy(2) .gt. bins(2)) then
+                !print*, ind, nxy, points(indices(ind), :)
+                cycle
+            endif
+    !        nxy(1) = floor(2.99999999999999999 * points(indices(ind), ixyz) / box(ixyz))+1
+    !        nxy(2) = floor(2.99999999999999999 * points(indices(ind), jxyz) / box(jxyz))+1
+            if (sectors(nxy(1), nxy(2)) .eq. 0) then
+                pivots(Npivots) = indices(ind)
+                sectors(nxy(1), nxy(2)) = 1
+                Npivots = Npivots - 1
+                !print*, ind, Npivots, pivots(Npivots+1), points(indices(ind), ixyz), points(indices(ind), jxyz)
+            endif
+            if (sum(sectors) .ge. maxpivots) then
+                exit
+            endif
+        enddo
+
+    elseif (ISR%topbot .eq. 2) then
+        do ind = 1, size(z,1)
+            nxy(1) = ceiling((points(indices(ind), ISR%ixyz) + 0.5d0*ISR%box(ISR%ixyz)) / binsize(1))
+            nxy(2) = ceiling((points(indices(ind), ISR%jxyz) + 0.5d0*ISR%box(ISR%jxyz)) / binsize(2))
+
+            if (nxy(1) .lt. 1 .or. nxy(2) .lt. 1 .or. & 
+                nxy(1) .gt. bins(1) .or. nxy(2) .gt. bins(2)) then
+                cycle
+            endif
+            if (sectors(nxy(1), nxy(2)) .eq. 0) then
+                pivots(Npivots) = indices(ind)
+                sectors(nxy(1), nxy(2)) = 1
+                Npivots = Npivots - 1
+                print*, "Bottom pivots", ind, points(indices(ind), :) 
+            endif
+            if (sum(sectors) .ge. maxpivots) then
+                exit
+            endif
+        enddo
+    endif
 
     if (Npivots .ne. 0) stop "Not all initial pivots found"
 
@@ -2297,19 +2336,35 @@ subroutine update_pivots(points, ISR, pivots, tau, new_pivots)
     call Qsort(z, indices)
     n = 0; found_range=.false.
     allocate(candidates(size(points,1))) 
-    do i = size(z,1), 1, -1
-        if ((z(i) > z_min) .and. (z(i) < z_max)) then
-            n = n + 1
-            candidates(n) = indices(i)
-            found_range = .true.
-            !print*, "values", i, n, z_min, z(i), z_max, candidates(n)
-        else if (found_range) then
-            !If z is sorted and we've been inside the range,
-            !once we leave, no point looping anymore
-            exit
-        endif
+    if (ISR%topbot .eq. 1) then
+        do i = size(z,1), 1, -1
+            if ((z(i) > z_min) .and. (z(i) < z_max)) then
+                n = n + 1
+                candidates(n) = indices(i)
+                found_range = .true.
+                !print*, "values", i, n, z_min, z(i), z_max, candidates(n)
+            else if (found_range) then
+                !If z is sorted and we've been inside the range,
+                !once we leave, no point looping anymore
+                exit
+            endif
 
-    enddo
+        enddo
+    elseif (ISR%topbot .eq. 2) then
+        do i = 1, size(z,1)
+            if ((z(i) > z_min) .and. (z(i) < z_max)) then
+                n = n + 1
+                candidates(n) = indices(i)
+                found_range = .true.
+                !print*, "values", i, n, z_min, z(i), z_max, candidates(n)
+            else if (found_range) then
+                !If z is sorted and we've been inside the range,
+                !once we leave, no point looping anymore
+                exit
+            endif
+
+        enddo
+    endif 
 
     !Get positions from indices
     allocate(candidates_pos(n,3))

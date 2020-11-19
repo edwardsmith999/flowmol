@@ -1108,7 +1108,7 @@ subroutine set_parameters_allocate
 		                6*ncells(ixyz)+4)) &
                          /ncells(ixyz)**3))*np
 	enddo
-	extralloc = extralloc/nd  + 300  !Average of all 3 dimensions inc safety factor
+	extralloc = extralloc/nd  + 3000  !Average of all 3 dimensions inc safety factor
     !Set to 2000 here as start case was 2 phase with uneven distribution
 !    print*, "EXTRA ALLOC is massive, reduce in set_parameters_allocate"
 !	extralloc = extralloc/nd  + 300000 

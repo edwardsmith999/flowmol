@@ -183,6 +183,7 @@ module computational_constants_MD
     !Intrinsic interface coefficients
     integer          :: intrinsic_interface_outflag
 	integer	         :: II_normal   ! Surface normal direction
+	integer	         :: II_topbot   ! Top or bottom of cluster
     real(kind(0.d0)) :: II_alpha    ! Smallest wavelength
     real(kind(0.d0)) :: II_tau      ! Search radius around surface pivots
     real(kind(0.d0)) :: II_eps      ! Weight for surface energy minimising constraint
@@ -242,6 +243,7 @@ module computational_constants_MD
 	real(kind(0.d0)) 	:: simtime=0.d0      !Total incremented simulation time
 	real(kind(0.d0))    :: rdf_rmax          !Maximum radius for radial distribution function
 	real(kind(0.d0))	:: rescue_snapshot_freq	!Rescue snapshot output frequency in seconds
+	logical         	:: overwrite_rescue_snapshot !Save as final_state overwriting last or interim_state
 
     !Constants for probability density function
 	integer             :: NvPDF_ave   !Number of averages for each velocity PDF 

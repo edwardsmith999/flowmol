@@ -2019,9 +2019,12 @@ subroutine write_wave_xyz(vertices)
     if (first_time) then
         open(fileno, file=trim(filename), status='replace')
         write(fileno,*) size(vertices,1)
+        write(fileno,*) ""
         first_time = .false.
     else
         open(fileno, file=trim(filename),access='append')
+        write(fileno,*) size(vertices,1)
+        write(fileno,*) ""
     endif
 
     do v = 1,size(vertices,1)

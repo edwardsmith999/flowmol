@@ -2485,7 +2485,6 @@ subroutine cumulative_momentum(ixyz)
 
         select case (split_pol_sol_stats)
         case(0)
-            !Reset Control Volume momentum 
             do n = 1,np
                 !Add up current volume mass and momentum densities
                 ibin(:) = get_bin_molno(n)
@@ -2494,7 +2493,6 @@ subroutine cumulative_momentum(ixyz)
                                                             + mass(n)*(v(:,n) + slidev(:,n))
             enddo
         case(1)
-            !Reset Control Volume momentum 
             do n = 1,np
                 !Add up current volume mass and momentum densities
                 ibin(:) = get_bin_molno(n)
@@ -7975,10 +7973,10 @@ contains
         use physical_constants_MD, only : np, nd, tethereddisttop, tethereddistbottom
         use computational_constants_MD, only : iter, tplot, thermo_tags, thermo, &
                                                free, globaldomain, intrinsic_interface_outflag, &
-                                               II_normal, II_alpha, II_tau, II_eps, II_ns, &
+                                               II_normal, II_alpha, II_tau, II_eps, II_ns, II_topbot, &
                                                mflux_outflag, Nsurfevo_outflag, nhb, & 
                                                CA_generate_xyz, CA_generate_xyz_res, &
-											   mflux_outflag, vflux_outflag
+											   mflux_outflag, vflux_outflag, CV_conserve
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, & 
 								write_wave_xyz, write_waveobj
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
@@ -8000,7 +7998,7 @@ contains
         logical, save :: write_cluster_header=.true., first_sample=.true.
         logical,save                    :: first_time=.true., first_time_coeff=.true.
         character(32)                   :: filename, debug_outfile
-        integer                         :: n,i,j,ixyz, jxyz,resolution,fittype,normal, clustNo, bins(3)
+        integer                         :: n,i,j,ixyz, jxyz,resolution,fittype,normal,topbot, clustNo, bins(3)
         integer, dimension(:), allocatable :: pivots
         double precision                :: zeromode, maprange
         double precision                :: tolerance, alpha, tau, eps, ns, area
@@ -8017,9 +8015,7 @@ contains
         double precision,dimension(:,:),allocatable,save :: intrnsc_smplemdt
         double precision,dimension(:,:,:,:),allocatable,save :: Abilinearmdt
 
-
-        integer :: fileno, length
-        character(200) :: outfile_t
+        integer, save :: writeiter=0
 
         clustNo = imaxloc(self%Nlist)
 
@@ -8038,6 +8034,7 @@ contains
             tau =  II_tau ! 1.d0
             eps =  II_eps !0.00000001d0
             ns =  II_ns !0.8d0
+            topbot = II_topbot
 
             if (first_time) then
 				if (intrinsic_interface_outflag .eq. 1) then
@@ -8047,8 +8044,8 @@ contains
 					ISR => ISR_b
 					ISR_mdt => ISR_mdt_b
 				endif
-                call ISR%initialise(globaldomain, normal, alpha, eps, nbins, nhb)   ! initialise
-                call ISR_mdt%initialise(globaldomain, normal, alpha, eps, nbins, nhb)   ! initialise
+                call ISR%initialise(globaldomain, normal, alpha, eps, nbins, nhb, topbot)   ! initialise
+                call ISR_mdt%initialise(globaldomain, normal, alpha, eps, nbins, nhb, topbot)   ! initialise
                 first_time = .false.
 			!else
 				!do i=1,np
@@ -8062,11 +8059,12 @@ contains
 
 
             !Only recheck external molecules of cluster every tplot timesteps
-            if (mod(iter,tplot) .eq. 0) then
+            if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+
                 !Get cluster data into array
                 call cluster_to_array(self, clustNo, r, min_ngbr, rnp)
 				
-                !x normal is the tested appears to work
+                !x normal is tested appears to work
                 if (allocated(points)) deallocate(points)
                 allocate(points(size(rnp,2), size(rnp,1)))
                 points = 0.d0
@@ -8132,14 +8130,28 @@ contains
 
 				!DEBUG - write surface out
 				if (CA_generate_xyz .eq. 1) then
-					call ISR%sample_surface((/1, CA_generate_xyz_res, CA_generate_xyz_res/), vertices)
+                    if (CA_generate_xyz_res .gt. 0) then
+                        print*, "RESOLUTION NOT ZERO", CA_generate_xyz_res
+    					call ISR%sample_surface(vertices, nbins=(/1, CA_generate_xyz_res, CA_generate_xyz_res/), &
+                                                writeiter=writeiter)
+                        !Default size writes bilinear as well
+    					call ISR%sample_surface(vertices, writeiter=writeiter)
+                        writeiter = writeiter + 1
+                    else
+    					call ISR%sample_surface(vertices, writeiter=writeiter)
+                        writeiter = writeiter + 1
+                    endif
 					call write_wave_xyz(vertices)
 					!Store pivots in intrinsic surface to plot
 					if (allocated(ISR%pivots)) deallocate(ISR%pivots)
 					allocate(ISR%pivots(size(pivots,1)))
 					ISR%pivots = pivots
 				elseif (CA_generate_xyz .eq. 2) then
-					call ISR%sample_surface((/1, CA_generate_xyz_res, CA_generate_xyz_res/), vertices)
+                    if (CA_generate_xyz_res .gt. 0) then
+    					call ISR%sample_surface(vertices, (/1, CA_generate_xyz_res, CA_generate_xyz_res/))
+                    else
+    					call ISR%sample_surface(vertices)
+                    endif
 					call write_waveobj(vertices, iter)
 				endif
 
@@ -8264,6 +8276,95 @@ contains
         integer, intent(in)                :: min_ngbr
 
         integer                         :: i, N, clustno, mainclusterNo, fileunit, Nrecords
+        integer                         :: countwritten
+        logical,save                    :: first_time=.true.
+
+        integer, dimension(:), allocatable :: clust
+        double precision,dimension(:,:),allocatable :: rnp, rnp_other, rnp_ex
+
+        Nrecords = np! + extralloc
+        mainclusterNo = imaxloc(self%Nlist)
+
+        !Write vmd xyz file for debugging
+        if (first_time) then
+            fileunit = get_new_fileunit()
+            open(fileunit, file="./all_clusters.xyz",status='replace')
+            write(fileunit,*) Nrecords
+            write(fileunit,*) ""
+            first_time = .false.
+
+        else
+            fileunit = get_new_fileunit()
+            open(fileunit, file="./all_clusters.xyz", access='append')
+            write(fileunit,*) ""
+            write(fileunit,*) Nrecords
+        endif
+
+        countwritten = 0
+        do clustno =1,self%Nclust
+            N = self%Nlist(clustno)
+            if (N .ne. 0) then
+                !print*, clustno, N, mainclusterNo
+                if (clustno .eq. mainclusterNo) then
+                    if (allocated(rnp)) deallocate(rnp)
+                    if (allocated(rnp_ex)) deallocate(rnp_ex)
+                    call cluster_to_array(self, clustno, r, min_ngbr, rnp, rnp_ex)
+                    !Write interface first
+                    if (allocated(ISR%pivots)) then
+                        do i =1, size(ISR%pivots,1)
+                            print*, "writing pivots", i, ISR%pivots(i), rnp(:,ISR%pivots(i))
+                            write(fileunit,'(a,3f18.8)') "C", rnp(:,ISR%pivots(i))
+                            countwritten = countwritten + 1
+                        enddo
+                    endif
+                    !Then rest of cluster without interface
+                    do i=1,size(rnp,2) !Cluster size can be larger than rnp as min_ngbr excluded
+                        if (any(ISR%pivots .eq. i)) cycle
+                        write(fileunit,'(a1,3f18.8)') "O", rnp(:,i)
+                        countwritten = countwritten + 1
+                    enddo
+                    !countwritten = countwritten + size(rnp,2)
+                    !Write excluded molecules by minimum neightbour cutoff
+                    do i=1,size(rnp_ex,2) 
+                        write(fileunit,'(a1,3f18.8)') "H", rnp_ex(:,i)
+                    enddo
+                    countwritten = countwritten + size(rnp_ex,2)
+
+                else
+                    if (allocated(rnp_other)) deallocate(rnp_other)
+                    call cluster_to_array(self, clustno, r, 0, rnp_other)
+                    do i=1,size(rnp_other,2)
+                        write(fileunit,'(a1,3f18.8)') "B", rnp_other(:,i)
+                    enddo
+                    countwritten = countwritten + size(rnp_other,2)
+                endif
+            endif
+        enddo
+
+        !Sanity check, have all molecules been written either to main cluster or other
+        if (countwritten .ne. Nrecords) then 
+            print*, size(ISR%pivots,1), size(rnp,2), size(rnp_ex,2), size(rnp_other,2), countwritten,  Nrecords
+            stop "Error in write_cluster_xyz - clust_main+clust_others .ne. total_particles"
+        endif
+        close(fileunit)
+
+    end subroutine write_cluster_xyz
+
+
+
+    subroutine write_cluster_xyz_multifile(self, min_ngbr)
+        use computational_constants_MD, only : extralloc, globaldomain
+        use physical_constants_MD, only : np, nd
+        use librarymod, only : get_Timestep_FileName, get_new_fileunit, imaxloc
+        use interfaces, only : error_abort
+        use arrays_MD, only : r, glob_no
+        use module_record, only : ISR
+        implicit none
+
+        type(clusterinfo),intent(inout)    :: self
+        integer, intent(in)                :: min_ngbr
+
+        integer                         :: i, N, clustno, mainclusterNo, fileunit, Nrecords
         integer                         :: fileunit1, fileunit2, fileunit3
         integer                         :: countwritten1, countwritten2, countwritten3
         logical,save                    :: first_time=.true.
@@ -8279,24 +8380,33 @@ contains
             fileunit1 = get_new_fileunit()
             open(fileunit1, file="./cluster_main.xyz",status='replace')
             write(fileunit1,*) Nrecords
+            write(fileunit1,*) ""
             fileunit2 = get_new_fileunit()
             open(fileunit2, file="./cluster_others.xyz",status='replace')
             write(fileunit2,*) Nrecords
+            write(fileunit2,*) ""
             fileunit3 = get_new_fileunit()
             open(fileunit3, file="./cluster_interface.xyz",status='replace')
             write(fileunit3,*) Nrecords
+            write(fileunit3,*) ""
             first_time = .false.
 
         else
             fileunit1 = get_new_fileunit()
             open(fileunit1, file="./cluster_main.xyz", access='append')
+            write(fileunit1,*) Nrecords
+            write(fileunit1,*) ""
             fileunit2 = get_new_fileunit()
             open(fileunit2, file="./cluster_others.xyz", access='append')
+            write(fileunit2,*) Nrecords
+            write(fileunit2,*) ""
             fileunit3 = get_new_fileunit()
             open(fileunit3, file="./cluster_interface.xyz", access='append')
+            write(fileunit3,*) Nrecords
+            write(fileunit3,*) ""
         endif
 
-        countwritten1 = 0; countwritten2 = 0
+        countwritten1 = 0; countwritten2 = 0; countwritten3 = 0
         do clustno =1,self%Nclust
             N = self%Nlist(clustno)
             if (N .ne. 0) then
@@ -8304,7 +8414,7 @@ contains
                 if (clustno .eq. mainclusterNo) then
                     call cluster_to_array(self, clustno, r, min_ngbr, rnp, rnp_ex)
                     do i=1,size(rnp,2) !Cluster size can be larger than rnp as min_ngbr excluded
-                        write(fileunit1,'(a1,3f18.8)') "c", rnp(:,i)
+                        write(fileunit1,'(a1,3f18.8)') "O", rnp(:,i)
 !                        if (any(rnp(:,i)+0.5d0*globaldomain .gt. globaldomain)) then 
 !                            print*, "write_cluster_xyz outside domain", i, rnp(:,i), clustno, np
 !                            stop "Error in write_cluster_xyz"
@@ -8313,7 +8423,7 @@ contains
                     countwritten1 = countwritten1 + size(rnp,2)
                     !Write excluded molecules by minimum neightbour cutoff to cluster_others.xyz file
                     do i=1,size(rnp_ex,2) 
-                        write(fileunit2,'(a1,3f18.8)') "c", rnp_ex(:,i)
+                        write(fileunit2,'(a1,3f18.8)') "H", rnp_ex(:,i)
                     enddo
                     countwritten2 = countwritten2 + size(rnp_ex,2)
                     !print*, "CLUSTER SIZE ADDED = ", size(rnp,2) + size(rnp_ex,2), N
@@ -8322,14 +8432,14 @@ contains
                             !print'(a,i6,3f10.5,3i6)', "Cluster interface mols and bins", i, points(ISR%pivots(i),:),& 
                             !         ISR%get_bin(points(ISR%pivots(i),:), nbins, nhb)!, & 
                                  !ISR_mdt%get_bin(points(ISR%pivots(i),:), nbins, nhb)
-                            write(fileunit3,'(a,3f18.8)') "c", rnp(:,ISR%pivots(i))
+                            write(fileunit3,'(a,3f18.8)') "C", rnp(:,ISR%pivots(i))
                         enddo
                         countwritten3 = countwritten3 + size(ISR%pivots,1)
                     endif
                 else
                     call cluster_to_array(self, clustno, r, 0, rnp)
                     do i=1,size(rnp,2)
-                        write(fileunit2,'(a1,3f18.8)') "c", rnp(:,i)
+                        write(fileunit2,'(a1,3f18.8)') "H", rnp(:,i)
                     enddo
                     countwritten2 = countwritten2 + size(rnp,2)
                 endif
@@ -8357,15 +8467,15 @@ contains
         enddo
         close(fileunit3)
 
-    end subroutine write_cluster_xyz
-
+    end subroutine write_cluster_xyz_multifile
 
 
 
     subroutine surface_evolution(ISR, ISR_mdt, write_debug)
         use physical_constants_MD, only : np, halo_np
         use computational_constants_MD, only : iter, delta_t, nhb, halfdomain, &
-											mflux_outflag, vflux_outflag, eflux_outflag
+											mflux_outflag, vflux_outflag, eflux_outflag, &
+                                            Nmflux_ave, Nvflux_ave, Neflux_ave
         use librarymod, only : get_Timestep_FileName, get_new_fileunit
         use arrays_MD, only : r, v, a
         use module_set_parameters, only : mass, potenergymol
@@ -8381,6 +8491,7 @@ contains
 
         integer                            :: n, i, b, pid, minbin, maxbin, ib, jb, kb
         integer                            :: n1, t1, t2
+    	integer, save		               :: countmass=0, countmomentum=0, countenergy=0
         integer, parameter                 :: ct_mass=1, ct_momentum=2, ct_energy=3
         integer,dimension(3)               :: temp, bin, bin_mdt
         character(33)                      :: filename, debug_outfile
@@ -8441,24 +8552,24 @@ contains
                         endif					
 							
 						if (mflux_outflag .ne. 0) then
-							mass_surface_flux(b, bin(2), bin(3), 1) = &
-								mass_surface_flux(b, bin(2), bin(3), 1) + crossdir*mass(n)
-							mass_surface_flux(b-1,bin(2),bin(3),4) = & 
-								mass_surface_flux(b,bin(2),bin(3),1)
+							mass_surface_flux(b, bin(2), bin(3), n1) = &
+								mass_surface_flux(b, bin(2), bin(3), n1) + crossdir*mass(n)
+							mass_surface_flux(b-1,bin(2),bin(3),n1+3) = & 
+								mass_surface_flux(b,bin(2),bin(3),n1)
 						endif
 						if (vflux_outflag .ne. 0) then		
-							momentum_surface_flux(b, bin(2), bin(3), :, 1) = &
-								momentum_surface_flux(b, bin(2), bin(3), :, 1) + crossdir*vi
-							momentum_surface_flux(b-1,bin(2),bin(3), :, 4) = & 
-								momentum_surface_flux(b,bin(2),bin(3), :, 1)
+							momentum_surface_flux(b, bin(2), bin(3), :, n1) = &
+								momentum_surface_flux(b, bin(2), bin(3), :, n1) + crossdir*vi
+							momentum_surface_flux(b-1,bin(2),bin(3), :, n1+3) = & 
+								momentum_surface_flux(b,bin(2),bin(3), :, n1)
 						endif
 						if (eflux_outflag .ne. 0) then
 							velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
 							energy = 0.5d0 * ( mass(n)*dot_product(velvect,velvect) + potenergymol(n))
-							energy_surface_flux(b, bin(2), bin(3), 1) = &
-								energy_surface_flux(b, bin(2), bin(3), 1) + crossdir*energy
-							energy_surface_flux(b-1,bin(2),bin(3), 4) = & 
-								energy_surface_flux(b,bin(2),bin(3), 1)
+							energy_surface_flux(b, bin(2), bin(3), n1) = &
+								energy_surface_flux(b, bin(2), bin(3), n1) + crossdir*energy
+							energy_surface_flux(b-1,bin(2),bin(3), n1+3) = & 
+								energy_surface_flux(b,bin(2),bin(3), n1)
 						endif
                     enddo
                 endif
@@ -8469,15 +8580,25 @@ contains
             close(pid,status='keep')
         endif
 
-		if (mflux_outflag .ne. 0) then
+        !Increment counters
+	    countmass = countmass + 1
+	    countmomentum = countmomentum + 1
+	    countenergy = countenergy + 1
+		if (mflux_outflag .ne. 0 .and. countmass .eq. Nmflux_ave) then
 			call surface_evolution_mass_flux_io()
+            countmass = 0
+            mass_surface_flux = 0.d0
 		endif
-		if (vflux_outflag .ne. 0) then		
+		if (vflux_outflag .ne. 0 .and. countmomentum .eq. Nvflux_ave) then		
 			call surface_evolution_momentum_flux_io()
+            countmomentum = 0
+            momentum_surface_flux = 0.d0
 		endif
-		if (eflux_outflag .ne. 0) then
+		if (eflux_outflag .ne. 0 .and. countenergy .eq. Neflux_ave) then
 			stop "surface_evolution - energy not developed"
 			!call surface_evolution_energy_flux_io()
+            countenergy = 0
+            energy_surface_flux = 0.d0
 		endif
 		
     end subroutine surface_evolution

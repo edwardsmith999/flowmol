@@ -515,8 +515,11 @@ subroutine setup_read_input
 	call locate(1,'RESCUE_SNAPSHOT_FREQ',.false.,found_in_input) 
 	if (found_in_input) then
 		read(1,*) rescue_snapshot_freq 	!Rescue snapshot frequency in seconds
+        read(1,*,iostat=ios) overwrite_rescue_snapshot
+		if (ios .ne. 0) overwrite_rescue_snapshot = .true.
 	else
 		rescue_snapshot_freq = 21600	!Every 6 hours
+        overwrite_rescue_snapshot = .true.
 	endif
 
 	call locate(1,'SORT_FLAG',.false.,found_in_input) 
@@ -881,7 +884,7 @@ subroutine setup_read_input
             if (ios .ne. 0) CA_generate_xyz = 0  ! Set to zero (i.e. default no output)
             if (CA_generate_xyz .ne. 0) then
     		    read(1,*,iostat=ios) CA_generate_xyz_res   ! Resolution for output xyz files 
-                if (ios .ne. 0) CA_generate_xyz_res = 200  
+                if (ios .ne. 0) CA_generate_xyz_res = 0  
             endif
             ! If interface cutoff is less that interaction rcutoff
             ! then we can use the neighbourlist to get molecules in 
@@ -930,6 +933,8 @@ subroutine setup_read_input
             if (ios .ne. 0) II_eps = 0.00000001d0
             read(1,*,iostat=ios) II_ns       ! Target density of surface Npivots/Area
             if (ios .ne. 0) II_ns = 0.8d0
+            read(1,*,iostat=ios) II_topbot       !Top =1 or bottom=2
+            if (ios .ne. 0) II_topbot = 1
         endif
     else
         intrinsic_interface_outflag = 0

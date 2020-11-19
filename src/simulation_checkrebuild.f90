@@ -46,11 +46,19 @@ subroutine simulation_checkrebuild(rebuild)
 		if (irank.eq.iroot) then
 			print('(2(a,f10.5))'), ' It`s been ', dt, & 
 				' seconds since last rescue and requested freq is ', rescue_snapshot_freq
-			print('(a,i8)'), ' Rescue microstate written to ./results/final_state at iter ', iter
+            if (overwrite_rescue_snapshot) then
+	    		print('(a,i8)'), ' Rescue microstate written to ./results/final_state at iter ', iter
+            else
+	    		print('(a,i8)'), ' Rescue microstate written to interim_state at iter ', iter
+            endif
 		end if
 		just_written_snapshot = .true.
 		call messenger_syncall
-		call parallel_io_final_state
+        if (overwrite_rescue_snapshot) then
+		    call parallel_io_final_state(.false.)
+        else
+		    call parallel_io_final_state(.true.)
+        endif
 	endif
 
     !Abort can be forced by creating file -- global check required to ensure all abort together
@@ -68,7 +76,7 @@ subroutine simulation_checkrebuild(rebuild)
 	if (abort) then
 		print*, 'File ABORTABORT detected. Writing final_state file...'
 		call messenger_syncall
-		call parallel_io_final_state	
+		call parallel_io_final_state(.false.)
 		call error_abort('Restart file written. Simulation aborted.')
 	end if
 

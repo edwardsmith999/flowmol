@@ -1430,11 +1430,14 @@ end subroutine parallel_io_import_cylinders
 !------------------------------------------------------------------------
 !Write positions and velocities of molecules to a file for restart
 
-subroutine parallel_io_final_state()
+subroutine parallel_io_final_state(interim_output)
     use module_parallel_io
     use polymer_info_MD
     use messenger_data_exchange, only : globalSum
+    use librarymod, only : get_Timestep_FileName
     implicit none
+
+    logical,intent(in) :: interim_output
 
     integer                                         :: n, i
     integer                                         :: pos
@@ -1444,6 +1447,7 @@ subroutine parallel_io_final_state()
     integer(kind=selected_int_kind(18))             :: header_pos
     real(kind(0.d0)), dimension(:,:), allocatable   :: rglobal,rtetherglobal
     real(kind(0.d0)), dimension(:)  , allocatable   :: buf
+    character(32)                                   :: filename_incno
 
     allocate(bufsize(nproc))
     bufsize = 0
@@ -1481,13 +1485,22 @@ subroutine parallel_io_final_state()
         rtetherglobal(3,:) = rtether(3,1:np)-(halfdomain(3)*(npz-1))+domain(3)*(kblock-1)
     endif
 
-    !Remove previous final state file
-    call MPI_FILE_DELETE(trim(prefix_dir)//'results/final_state', MPI_INFO_NULL, ierr)
+    if (.not. interim_output) then
+        !Remove previous final state file
+        call MPI_FILE_DELETE(trim(prefix_dir)//'results/final_state', MPI_INFO_NULL, ierr)
 
-    !Open file on all processors
-    call MPI_FILE_OPEN( MD_COMM,trim(prefix_dir)//'results/final_state', & 
-                        MPI_MODE_RDWR + MPI_MODE_CREATE, & 
-                        MPI_INFO_NULL, restartfileid, ierr)
+        !Open file on all processors
+        call MPI_FILE_OPEN( MD_COMM,trim(prefix_dir)//'results/final_state', & 
+                            MPI_MODE_RDWR + MPI_MODE_CREATE, & 
+                            MPI_INFO_NULL, restartfileid, ierr)
+    else
+        call get_Timestep_FileName(iter, trim(prefix_dir)//'results/interim_state', filename_incno)
+
+        !Open file on all processors
+        call MPI_FILE_OPEN( MD_COMM, filename_incno, & 
+                            MPI_MODE_RDWR + MPI_MODE_CREATE, & 
+                            MPI_INFO_NULL, restartfileid, ierr)
+    endif
 
     ! Calculate buffer size ---------------------------------------!
     ! Attention: np is changed inside reorder_data%sendmols call
@@ -1580,8 +1593,17 @@ subroutine parallel_io_final_state()
     !Write the header with one processor only
     if (irank .eq. iroot) then
 
-        call MPI_file_open(MPI_COMM_SELF,trim(prefix_dir)//'results/final_state', & 
-            MPI_MODE_WRONLY, MPI_INFO_NULL, restartfileid, ierr)
+        if (.not. interim_output) then
+            call MPI_file_open(MPI_COMM_SELF,trim(prefix_dir)//'results/final_state', & 
+                 MPI_MODE_WRONLY, MPI_INFO_NULL, restartfileid, ierr)
+            print*, "Output final"
+        else
+            call get_Timestep_FileName(iter, trim(prefix_dir)//'results/interim_state', filename_incno)
+            call MPI_file_open(MPI_COMM_SELF,filename_incno, & 
+                 MPI_MODE_WRONLY, MPI_INFO_NULL, restartfileid, ierr)
+
+        endif
+
                 
         if (ierr .ne. 0) then 
             write(0,*) "MD parallel_io: error in MPI_File open"
