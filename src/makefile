@@ -34,7 +34,7 @@ OBJ_DIR := obj
 # path to .inc file the choosen platform. 
 # This is needed for build started in this directory
 #
-MAKE_INC_PATH := ../../misc/platforms
+MAKE_INC_PATH := ../platforms
 
 ifndef PLATFORM
     PLATFORM := $(shell cat $(MAKE_INC_PATH)/PLATFORM_default)
