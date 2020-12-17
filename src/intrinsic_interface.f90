@@ -317,6 +317,8 @@ end subroutine initialise
 subroutine update_real_surface(self, points)
 #if USE_LAPACK
     use lapack_fns, only : solve, multiply_by_tranpose
+#else
+    use interfaces, only : error_abort
 #endif
     implicit none
 
@@ -349,11 +351,18 @@ subroutine update_real_surface(self, points)
     enddo
 
     A = 0.d0
+#if USE_LAPACK
     call multiply_by_tranpose(fuv, fuv, A)
-
+#else
+    call error_abort("Error - must build with lapack (p_lapack or p_sys_lapack) to use intrinsic interface")
+#endif
     !This solves Ax = b
     A = A + self%diag_matrix
+#if USE_LAPACK
     call solve(A, b, x)
+#else
+    call error_abort("Error - must build with lapack (p_lapack or p_sys_lapack) to use intrinsic interface")
+#endif
 	self%coeff(:) = x(:)
 
     !Check surface we just fitted actually matches our points
@@ -1854,7 +1863,10 @@ end subroutine compute_q_vectors
 subroutine update_surface_modes(self, points)
 #if USE_LAPACK
     use lapack_fns, only : pinverse
+#else
+    use interfaces, only : error_abort
 #endif
+
     implicit none
 
 	class(intrinsic_surface_complex) :: self
@@ -1902,8 +1914,12 @@ subroutine update_surface_modes(self, points)
         ph(:,j) = ph(:,j) + self%eps * dcmplx(self%Q(j), 0.d0)
     enddo
 
+#if USE_LAPACK
     ! Least square solution solving ph*z = s
     call pinverse(ph, pinv_ph)
+#else
+    call error_abort("Error - must build with lapack (p_lapack or p_sys_lapack) to use intrinsic interface")
+#endif
 
     !Multiply inverse with z values to get mode coefficients
     allocate(s(self%modes_shape(1)*self%modes_shape(2)))

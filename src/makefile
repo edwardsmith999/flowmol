@@ -128,7 +128,7 @@ profile_s:
 memprofile_s:
 	@make serial_md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
 profile_p:
-	@make $(MD_EXE) "FFLAGS = -O3 -g -pg -fno-inline-functions -fpp -nolib-inline"
+	@make $(MD_EXE) "FFLAGS = -O3 -g -pg -cpp -DUSE_COUPLER=0 -O3 -funroll-loops -Jobj -cpp -DUSE_COUPLER=0 -fno-underscoring"
 
 #-mpe=mpilog "
 

@@ -86,13 +86,15 @@ module computational_constants_MD
 	integer, dimension(3), parameter :: slide_tags=(/teth_slide,teth_thermo_slide, fixed_slide/)
 
 	! Wall texture flags
+    logical            :: debug_tags
 	integer			   :: texture_type, texture_therm
     integer            :: nthermo
 	integer, parameter :: posts = 1
 	integer, parameter :: roughness = 2
 	integer, parameter :: converge_diverge = 3
 	integer, parameter :: fractal = 4
-	real(kind(0.d0))   :: texture_intensity
+	integer, parameter :: triangle_notch = 5
+	real(kind(0.d0))   :: texture_intensity, tex_opt1, tex_opt2, tex_opt3
 	real(kind(0.d0))   :: local_heat_region(6)
 	
 

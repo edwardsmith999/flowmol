@@ -16,7 +16,7 @@ contains
     !Recursive as it must call itself to see if removed molecules are tethered
     recursive function get_tag_status(rg, status_type) result(tag_status)
         use interfaces, only: error_abort
-        use computational_constants_MD, only : texture_type, domain
+        use computational_constants_MD, only : texture_type, domain, triangle_notch, converge_diverge
         use calculated_properties_MD, only : nbins
         implicit none
 
@@ -79,13 +79,25 @@ contains
             endif
 
         case('nonexistent')
-            !Don't remove tethered molecules!
-            if (get_tag_status(rg,'teth')) then
-                tag_status = .false.
-                return
+            !Hollow out the bit under the wall for efficiency
+            if (texture_type .eq. triangle_notch .or. & 
+                texture_type .eq. converge_diverge) then
+                call wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
+                tagdistbottom(:) = tagdistbottom - tethereddistbottom + emptydistbottom
+                tagdisttop(:)	 = tagdisttop - tethereddisttop + emptydisttop
+                if (tagdistbottom(2) < 0.d0) then 
+                    tag_status = .false.
+                    return
+                endif
+            else
+                !Don't remove tethered molecules!
+                if (get_tag_status(rg,'teth')) then
+                    tag_status = .false.
+                    return
+                endif
+                tagdistbottom(:) = emptydistbottom(:)
+                tagdisttop(:)	 = emptydisttop(:)
             endif
-            tagdistbottom(:) = emptydistbottom(:)
-            tagdisttop(:)	 = emptydisttop(:)
         case default
             call error_abort("Unrecognised tag status type")
         end select
@@ -181,14 +193,14 @@ subroutine setup_location_tags(thermo_only_)
     use module_molecule_properties
     use interfaces, only: error_abort
     use messenger, only: globalise
-    use computational_constants_MD, only : texture_type, domain
+    use computational_constants_MD, only : texture_type, domain, debug_tags
     use calculated_properties_MD, only : nbins, rough_array
     implicit none
 
     integer, intent(in) :: thermo_only_
 
     integer :: n, i, j
-    real(kind(0.d0)) :: rglob(3)
+    real(kind(0.d0)), dimension(3) :: rglob
     logical :: l_thermo, l_teth, l_fixed, l_slide, thermo_only
 
     !If only thermostat tags are updated
@@ -209,7 +221,7 @@ subroutine setup_location_tags(thermo_only_)
             l_teth = .false.; l_fixed = .false.; l_slide = .false.
             if (thermo_only) then
 		        l_thermo = get_tag_status(rglob,'thermo')
-                if (any(tag(n) .eq. tether_tags))  l_teth = .true.
+                if (any(tag(n) .eq. tether_tags)) l_teth = .true.
                 if (any(tag(n) .eq. fixed_tags))  l_fixed = .true.
                 if (any(tag(n) .eq. slide_tags))  l_slide = .true.
             else
@@ -240,6 +252,12 @@ subroutine setup_location_tags(thermo_only_)
 		    ! Thermo only
 		    if ( l_thermo .and. .not. l_teth .and. .not. l_slide ) tag(n) = thermo
 
+            if (debug_tags) then
+                if (l_thermo) call output_tags("thermo_tags", rglob, n)
+                if (l_teth) call output_tags("teth_tags__", rglob, n)
+                if (l_fixed) call output_tags("fixed_tags_", rglob, n)
+                if (l_slide) call output_tags("slide_tags_", rglob, n)
+            endif
 	    enddo
 
 	    !Check if any molecules are thermostatted and switch on flag
@@ -249,6 +267,43 @@ subroutine setup_location_tags(thermo_only_)
 
 end subroutine setup_location_tags
 
+
+subroutine output_tags(filebase, rin, n)
+    use module_parallel_io
+    use librarymod, only : get_new_fileunit
+    implicit none
+
+    integer, intent(in) :: n
+    character(11), intent(in)                  :: filebase
+    real(kind(0.d0)), dimension(3), intent(in)  :: rin
+
+    integer                 :: unitno
+    character(256)          :: filename
+
+    !Get rank id
+    if (irank .lt. 10) then
+        write(filename,'(a,i1)'),trim(prefix_dir)//'results/'//trim(filebase),irank
+    elseif (irank .lt. 100) then
+        write(filename,'(a,i2)'),trim(prefix_dir)//'results/'//trim(filebase),irank
+    elseif (irank .lt. 1000) then
+        write(filename,'(a,i3)'),trim(prefix_dir)//'results/'//trim(filebase),irank
+    elseif (irank .lt. 10000) then
+        write(filename,'(a,i4)'),trim(prefix_dir)//'results/'//trim(filebase),irank
+    else
+       stop "Error in write tag -- irank > 1000"
+    endif
+    !filename = trim(prefix_dir)//'results/'//trim(filebase)
+    !Open file and write
+    unitno = get_new_fileunit()
+    if (n .eq. 1) then
+        open(unit=unitno, file=trim(filename),status='replace',action='write')
+    else
+        open(unit=unitno, file=trim(filename),position="append",action='write')
+    endif
+    write(unitno, "(3f18.12)") rin
+    close(unitno)
+
+end subroutine output_tags
 
 !---------------------------------
 ! Setup type of molecules in the wall
@@ -364,11 +419,11 @@ end subroutine get_tag_thermostat_activity
 subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
 	use physical_constants_MD, only : pi, tethereddistbottom, tethereddisttop, & 
                                       thermstatbottom, rcutoff
-	use computational_constants_MD, only : posts,roughness,converge_diverge, fractal, & 
+	use computational_constants_MD, only : posts,roughness,converge_diverge, fractal, triangle_notch, & 
                                            texture_intensity, globaldomain, cellsidelength, &
 										   texture_therm,nh,halfdomain,ncells, initialnunits, & 
                                            irank, iroot, initialunitsize, npx, npy, npz, & 
-                                           iblock, jblock, kblock
+                                           iblock, jblock, kblock, tex_opt1, tex_opt2, tex_opt3
     use calculated_properties_MD, only : rough_array
     use librarymod, only : DiamondSquare
 	implicit none
@@ -379,8 +434,10 @@ subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
 
     integer                 :: i, j, levels, Nx, Nz, lb(3), ub(3), npostsx, npostsz
     logical                 :: first_time=.true.
-	real(kind(0.d0))		:: xlocation, ylocation, zlocation, unitsize(3)
+	real(kind(0.d0))		:: xlocation, ylocation, zlocation, unitsize(3), add
 	real(kind(0.d0))		:: rand, fraction_domain, postheight, sizex, sizez, nposts
+	real(kind(0.d0))		:: tstart, tend, tdepth, grad, normal, mid, wallwidth, bottom, line
+	real(kind(0.d0))		:: inlet, outlet, region
 	!real(kind(0.d0)),dimension(:),allocatable	:: temp
 	!real(kind(0.d0)),dimension(:,:),allocatable,save	:: z
 
@@ -430,6 +487,40 @@ subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
 			    endif
             endif
 		endif
+
+	case(triangle_notch)
+
+        tagdisttop = tethereddisttop
+
+        tstart = -texture_intensity ! -4.d0
+        tend = texture_intensity !4.d0
+        tdepth = texture_intensity !4.d0
+        grad = 2.d0 * tdepth / (tend - tstart)
+        normal = 1.d0/grad
+        mid = 0.5d0*(tend + tstart)
+        wallwidth = rcutoff
+
+		ylocation = rg(2) + 0.5*globaldomain(2)
+
+        if ((rg(1) .gt. tstart) .and. (rg(1) .lt. mid)) then
+            line = tethereddistbottom(2)-grad*(rg(1)-tstart)
+            !print*, i, ylocation, line, line-wallwidth*normal
+            tagdistbottom(2) = line
+            !if ((ylocation > line)) then
+            !    continue
+            !endif
+        elseif ((rg(1) .gt. mid) .and. (rg(1) .lt. tend)) then
+            bottom = tethereddistbottom(2)-grad*(mid-tstart)
+            line = bottom + grad*(rg(1)-mid)
+            !print*, i, ylocation, line, line + wallwidth*normal
+            tagdistbottom(2) = line
+            !if ((ylocation > line) then
+            !    continue
+            !endif
+        else
+            tagdistbottom(2) = tethereddistbottom(2)
+        endif
+
 
 	case(roughness)
 
@@ -500,20 +591,84 @@ subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
 		tagdistbottom = 0.d0; tagdisttop=0.d0
 		xlocation = rg(1)/globaldomain(1) + 0.5
 		fraction_domain =  0.5d0*texture_intensity
-		!Ensure Minimum height
-		if (tethereddistbottom(2) .lt. 0.05d0*globaldomain(2)) then
-			tethereddistbottom(2) = 0.05d0*globaldomain(2)
-		endif
-		if (tethereddisttop(2) .lt. 0.05d0*globaldomain(2)) then
-			tethereddisttop(2) = 0.05d0*globaldomain(2)
-		endif
+
 		!N.B. One minus cosine used as periodic and has a periodic derivative (sine does not)
-		tagdistbottom(2) =  0.5d0*fraction_domain*globaldomain(2) & 
-								 *(1-cos(2*pi*xlocation)) & 
-							+ tethereddistbottom(2) + 0.5d0*cellsidelength(2)
-		tagdisttop(2)	=  0.5d0*fraction_domain*globaldomain(2)   & 
-								 *(1-cos(2*pi*xlocation)) & 
-							+ tethereddisttop(2)	+ 0.5d0*cellsidelength(2)
+        if (abs(tex_opt1+666.0) .lt. 1e-3 .and. abs(tex_opt2+666.0) .lt. 1e-3) then
+    		tagdistbottom(2) =  0.5d0*fraction_domain*globaldomain(2) & 
+	    							 *(1-cos(2*pi*xlocation)) & 
+	    						+ tethereddistbottom(2) + 0.5d0*cellsidelength(2)
+	    	tagdisttop(2)	=  0.5d0*fraction_domain*globaldomain(2)   & 
+	    							 *(1-cos(2*pi*xlocation)) & 
+	    						+ tethereddisttop(2)	+ 0.5d0*cellsidelength(2)
+
+        !Allows a buffer region at the end where tex_opt1 is fraction of 
+        !domain used for nozzle
+        ! Convention here is 
+        ! Opt1 - fraction of domain for nozzle
+        else if (abs(tex_opt2+666.0) .lt. 1e-3) then
+
+            if (xlocation .lt. tex_opt1) then
+
+                xlocation = xlocation/tex_opt1
+        		tagdistbottom(2) =  0.5d0*fraction_domain*globaldomain(2) & 
+	        							 *(1-cos(2*pi*xlocation)) & 
+	        						+ tethereddistbottom(2) + 0.5d0*cellsidelength(2)
+	        	tagdisttop(2)	=  0.5d0*fraction_domain*globaldomain(2)   & 
+	        							 *(1-cos(2*pi*xlocation)) & 
+	        						+ tethereddisttop(2)	+ 0.5d0*cellsidelength(2)
+
+            !Region to allow expansion region
+            else
+                tagdistbottom(2) = tethereddistbottom(2)
+                tagdisttop(2) = tethereddisttop(2)
+            endif
+
+        !Allow expansion region to be different from contraction
+        ! Convention here is 
+        ! Opt1 - fraction of domain for outlet region
+        ! Opt2 - fraction of domain for diverging nozzle
+        else
+
+            !print*, xlocation, (tex_opt1 + tex_opt2), (1.d0-tex_opt1)
+            inlet = 1.d0-(tex_opt1 + tex_opt2)
+            add = 0.5d0*cellsidelength(2)
+            if (tex_opt3  .eq. 1) add = 0.d0
+            if (xlocation .lt. inlet) then
+                xlocation = xlocation/(2.d0*inlet)
+        		tagdistbottom(2) =  0.5d0*fraction_domain*globaldomain(2) & 
+	        							 *(1-cos(2*pi*xlocation)) & 
+	        						+ tethereddistbottom(2) + add
+	        	tagdisttop(2)	=  0.5d0*fraction_domain*globaldomain(2)   & 
+	        							 *(1-cos(2*pi*xlocation)) & 
+	        						+ tethereddisttop(2)	+ add
+            else if  (xlocation .lt. (1.d0-tex_opt1)) then
+                xlocation = 0.5+(xlocation-inlet)/(2.d0*tex_opt2)
+        		tagdistbottom(2) =  0.5d0*fraction_domain*globaldomain(2) & 
+	        							 *(1-cos(2*pi*xlocation)) & 
+	        						+ tethereddistbottom(2) + add
+	        	tagdisttop(2)	=  0.5d0*fraction_domain*globaldomain(2)   & 
+	        							 *(1-cos(2*pi*xlocation)) & 
+	        						+ tethereddisttop(2)	+ add
+            else
+                if (tex_opt3 .eq. 1) then
+                    tagdistbottom(2) = 0.d0 
+                    tagdisttop(2) = 0.d0
+                else
+                    tagdistbottom(2) = tethereddistbottom(2)
+                    tagdisttop(2) = tethereddisttop(2)
+                endif
+            endif
+
+
+        endif
+
+		!Ensure Minimum height
+		!if (tethereddistbottom(2) .lt. 0.05d0*globaldomain(2)) then
+		!	tethereddistbottom(2) = 0.05d0*globaldomain(2)
+		!endif
+		!if (tethereddisttop(2) .lt. 0.05d0*globaldomain(2)) then
+		!	tethereddisttop(2) = 0.05d0*globaldomain(2)
+		!endif
 
 	end select
 
@@ -621,11 +776,12 @@ subroutine tether_force(molno)
 	use module_molecule_properties
 	use arrays_MD
 	use module_record_external_forces, only : record_external_forces
-	use librarymod, only : magnitude 
+	use librarymod, only : magnitude
     use messenger, only: globalise
+    use module_record, only : get_bin
 	implicit none
 
-	integer						:: molno
+	integer						   :: molno, ibin(3), jbin(3)
 	real(kind(0.d0))			   :: acctmag, xt, sincoeff, mag, shift, freq, initialshift
 	real(kind(0.d0)), dimension(3) :: at, rglob, mat, rio, velvect
 
@@ -677,10 +833,15 @@ subroutine tether_force(molno)
 		if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 			mat = -at
 			call record_external_forces(mat(:),r(:,molno))
-			! There was a time when I though that the CV conservation would require tethered 
-            ! interactions only when they have departed from tethering site to the point where
-            ! they cross the surface. However, it appears this is not the case...
-			!call control_volume_stresses(at(:),r(:,molno),rtether(:,molno),molno)
+		    ! The CV conservation may require tethered interactions only when they 
+            ! have departed from tethering site to the point where they cross the surface. 
+!            ibin(:) = get_bin(r(:,molno))
+!            jbin(:) = get_bin(rtether(:,molno))
+!            if (all(ibin .eq. jbin)) then
+!    			call record_external_forces(mat(:),r(:,molno))
+!            else
+!			    call control_volume_stresses(at(:),r(:,molno),rtether(:,molno))
+!            endif
 		endif
 	endif
 

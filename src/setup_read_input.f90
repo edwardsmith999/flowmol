@@ -51,6 +51,9 @@ subroutine setup_read_input
 	call locate(1,'RESET_TAGS_ON_RESTART',.false.,found_in_input)
 	if (found_in_input) then
         read(1,*) reset_tags_on_restart
+        !Optional argument to check tags are setup correctly
+        read(1,*,iostat=ios) debug_tags
+		if (ios .ne. 0) debug_tags = .false.
     else
         reset_tags_on_restart = 0
     endif
@@ -838,9 +841,25 @@ subroutine setup_read_input
 	if (found_in_input) then
 		read(1,*) texture_type
 		read(1,*,iostat=ios) texture_intensity
-		if (ios .ne. 0) texture_intensity = 0.5d0
+		if (ios .ne. 0) then
+			texture_intensity = 0.5d0
+		endif
 		read(1,*,iostat=ios) texture_therm
-		if (ios .ne. 0) texture_therm = 0
+		if (ios .ne. 0) then
+			texture_therm = 0
+		endif
+		read(1,*,iostat=ios) tex_opt1
+		if (ios .ne. 0) then
+			tex_opt1 = -666.d0
+		endif
+		read(1,*,iostat=ios) tex_opt2
+		if (ios .ne. 0) then
+			tex_opt2 = -666.d0
+		endif
+		read(1,*,iostat=ios) tex_opt3
+		if (ios .ne. 0) then
+			tex_opt3 = -666.d0
+		endif
 	else
 		texture_type = 0
 	endif
