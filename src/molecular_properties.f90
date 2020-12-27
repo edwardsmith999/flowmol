@@ -588,7 +588,7 @@ subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
 
 	case(converge_diverge)
 		!A converging diverging channel
-		tagdistbottom = 0.d0; tagdisttop=0.d0
+		tagdistbottom(2) = 0.d0; tagdisttop(2)=0.d0
 		xlocation = rg(1)/globaldomain(1) + 0.5
 		fraction_domain =  0.5d0*texture_intensity
 
