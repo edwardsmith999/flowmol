@@ -2094,7 +2094,12 @@ function sphereCV(r,radius)
 	rs = sphereiser(r)
 
 	!Check vs spherical CV function
-	sphereCV = heaviside_a1(radius-rs(1))
+#if ASSMBLY_HEAVISIDES
+    sphereCV = heaviside_a1(radius-rs(1))
+#else
+    sphereCV = heaviside(radius-rs(1))
+#endif
+	
 
 end function sphereCV
 

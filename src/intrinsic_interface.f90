@@ -918,10 +918,13 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 
 		!As we've got tangential crossings, bins here should only change 
 		!in normal direction here so must be same in t1 and t2
-		if ((bt(t1) .ne. bb(t1)) .or. (bt(t2) .ne. bb(t2))) then
-			print*, bt, bb, bs1, bs2
-			stop "Error in cumulative_flux_opt bins, should be same in y and z"
-		endif
+		!if ((bt(t1) .ne. bb(t1)) .or. (bt(t2) .ne. bb(t2))) then
+            !It is possible y and z change at the same time
+            !if (abs(bt(t1)-bb(t1)) .ne. abs(bt(t2)-bb(t2))) then
+			!    print*, "Warning in cumulative_flux_opt - bins not same in y and z", bt, bb, bs1, bs2
+            !endif
+			!stop "Error in cumulative_flux_opt bins, should be same in y and z"
+		!endif
 
 		!Loop over all x cells between  points
 		!This needs to be increasing or decreasing as needed

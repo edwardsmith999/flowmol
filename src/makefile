@@ -73,9 +73,14 @@ O_MD = $(addprefix obj/, $(F90_MD_FILES:.f90=.o))
 O_CUDA = $(CU_CUDA_MD_FILES:.cu=.o) $(F90_CUDA_MD_FILES:.f90=.o)
 O_CONTINUUM = $(F90_CONTINUUM:.f90=.o)
 O_MD_P = $(addprefix obj/,$(F90_MD_FILES_P:.f90=.o))
-O_ASSEMBLY_FILES = $(addprefix obj/,$(ASSEMBLY_FILES:.s=.o))
-O_LAPACK_FILES = $(addprefix obj/,$(LAPACK_FILES:lapack.f90=.o))# lapack-3.8.0/lib*
-
+ifndef NO_ASSMBLY_HEAVISIDES
+  O_ASSEMBLY_FILES = $(addprefix obj/,$(ASSEMBLY_FILES:.s=.o))
+endif
+ifdef USE_LAPACK
+  O_LAPACK_FILES = $(addprefix obj/,$(LAPACK_FILES:lapack.f90=.o))
+  LDFLAGS=-llapack -lblas  #system libraries
+  #LDFLAGS=lapack-3.8.0/lib* #local build
+endif
 
 # If coupled, link to static library coupler.a
 ifeq ($(strip $(USE_COUPLER)),yes)
@@ -134,10 +139,10 @@ profile_p:
 
 #Make executables
 md.exe: $(MD_EXE)
-$(MD_EXE): obj $(O_ASSEMBLY_FILES) $(O_MD_P)
+$(MD_EXE): obj $(O_ASSEMBLY_FILES) $(O_LAPACK_FILES) $(O_MD_P)
 	@echo "MD executable is being relinked"
 	@echo "LDFLAGS = $(LDFLAGS)"
-	$(F90) -o $@ $(O_ASSEMBLY_FILES) $(O_MD_P) $(LDFLAGS)
+	$(F90) -o $@ $(O_ASSEMBLY_FILES) $(O_LAPACK_FILES) $(O_MD_P) $(LDFLAGS)
 MD_EXE_LAPACK: obj $(O_ASSEMBLY_FILES) $(O_LAPACK_FILES) $(O_MD_P)
 	@echo "MD executable is being relinked"
 	@echo "LDFLAGS = $(LDFLAGS)"
@@ -178,14 +183,14 @@ clean:
 # Compilation rules
 #=======================================================================
 obj/%.o: %.f90
-	$(F90) $(FPP_FLAGS) $(FFLAGS) -c $< -o $@
+	$(F90) $(FFLAGS) -c $< -o $@
 .cu.o:
 	$(CU) $(FLAGS_CUDA) -c $*.cu -o obj/$*.o
 obj/%.o: %.s
-	$(F90) $(FPP_FLAGS) $(FFLAGS) -c $< -o $@
+	$(F90) $(FFLAGS) -c $< -o $@
 
 obj/%.o: %lapack.f90
-	$(F90) $(FPP_FLAGS) $(LAPACKFLAGS) -c $< -o $@
+	$(F90) $(LAPACKFLAGS) -c $< -o $@
 #
 # Dependecies
 #

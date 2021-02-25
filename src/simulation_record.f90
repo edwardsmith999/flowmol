@@ -4575,7 +4575,7 @@ contains
 subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR)
 	use module_record, only : get_bin, get_crossings, nd, intrinsic_surface_real, &
 							ISR_b, iter
-    use librarymod, only : CV_surface_flux, imaxloc!, heaviside  =>  heaviside_a1
+    use librarymod, only : CV_surface_flux, imaxloc
     use module_set_parameters, only : mass
 	use CV_objects, only : CVcheck_momentum
     implicit none
@@ -5000,7 +5000,7 @@ end subroutine mass_flux_averaging
 
 subroutine cumulative_mass_flux
 	use module_record
-    use librarymod, only : CV_surface_flux, imaxloc!, heaviside  =>  heaviside_a1
+    use librarymod, only : CV_surface_flux, imaxloc
     use module_set_parameters, only : mass
     !use CV_objects, only : CV_sphere_mass
     implicit none
@@ -5122,7 +5122,12 @@ subroutine cumulative_momentum_flux(r_,v_,momentum_flux_,notcrossing)
 	use module_record, only : vflux_outflag, domain, halfdomain, planespacing, CV_debug, & 
 							  delta_t, planes, Pxy_plane, nplanes, np, nbins, nhb, iter
 	use CV_objects, only : CV_constraint!, CV_sphere_momentum
-    use librarymod, only : imaxloc, CV_surface_flux, heaviside  =>  heaviside_a1
+    use librarymod, only : imaxloc, CV_surface_flux
+#if ASSMBLY_HEAVISIDES
+    use librarymod, only : heaviside  =>  heaviside_a1
+#else
+    use librarymod, only : heaviside
+#endif
 	use interfaces, only : error_abort
     use module_record, only : get_bin
     use module_set_parameters, only : mass
@@ -5397,7 +5402,12 @@ subroutine cumulative_energy_flux(r_,v_,energy_flux_)
 							  delta_t, planes, Pxyv_plane, nplanes, np, nbins, nhb, & 
                               potenergymol, get_bin, a
 	use CV_objects, only : CVcheck_energy !, CV_sphere_momentum
-    use librarymod, only : imaxloc, CV_surface_flux, heaviside  =>  heaviside_a1
+    use librarymod, only : imaxloc, CV_surface_flux
+#if ASSMBLY_HEAVISIDES
+    use librarymod, only : heaviside  =>  heaviside_a1
+#else
+    use librarymod, only : heaviside
+#endif
 	use interfaces, only : error_abort
     use module_set_parameters, only : mass
 	implicit none
@@ -5689,7 +5699,7 @@ end subroutine surface_density_averaging
 
 subroutine cumulative_surface_density
 	use module_record
-    use librarymod, only : imaxloc,  CV_surface_crossing !heaviside  =>  heaviside_a1
+    use librarymod, only : imaxloc,  CV_surface_crossing
     use module_set_parameters, only : mass
     !use CV_objects, only : CV_sphere_mass
     implicit none
@@ -5815,7 +5825,11 @@ end subroutine pressure_tensor_forces
 
 subroutine control_volume_forces(fij,ri,rj,molnoi,molnoj)
     use module_record
+#if ASSMBLY_HEAVISIDES
     use librarymod, only : heaviside  =>  heaviside_a1
+#else
+    use librarymod, only : heaviside
+#endif
     implicit none
 
 	integer							:: molnoi, molnoj
@@ -5867,7 +5881,7 @@ end subroutine control_volume_forces
 subroutine control_volume_stresses(fij, ri, rj)
     use module_record
 	use CV_objects, only : CV_debug,CV_constraint
-    use librarymod, only :  CV_surface_crossing!heaviside  =>  heaviside_a1
+    use librarymod, only :  CV_surface_crossing
     implicit none
 
 
@@ -5973,7 +5987,7 @@ end subroutine control_volume_stresses
 subroutine control_volume_power(fij, ri, rj, vi_t)
     use module_record
 	use CV_objects, only : CV_debug,CV_constraint
-    use librarymod, only : CV_surface_crossing!, heaviside  =>  heaviside_a1
+    use librarymod, only : CV_surface_crossing
     implicit none
 
 
@@ -6619,7 +6633,11 @@ end subroutine control_volume_power
 
 subroutine pressure_tensor_forces_MOP(pnxyz,ri,rj,rij,accijmag)
 	use module_record
+#if ASSMBLY_HEAVISIDES
     use librarymod, only : heaviside  =>  heaviside_a1
+#else
+    use librarymod, only : heaviside
+#endif
 	implicit none
 
 	integer							:: n
@@ -7203,7 +7221,11 @@ module cubic_surface_CV
     ! A control volume with two intrinsic surfaces in the x directions
     ! and flat surfaces in the y and z directions
     subroutine CV_cluster(pt, pb, bintop, binbot, ri, theta_i)
-        use librarymod, only : heaviside  =>  heaviside_a1
+#if ASSMBLY_HEAVISIDES
+		use librarymod, only : heaviside  =>  heaviside_a1
+#else
+		use librarymod, only : heaviside
+#endif
         implicit none
 
         double precision, dimension(3), intent(in)  :: ri
@@ -7564,7 +7586,11 @@ module cubic_surface_CV
                                           ri1, ri2, N, qnty, &
                                           Ncross, write_debug)
         use computational_constants_MD, only : iter
-        use librarymod, only : heaviside  =>  heaviside_a1
+#if ASSMBLY_HEAVISIDES
+    use librarymod, only : heaviside  =>  heaviside_a1
+#else
+    use librarymod, only : heaviside
+#endif
         use PolynomialRoots, only : QuadraticRoots, LinearRoot, cubicroots, SolvePolynomial
         implicit none
 
@@ -7692,7 +7718,11 @@ module cubic_surface_CV
                                           ri1, ri2, nvals, qnty, &
                                           Ncross, write_debug)
         use computational_constants_MD, only : iter, delta_t
-        use librarymod, only : heaviside  =>  heaviside_a1
+#if ASSMBLY_HEAVISIDES
+		use librarymod, only : heaviside  =>  heaviside_a1
+#else
+		use librarymod, only : heaviside
+#endif
         implicit none
 
         integer, intent(in)                           :: nvals
@@ -7980,8 +8010,12 @@ contains
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, & 
 								write_wave_xyz, write_waveobj
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
-        use arrays_MD, only : tag, r, intnscshift, glob_no	
-        use librarymod, only : heaviside  =>  heaviside_a1
+        use arrays_MD, only : tag, r, intnscshift, glob_no
+#if ASSMBLY_HEAVISIDES
+    use librarymod, only : heaviside  =>  heaviside_a1
+#else
+    use librarymod, only : heaviside
+#endif
         use intrinsic_module, only : fit_intrinsic_surface_bilinear, fit_intrinsic_surface_modes
         use calculated_properties_MD, only : nbins, nbinso, binsize, mass_surface_flux
         use module_record, only : Abilinear, ISR, ISR_mdt, ISR_r, ISR_mdt_r, ISR_b, ISR_mdt_b
@@ -8606,7 +8640,11 @@ contains
     ! A control volume with two intrinsic surfaces in the x directions
     ! and flat surfaces in the y and z directions
     subroutine CV_cluster_time(ISR, ISR_mdt, bintop, binbot, ri, cross)
-        use librarymod, only : heaviside  =>  heaviside_a1
+#if ASSMBLY_HEAVISIDES
+		use librarymod, only : heaviside  =>  heaviside_a1
+#else
+		use librarymod, only : heaviside
+#endif     
         use intrinsic_module, only : intrinsic_surface_real
         implicit none
 

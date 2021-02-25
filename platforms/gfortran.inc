@@ -38,6 +38,15 @@ else
   $(if $(findstring $(BUILD), $(BUILD_LIST)),,$(error unknown value of BUILD = $(BUILD)))
 endif
 
+ifdef NO_ASSMBLY_HEAVISIDES
+  FPP_FLAGS := $(FPP_FLAGS) -DASSMBLY_HEAVISIDES=0
+endif
+
+ifdef USE_LAPACK
+  FPP_FLAGS := $(FPP_FLAGS) -DUSE_LAPACK=1 -fPIC
+  LDFLAGS := $(LDFLAGS) -llapack -lblas"
+endif
+
 # set the preprocessor flags for coupler calls activation
 
 F90   := mpif90
