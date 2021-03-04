@@ -3447,6 +3447,13 @@ subroutine pressure_tensor_forces_VA_trap(ri, rj, rF, VA_line_samples)
 	! First sample at midpoint of first segment 
 	s = 0.5d0*ds 
 
+    ! Special case of two parts assigned to particle locations 
+    ! instead of 0.25 and 0.75 as given by above convention
+	if (VA_line_samples .eq. 2) then
+        ds = 1.d0
+        s = 0.d0
+    endif
+
 	! Loop over all samples, s varies from 0 to 1
 	do ss = 1, Ns
 
