@@ -4976,15 +4976,15 @@ subroutine mass_flux_averaging(flag)
     !print*, "Tsum = ", iter, tsum
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nmflux_ave) then
+
+		call mass_flux_io()
+		sample_count = 0
+		mass_flux = 0
+		call mass_snapshot()       
 		if (CV_debug .ne. 0) then
-			call mass_flux_io()
-			sample_count = 0
-			mass_flux = 0
-			call mass_snapshot()
-    		mbinsize(:) = domain(:) / nbins(:)
+		    mbinsize(:) = domain(:) / nbins(:)
             skipbinstop = ceiling((thermstattop + specular_wall)/mbinsize)
             skipbinsbot = ceiling((thermstatbottom + specular_wall)/mbinsize)
-            
             !E.S. this causes a compiler seg fault for 
             !     ifort version 13.0.1 which is fixed by 
             !     replacing 
