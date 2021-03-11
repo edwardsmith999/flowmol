@@ -93,7 +93,7 @@ subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
     integer, dimension(:,:,:,:),intent(in)  :: some_array!(nx,ny,nz,nresults)
     character(*),intent(in)                 :: outfile
 
-    integer                                 :: n, fh
+    integer                                 :: n, fh, outstep_
     integer                                 :: MEM_FLAG = 0
     integer                                 :: FILE_FLAG = 0
     integer                                 :: int_size,datatype
@@ -109,26 +109,29 @@ subroutine iwrite_arrays(some_array,nresults,outfile,outstep)
     datatype = MPI_INTEGER
     call MPI_TYPE_SIZE(datatype, int_size, ierr)
 
+    !Error if outstep less than one
+    if (outstep .le. 0) then
+        !print*, "Warning -- outstep ", outstep, " for filename ", & 
+        !        trim(outfile) , " results in ", trim(outfile_t)
+        outstep_ = 1
+        !call error_abort("Error in write_arrays -- requires outstep > 1 ")
+    else
+        outstep_ = outstep
+    endif
+
     !--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
     !  Note:  MPI assumes here that numbering starts from zero
     !  Since numbering starts from (one), subtract (one) from every index
     !-------------------------------------------------------
     if (separate_outfiles) then
         !Either write a separate output files for each timestep
-        call get_Timestep_FileName(outstep-1,outfile,outfile_t)
+        call get_Timestep_FileName(outstep_-1,outfile,outfile_t)
         global_cnt = 0; offset = 0
     else
         !or a single file for whole run
         outfile_t = outfile
-        global_cnt  = (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
+        global_cnt  = (outstep_-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults
         offset      = global_cnt * int_size
-    endif
-
-    !Error if outstep less than one
-    if (outstep .le. 0) then
-        print*, "Error -- outstep ", outstep, " for filename ", & 
-                trim(outfile) , " results in ", trim(outfile_t)
-        call error_abort("Error in write_arrays -- requires outstep > 1 ")
     endif
 
     gsizes      = gnbins
@@ -208,7 +211,7 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
     real(kind(0.d0)), dimension(:,:,:,:),intent(in) :: some_array
     character(*),intent(in)                         :: outfile
 
-    integer                             :: n, fh
+    integer                             :: n, fh, outstep_
     integer                             :: MEM_FLAG = 0
     integer                             :: FILE_FLAG = 0
     integer                             :: datatype
@@ -225,26 +228,31 @@ subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
     call MPI_TYPE_SIZE(datatype, dp_size_temp, ierr)
     dp_size = dp_size_temp
 
+    !Error if outstep less than one
+    if (outstep .le. 0) then
+        !print*, "Warning -- outstep ", outstep, " for filename ", & 
+        !        trim(outfile) , " results in ", trim(outfile_t)
+        outstep_ = 1
+        !call error_abort("Error in write_arrays -- requires outstep > 1 ")
+    else
+        outstep_ = outstep
+    endif
+
     !--------- DEFINE LIMITS (FILE & LOCAL SUBARRAY) -------
     !  Note:  MPI assumes here that numbering starts from zero
     !  Since numbering starts from (one), subtract (one) from every index
     !-------------------------------------------------------
     if (separate_outfiles) then
         !Either write a separate output files for each timestep
-        call get_Timestep_FileName(outstep-1,outfile,outfile_t)
+        call get_Timestep_FileName(outstep_-1,outfile,outfile_t)
         global_cnt = 0; offset = 0
     else
         !or a single file for the whole run
         outfile_t = outfile
-        global_cnt  = (outstep-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults !Global number of items written so far
+        global_cnt  = (outstep_-1)*gnbins(1)*gnbins(2)*gnbins(3)*nresults !Global number of items written so far
         offset      = global_cnt * dp_size                               !Bytes written already 
     endif
-    !Error if outstep less than one
-    if (outstep .le. 0) then
-        print*, "Error -- outstep ", outstep, " for filename ", & 
-                trim(outfile) , " results in ", trim(outfile_t)
-        call error_abort("Error in write_arrays -- requires outstep > 1 ")
-    endif
+
     gsizes      = gnbins                                             !Global "sizes", i.e. bins (need a better name for this)
     lsizes      = nbins                                              !Local "sizes", i.e. bins (need a better name for this)
     local_indices(:) = (/  0  , 0 , 0 /)                             !Not sure, goes into MPI_TYPE_CREATE_SUBARRAY !todo
