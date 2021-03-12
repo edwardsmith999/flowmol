@@ -810,7 +810,7 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 	integer :: flag, ss, Ns, bc, tempsize, normbin, norm1, norm2
 	integer, dimension(2) :: tbin
 	integer, dimension(3) :: bin, bin_mdt, cbin, db, bt, bb
-	integer, dimension(:), allocatable :: cbinstemp, cbinstemp2, indices
+	integer, dimension(:), allocatable :: cbinstemp, indices
 	integer, dimension(:,:), allocatable :: binstemp
 
 	real(kind(0.d0)),save :: maxerror
@@ -820,7 +820,7 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
  	real(kind(0.d0)), dimension(3) :: rb, rs, re, bs1, bs2, rc1, rc2
 	real(kind(0.d0)), dimension(:), allocatable :: unordered_cross
 	real(kind(0.d0)),dimension(3,2)  :: intersect, normal, intersect2
-	real(kind(0.d0)),dimension(:,:), allocatable  :: points, temp, temp2, cross
+	real(kind(0.d0)),dimension(:,:), allocatable  :: points, temp,  cross
 
 	logical, save :: first_bincount=.true.
 	integer :: ibin, jbin, kbin, maxcross
@@ -955,7 +955,6 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 						maxcross = size(temp,2)
 					endif
 					temp(:,bc) = intersect(:,c)
-                    temp2(:,bc) = normal(:,c)
 					if (present(cbins)) cbinstemp(bc) = j
 				endif
 

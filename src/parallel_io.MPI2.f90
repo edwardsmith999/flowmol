@@ -2432,17 +2432,17 @@ subroutine parallel_io_psf()
 
     unitno = get_new_fileunit()
     if (irank .lt. 10) then
-        write(filename,'(a,i1)'),trim(prefix_dir)//'results/vmd_out.psf.',irank
+        write(filename,'(a,i1)') trim(prefix_dir)//'results/vmd_out.psf.',irank
     elseif (irank .lt. 100) then
-        write(filename,'(a,i2)'),trim(prefix_dir)//'results/vmd_out.psf.',irank
+        write(filename,'(a,i2)') trim(prefix_dir)//'results/vmd_out.psf.',irank
     elseif (irank .lt. 1000) then
-        write(filename,'(a,i3)'),trim(prefix_dir)//'results/vmd_out.psf.',irank
+        write(filename,'(a,i3)') trim(prefix_dir)//'results/vmd_out.psf.',irank
     elseif (irank .lt. 10000) then
-        write(filename,'(a,i4)'),trim(prefix_dir)//'results/vmd_out.psf.',irank
+        write(filename,'(a,i4)') trim(prefix_dir)//'results/vmd_out.psf.',irank
     else
        stop "Error in parallel_io_psf -- irank > 10000"
     endif
-    open(unit=unitno, file=trim(filename),status='replace',action='write')
+    open(unit=unitno, file=trim(filename), status='replace',action='write')
     if (irank .eq. iroot) then
         write(unitno,'(a)') "PSF CMAP"
         write(unitno,'(a)') ""
@@ -2477,21 +2477,21 @@ subroutine parallel_io_psf()
 
     !This is a disgusting hack to concat each processors files on the commandline
     if (irank .eq. iroot) then
-        write(cmd,'(3a)'), "cat ", trim(prefix_dir)//"results/vmd_out.psf.* > ", & 
+        write(cmd,'(3a)') "cat ", trim(prefix_dir)//"results/vmd_out.psf.* > ", & 
                             trim(prefix_dir)//"results/vmd_out.psf"
         call system(cmd)
         if (nproc .gt. 99) then 
             print*, "Warning, manually concat results/vmd_out.psf.* files"
         else if (nproc .gt. 1) then
             write (nprocstr, "(i2)") nproc
-            write(cmd,'(4a)'),"for i in {2..", trim(nprocstr)//"}; do cat ", &
+            write(cmd,'(4a)') "for i in {2..", trim(nprocstr)//"}; do cat ", &
                                        trim(prefix_dir)//"results/vmd_out.psf.$i >> ", &
                                        trim(prefix_dir)//"results/vmd_out.psf; done;"
             print*, cmd
             call system(cmd)
         else if (nproc .eq. 1) then
             write (nprocstr, "(i2)") nproc
-            write(cmd,'(4a)'),"cat ", trim(prefix_dir)//"results/vmd_out.psf.1 >> ", &
+            write(cmd,'(4a)') "cat ", trim(prefix_dir)//"results/vmd_out.psf.1 >> ", &
                                       trim(prefix_dir)//"results/vmd_out.psf"
             print*, cmd
         endif
@@ -4435,7 +4435,7 @@ subroutine macroscopic_properties_record()
 	    fileunit = get_new_fileunit()
         open(unit=fileunit,file=trim(prefix_dir)//'results/macroscopic_properties',position='append')
         if (potential_flag.eq.0) then   
-            write(fileunit,'(1x,i8,a,f15.4,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)'), &
+            write(fileunit,'(1x,i8,a,f15.4,a,f15.4,a,f15.4,a,f10.4,a,f19.15,a,f19.15,a,f19.15,a,f10.4)') &
             iter,';',simtime,';',vsum,';', mv2sum,';', temperature,';', &
             kinenergy,';',potenergy,';',totenergy,';',pressure
         else if (potential_flag.eq.1) then

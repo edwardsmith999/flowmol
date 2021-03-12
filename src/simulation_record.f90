@@ -4596,7 +4596,7 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR)
     logical, save                   :: first_time=.true.
 
     logical                         :: crossings, crossings_test, changed
-	integer							:: jxyz,i,j,k,n,normal,n1,t1,t2,ixyz, Xcount
+	integer							:: ixyz,i,j,k,n,n1,t1,t2, Xcount
 	integer		,dimension(3)		:: bin1,bin2,cbin,bs
 	real(kind(0.d0)),parameter		:: eps = 1e-12
 	real(kind(0.d0))        		:: crossdir
@@ -4604,7 +4604,7 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR)
 
     integer, dimension(:), allocatable :: cbins
     real(kind(0.d0)),dimension(:,:),allocatable :: points
-    real(kind(0.d0)),dimension(:,:), allocatable :: rc, rcx, rcy, rcz, dSdr, rc_test
+    real(kind(0.d0)),dimension(:,:), allocatable :: rc, dSdr
 
 	changed = .false.
 
@@ -4620,27 +4620,25 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR)
     endif
 
 	Xcount = 0
-    do normal=1,3
+    do ixyz=1,3
 
-        if (present(ISR) .and. (normal .eq. n1)) then
+        if (present(ISR) .and. (ixyz .eq. n1)) then
 
             !Redefine bins here
-            call ISR%get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings, cbins)
-
-
+            call ISR%get_crossings(ri1, ri2, bin1, bin2, ixyz, &
+                                   rc, crossings, cbins)
         else
-            call get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings)
+            call get_crossings(ri1, ri2, bin1, bin2, ixyz, rc, crossings)
         endif
 	
         if (crossings) then
 
-		    !print'(a,i9,8i5,12f10.5)', "Ncrossings ", iter, normal, bin1, bin2, size(rc,2), ri1, rc(:,1), rc(:,2), ri2
             bs = 0
-            bs(normal) = 1
+            bs(ixyz) = 1
             ri12   = ri1 - ri2		        !Molecule i trajectory between t-dt and t
             where (abs(ri12) .lt. 0.000001d0) ri12 = 0.000001d0
 
-            if (present(ISR) .and. (normal .eq. n1)) then
+            if (present(ISR) .and. (ixyz .eq. n1)) then
                 if (allocated(points)) deallocate(points)
                 allocate(points(size(rc,2), nd))
                 points(:,1) = rc(1,:)
@@ -4651,30 +4649,26 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR)
 
             do i=1,size(rc,2)
                 rci = rc(:,i)
-                rci(normal) = rci(normal) + eps
+                rci(ixyz) = rci(ixyz) + eps
 				if (present(ISR)) then
-					!Whole point of cbins return was to avoid another expensive get_bin call
-					!VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
 					cbin(:) = ISR%get_bin(rci)
 				else
 					cbin(:) = get_bin(rci)
 				endif
 
-                if (present(ISR) .and. (normal .eq. n1)) then
-                    !if (cbins(i)+1 .ne. cbin(normal)) print'(a,i9,6i5,9f10.5)', "cross no ", iter, i, & 
-                    !                                size(rc,2), cbin, cbins(i)+1, ri1, rci, ri2
-                    !Set normal bin based on solution from bilinear crossinfs
-                    cbin(normal) = cbins(i)+1
+                if (present(ISR) .and. (ixyz .eq. n1)) then
+                    !Set ixyz bin based on solution from bilinear crossinfs
+                    cbin(ixyz) = cbins(i)+1
 					!if (cbins(i)+1 .ne. cbin(normal)) print*, cbin(normal), cbins(i)+1 
                     crossdir = sign(1.d0,(ri12(n1) - ri12(t1)*dSdr(i,1) - ri12(t2)*dSdr(i,2)))
 				else
-                    crossdir  = sign(1.d0, ri12(normal))
+                    crossdir  = sign(1.d0, ri12(ixyz))
                 endif
 
-                fluxes(cbin(1),cbin(2),cbin(3),:,normal) = & 
-                    fluxes(cbin(1),cbin(2),cbin(3),:,normal) + crossdir*quantity(:)
-                fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),:,normal+3) = & 
-                    fluxes(cbin(1),cbin(2),cbin(3),:,normal)
+                fluxes(cbin(1),cbin(2),cbin(3),:,ixyz) = & 
+                    fluxes(cbin(1),cbin(2),cbin(3),:,ixyz) + crossdir*quantity(:)
+                fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),:,ixyz+3) = & 
+                    fluxes(cbin(1),cbin(2),cbin(3),:,ixyz)
 
             enddo
             deallocate(rc)
