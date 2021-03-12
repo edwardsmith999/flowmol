@@ -319,7 +319,7 @@ contains
 
             conserved = totalflux-self%dXdt(i,j,k)+totalsurf
 
-            if (    ((CV_debug .eq. 1) .and. (conserved .ne. 0)) &
+            if (    ((CV_debug .eq. 1) .and. (abs(conserved) .gt. 0.000000001d0)) &
 			    .or. (i .ge. self%debug_CV(1) .and. (i .lt. self%debug_CV(1)+self%debug_CV_range(1)) .and.	& 
                       j .ge. self%debug_CV(2) .and. (j .lt. self%debug_CV(2)+self%debug_CV_range(2)) .and. & 
                       k .ge. self%debug_CV(3) .and. (k .lt. self%debug_CV(3)+self%debug_CV_range(3)))) then

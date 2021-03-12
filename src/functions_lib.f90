@@ -2037,6 +2037,29 @@ subroutine write_wave_xyz(vertices)
 end subroutine write_wave_xyz
 
 
+!Really simple, just dump all middle of grid values
+subroutine write_grid(vertices)
+    implicit none
+
+    real(kind(0.d0)), dimension(:,:,:), intent(in), allocatable :: vertices
+
+    logical, save    :: first_time = .true.
+    integer          :: v, i, fileno
+    character(200)   :: filename
+    
+    filename = "./surface.grid"
+    if (first_time) then
+        open(fileno, file=trim(filename), status='replace')
+        first_time = .false.
+    else
+        open(fileno, file=trim(filename),access='append')
+    endif
+    write(fileno,*) 0.25d0*(vertices(:,1,1)+vertices(:,2,1)+vertices(:,3,1)+vertices(:,4,1))
+    close(fileno)
+
+end subroutine write_grid
+
+
 !-------------------------------------------------------------------------------------
 !Returns the heaviside function for input x -- interface at top
 

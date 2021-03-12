@@ -208,14 +208,12 @@ subroutine bicubic_line_intersect(r, q, P, flag, uvsoln, pos)
     uv(3) = -2
 
     !Use numerical roots
-
     call QuadraticRoot_intersect(A, B, C, -ray_epsilon, 1+ray_epsilon, vsol, num_sol)
 
     !print*, A, B, C, vsol, num_sol
     !Set default null values for position and uv
     uvsoln = -666
     pos = -666
-
 
     select case(num_sol)
     case(0)
@@ -241,7 +239,7 @@ subroutine bicubic_line_intersect(r, q, P, flag, uvsoln, pos)
     case(2) ! two solutions found
         uv(2) = vsol(1)
         call getu(uv(2), A2, A1, B2, B1, C2, C1, D2, D1, uv(1))
-        call SrfEval(uv(1),uv(2), P, pos1)
+        call SrfEval(uv(1), uv(2), P, pos1)
         call computet(dir, orig, pos1, uv(3))
         !print*, "Two roots: uv, pos1", uv, pos1
         if ((uv(1) < 1+ray_epsilon) .and. &
@@ -261,8 +259,8 @@ subroutine bicubic_line_intersect(r, q, P, flag, uvsoln, pos)
                     ! t2 not valid or t1 is better
                 else
                     ! other wise both t2 > 0 and t2 < t1
-                    uv(2) = vsol(2)
                     uv(1) = u
+                    uv(2) = vsol(2)
                     uv(3) = t2
                     uvsoln(:,2) = uv
                 endif
@@ -366,41 +364,17 @@ subroutine line_plane_intersect(ri, rij, P, intersect, normal, flag)
     real(kind(0.d0)),save :: timing
     real(kind(0.d0)), dimension(3,2) :: uv
 
-	call cpu_time(t1)
-
-	!Special case of flat surface apparently causes problems so need to handle separatly
-	! if (abs(P(1,1,1)-P(2,1,1)) .lt. 1e-10 .and. &
-		! abs(P(2,1,1)-P(1,2,1)) .lt. 1e-10 .and. &
-		! abs(P(1,2,1)-P(2,2,1)) .lt. 1e-10) then
-		! intersect = -666
-		! intersect(1,1) = P(1,1,1)
-		! intersect(2,1) = ri(2)+(rij(3)/rij(1))*(intersect(1,1)-ri(1))            
-		! intersect(3,1) = ri(3)+(rij(3)/rij(1))*(intersect(1,1)-ri(1))
-		! flag = 1
-		! normal(:,1) = (/1.d0, 0.d0, 0.d0/)
-	! else
-		!Otherwise full bicubic calculation
-		call bicubic_line_intersect(ri, rij, P, flag, uv, intersect)
-		if (flag .eq. 1) then
-			!call SrfEval(uv(1), uv(2), P, intersect)
-			call surface_normal(uv(1,1), uv(2,1), P, normal(:,1))
-		else if (flag .eq. 2) then
-			call surface_normal(uv(1,1), uv(2,1), P, normal(:,1))
-			call surface_normal(uv(1,2), uv(2,2), P, normal(:,2))
-		else
-			intersect = -666
-			normal = -666
-		endif
-	!endif
-
-	
-	call cpu_time(t2)
-	timing = timing + t2 - t1
-	tcount = tcount + 1
-	if (mod(tcount,10000000) .eq. 0) then
-		print*, "time for 10,000,000 iters of line_plane_intersect", timing
-		timing = 0.d0
-		tcount = 0
+	!Otherwise full bicubic calculation
+	call bicubic_line_intersect(ri, rij, P, flag, uv, intersect)
+	if (flag .eq. 1) then
+		!call SrfEval(uv(1), uv(2), P, intersect)
+		call surface_normal(uv(1,1), uv(2,1), P, normal(:,1))
+	else if (flag .eq. 2) then
+		call surface_normal(uv(1,1), uv(2,1), P, normal(:,1))
+		call surface_normal(uv(1,2), uv(2,2), P, normal(:,2))
+	else
+		intersect = -666
+		normal = -666
 	endif
 
 end subroutine line_plane_intersect
@@ -420,21 +394,6 @@ subroutine line_patch_intersect(ri, rij, P, intersect, normal, flag)
 	integer :: ixyz, flag_
 
 	call line_plane_intersect(ri, rij, P, intersect, normal, flag_)
-
-	! if ((abs(P(1,1,1) - 6.840576141) .lt. 1e-6) .and. & 
-		! (abs(P(2,1,1) - 7.154295108) .lt. 1e-6) .and. & 
-		! (abs(P(1,2,1) - 7.058386324) .lt. 1e-6) .and. & 
-		! (abs(P(2,2,1) - 7.402599709) .lt. 1e-6)) then
-		! if (flag_ .ne. 0) print*, "Intersect", intersect
-	! endif
-
-	! if ((abs(P(1,1,1) - (6.840576141-0.17508)) .lt. 1e-3) .and. & 
-		! (abs(P(2,1,1) - (7.154295108-0.17508)) .lt. 1e-3) .and. & 
-		! (abs(P(1,2,1) - (7.058386324-0.17508)) .lt. 1e-3) .and. & 
-		! (abs(P(2,2,1) - (7.402599709-0.17508)) .lt. 1e-3)) then
-		! if (flag_ .ne. 0) print*, "Intersect", intersect
-	! endif
-
 
 	!Only include crossing if within bounds of patch
 	flag = 0

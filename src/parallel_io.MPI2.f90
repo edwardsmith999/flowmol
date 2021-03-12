@@ -4298,9 +4298,9 @@ subroutine surface_evolution_mass_flux_io()
     !Calculate record number timestep
     select case(CV_conserve)
     case(0)
-        m = get_iter()/(tplot*Nmflux_ave)
+        m = get_iter()/(tplot*Nmflux_ave)+1
     case(1)
-        m = get_iter()/(Nmflux_ave)
+        m = get_iter()/(Nmflux_ave)+1
     case default
         call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
     end select
@@ -4360,9 +4360,9 @@ subroutine surface_evolution_momentum_flux_io()
     !Calculate record number timestep
     select case(CV_conserve)
     case(0)
-        m = get_iter()/(tplot*Nvflux_ave)
+        m = get_iter()/(tplot*Nvflux_ave)+1
     case(1)
-        m = get_iter()/(Nvflux_ave)
+        m = get_iter()/(Nvflux_ave)+1
     case default
         call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
     end select

@@ -74,6 +74,7 @@ module intrinsic_module
 			procedure :: index_to_vertex => index_to_vertex
 			procedure :: get_crossings => get_crossings
 			procedure :: get_flat_crossings => get_flat_crossings
+		    procedure :: intrinsic_area => intrinsic_area
 
     end type intrinsic_surface_real
 	
@@ -397,10 +398,10 @@ subroutine get_real_surface(self, points, elevation, include_zeromode, qu)
     double precision :: zeromode
 	
 	integer,save :: tcount
-    real(kind(0.d0)) :: t1, t2
+    !real(kind(0.d0)) :: t1, t2
     real(kind(0.d0)),save :: timing
 
-	call cpu_time(t1)
+	!call cpu_time(t1)
 
     if (present(qu)) then
         qu_ = qu
@@ -426,14 +427,14 @@ subroutine get_real_surface(self, points, elevation, include_zeromode, qu)
 		endif
 	endif
 
-	call cpu_time(t2)
-	timing = timing + (t2 - t1)/size(points,1)
-	tcount = tcount + 1
-	if (mod(tcount,100000) .eq. 0) then
-		print*, "time for 100000 iters of get_real_surface per point", timing
-		timing = 0.d0
-		tcount = 0
-	endif
+	!call cpu_time(t2)
+	!timing = timing + (t2 - t1)/size(points,1)
+	!tcount = tcount + 1
+	!if (mod(tcount,100000) .eq. 0) then
+	!	print*, "time for 100000 iters of get_real_surface per point", timing
+	!	timing = 0.d0
+	!	tcount = 0
+	!endif
 
 end subroutine get_real_surface
 
@@ -594,6 +595,23 @@ subroutine get_bilinear_surface(self, points, elevation, include_zeromode, qu)
 	enddo
 
 end subroutine get_bilinear_surface
+
+
+function intrinsic_area(self) result(A)
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    real(kind(0.d0)) :: A
+
+	A = 1.d0 + 0.5d0*pi**2*sum(check_uv(self%u, self%v)*self%coeff**2 & 
+                               *(  self%u**2/self%box(self%ixyz)**2 & 
+                                 + self%v**2/self%box(self%jxyz)**2))
+
+    A = A * self%area
+
+end function intrinsic_area
+
 
 
 subroutine get_bilinear_surface_derivative(self, points, dSdr, qu)
@@ -785,7 +803,7 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 	integer,intent(out), optional, dimension(:), allocatable :: cbins
 	real(kind(0.d0)),intent(out),dimension(:,:), allocatable :: rc
 
-	integer                 :: t1, t2, t(2), i, j, k, m, mp1, jb, kb, ixyz, ind
+	integer                 :: t1, t2, t(2), i, j, k, m, c, mp1, jb, kb, ixyz, ind
 	integer                 :: maxbin, minbin, minTbin, maxTbin
 	real(kind(0.d0))        :: pt, r12(3)
 
@@ -808,13 +826,6 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 	integer :: ibin, jbin, kbin, maxcross
 	integer,dimension(:,:,:), allocatable, save  :: bincount
 
-	!DEBUG BINS
-	ibin = 146  
-	jbin = 37
-	kbin = 17
-	!DEBUG BINS
-
-
 	if (all(bin1 .eq. bin2)) then
 		crossings = .false.
 		return
@@ -832,8 +843,6 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 	!Add two for two end points
 	allocate(cross(db(t1)+db(t2)+2, 5))
 
-	!print*, "Cross allocate", r1, r2, bin1, bin2, db, db(t1)*db(t2)+2
-
 	!Store start at ri
 	cross(1, 1 ) = 0.d0
 	cross(1,2:4) = r1
@@ -845,12 +854,9 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 	do i=1,2
 		call self%get_flat_crossings(r1, r2, bin1, bin2, t(i), rc, crossings)
 		if (crossings) then
-			!if (rc(1,i)+666.0) < 1e-5) cycle
 			do j=1,size(rc,2)
 				!Get s value of each crossing from rc(:) = r1(:) + s*r12(:)
-				!s = dot_product((r1(:)-rc(:,j)), 1.d0/r12)/3.d0
 				s = (rc(1,j)-r1(1))/r12(1)
-				!print*, "Crossings flat surfaces", i, j, s, dot_product((r1(:)-rc(:,j)), 1.d0/r12)/3.d0
 				
 				!Need to store which direction of surface it crosses...
 				cross(m, 1 ) = s
@@ -874,12 +880,6 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
     enddo
 	unordered_cross = cross(:m,1)
 	call Qsort(unordered_cross, indices)
-
-	!DEBUG
-	! do i=1,size(indices,1)
-		! m = indices(i)
-		! print*, "Ordered crossings", i, m, cross(m,:)
-	! enddo
 
 	!Go through crossings in order
 	bc = 0
@@ -908,13 +908,6 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 		!Get bins either side of each crossing (\pm eps*normal of each surface)
 		bt = self%get_bin(rc1+eps*bs1) 
 		bb = self%get_bin(rc2-eps*bs2)
-
-		!if ((bin1(n) .eq. ibin .or. bin2(n) .eq. ibin) .and. &
-		!	(bin1(t1) .eq. jbin .or. bin2(t1) .eq. jbin) .and. &
-		!	(bin1(t2) .eq. kbin .or. bin2(t2) .eq. kbin)) then
-		!	print'(a,2i5,2f10.5,7i5, 6f10.5)', "bin calc", i, m, rc1(1), rc2(1), bin1(n), bt(n), bb(n), bin2(n), &
-		!			sign(1,bt(n)-bb(n)), norm1, norm2, r1, r2
-		!endif
 
 		!As we've got tangential crossings, bins here should only change 
 		!in normal direction here so must be same in t1 and t2
@@ -947,44 +940,23 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 			flag = 0
 			call line_patch_intersect(r1, r12, P, intersect, normal, flag)
 
-			do ixyz=1,flag
+			do c=1,flag
 
-				!if (flag .eq. 2) then
-				!	 print'(a,10i5,10f10.5)', "2 Crossings", normbin, bt(:), bb(:), bc, ixyz, flag, & 
-				!			rc1(1), intersect(:,ixyz), rc2(1), points(:,n), (intersect(1,ixyz)-r1(1))/r12(1)
-				!endif
-
-				if ((intersect(1,ixyz) .gt. rc1(1) .and. &
-					 intersect(1,ixyz) .lt. rc2(1)) .or. &
-					(intersect(1,ixyz) .lt. rc1(1) .and. &
-					 intersect(1,ixyz) .gt. rc2(1))) then
-
-					!DEBUG
-					!if ((j .eq. ibin) .and. &
-					!	(bb(t1) .eq. jbin) .and. &
-					!	(bb(t2) .eq. kbin)) then
-					!	print'(a,6i5,10f10.5)', "norm Crossings", j, bt(t1), bb(t2), bc, 1, flag, & 
-					!		 rc1(1), intersect(:,ixyz), rc2(1), points(:,n), (intersect(1,ixyz)-r1(1))/r12(1)
-					!endif
-					!DEBUG
-	
+				if ((intersect(1,c) .gt. rc1(1) .and. &
+					 intersect(1,c) .lt. rc2(1)) .or. &
+					(intersect(1,c) .lt. rc1(1) .and. &
+					 intersect(1,c) .gt. rc2(1))) then
 					bc = bc + 1
 					!Not trivial/cheap to get a priori size of temp 
-					!so better to check extend if needed
+					!so better to check and extend if needed
 					if (bc .gt. maxcross) then
 						call extend_array2d(temp)
 						if (present(cbins)) call extend_array1d_int(cbinstemp)
 						maxcross = size(temp,2)
 					endif
-					temp(:,bc) = intersect(:,ixyz)
+					temp(:,bc) = intersect(:,c)
+                    temp2(:,bc) = normal(:,c)
 					if (present(cbins)) cbinstemp(bc) = j
-
-				else
-					!print'(a,10i5,10f10.5)', "Erronous Crossings", normbin, bt(:), bb(:), bc, ixyz, flag, & 
-					!		 rc1(1), intersect(:,ixyz), rc2(1), points(:,n), (intersect(1,ixyz)-r1(1))/r12(1)
-					!write(345,*) normbin, r1, r2, P
-
-					!stop "Error in crossing" 
 				endif
 
 			enddo
@@ -993,15 +965,15 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 
 	enddo
 
-	if (bb(n) .ne. bt(n) .and. bc .lt. 1) then
-		do i=1,size(indices,1)
-			m = indices(i)
-			print*, "Ordered crossings", i, m, cross(m,:)
-		enddo
-		print*, "Missed crossing", bt, bb, bin1, bin2, flag, intersect, r1, r2, points
-		write(345,*) 1, r1, r2, P
+	!if (bb(n) .ne. bt(n) .and. bc .lt. 1) then
+		!do i=1,size(indices,1)
+		!	m = indices(i)
+		!	print*, "Ordered crossings", i, m, cross(m,:)
+		!enddo
+		!print*, "Missed crossing", bt, bb, bin1, bin2, flag, intersect, r1, r2, points
+		!write(345,*) 1, r1, r2, P
 		!stop "Error in get_crossings_bilinear - Missed crossing"
-	endif
+	!endif
 
 	!Copy array of intersects to rc
 	if (bc .ge. 1) then
@@ -1023,97 +995,6 @@ subroutine get_crossings_bilinear(self, r1, r2, bin1, bin2, n, rc, crossings, cb
 		crossings = .false.
 		!stop "Error in get_crossing_bilinear - No crossings found"
 	endif
-
-	! !DEBUG PRINT ALL CROSSINGS
-	!ibin = 130  
-	!jbin = 29
-	!kbin = 9
-	! if ((bin1(n) .eq. ibin) .and. &
-		! (bin1(t1) .eq. jbin) .and. &
-		! (bin1(t2) .eq. kbin) .or. &
-		! (bin2(n) .eq. ibin) .and. &
-		! (bin2(t1) .eq. jbin) .and. &
-		! (bin2(t2) .eq. kbin)) then
-
-	! if (first_bincount) then
-		! allocate(bincount(self%nbins(n)+2*self%nhb(n), &
-						  ! self%nbins(t1)+2*self%nhb(t1), &
-						  ! self%nbins(t2)+2*self%nhb(t2)))
-		! first_bincount = .false.
-	! endif
-	! bincount = 0
-
-	! k = 1
-	! do i=1,size(indices,1)
-		! m = indices(i)
-		! do j=k,size(rc,2)
-			! if ((rc(1,j)-r1(1))/r12(1) .lt. cross(m,1)) then
-				! k = k + 1
-				! bt = self%get_bin(rc(:,j)+eps*(/1.d0, 0.d0, 0.d0/)) 
-				! bb = self%get_bin(rc(:,j)-eps*(/1.d0, 0.d0, 0.d0/))
-
-				! bincount(bt(n), bt(t1), bt(t2)) = bincount(bt(n), bt(t1), bt(t2)) + 1
-				! bincount(bb(n), bb(t1), bb(t2)) = bincount(bb(n), bb(t1), bb(t2)) + 1
-
-				! if ((bb(n) .eq. ibin) .and. &
-					! (bb(t1) .eq. jbin) .and. &
-					! (bb(t2) .eq. kbin) .or. &
-					! (bt(n) .eq. ibin) .and. &
-					! (bt(t1) .eq. jbin) .and. &
-					! (bt(t2) .eq. kbin)) then
-					! print'(a,i5,5f14.6,6i6)', "ordered crossings", & 
-						! i, (rc(1,j)-r1(1))/r12(1), rc(:,j), 1.d0, bb, bt
-				! endif
-			! endif
-		! enddo
-		! bs1 = (/0.,0.,0./)
-		! rc1 = cross(m  ,2:4)
-		! norm1 = cross(m  ,5) !normal from 1 to 3
-		! if (norm1 .ne. 0) then 
-			! bs1(norm1) = sign(1.d0,r12(norm1))
-			! bt = self%get_bin(rc1+eps*bs1) 
-			! bb = self%get_bin(rc1-eps*bs1)
-			! bincount(bt(n), bt(t1), bt(t2)) = bincount(bt(n), bt(t1), bt(t2)) + 1
-			! bincount(bb(n), bb(t1), bb(t2)) = bincount(bb(n), bb(t1), bb(t2)) + 1
-		! else
-			! !Line end points/molecules
-			! bt = self%get_bin(rc1)
-			! bincount(bt(n), bt(t1), bt(t2)) = bincount(bt(n), bt(t1), bt(t2)) + 1
-			! bb = 0.d0
-			! if (all(bt .ne. bin1) .and. all(bt .ne. bin2)) then
-				! print*, bt, bin1, bin2
-				! stop "Error, bin1 or 2 not equal to ends"
-			! endif
-		! endif
-
-		! if ((bb(n) .eq. ibin) .and. &
-			! (bb(t1) .eq. jbin) .and. &
-			! (bb(t2) .eq. kbin) .or. &
-			! (bt(n) .eq. ibin) .and. &
-			! (bt(t1) .eq. jbin) .and. &
-			! (bt(t2) .eq. kbin)) then
-			! print'(a,i5,5f14.6,6i6)', "ordered crossings", i, cross(m,:), bb, bt
-		! endif
-
-	! enddo
-
-	! do i=1,self%nbins(n)+2*self%nhb(n)
-	! do j=1,self%nbins(t1)+2*self%nhb(t1)
-	! do k=1,self%nbins(t2)+2*self%nhb(t2)
-		! if ((bincount(i,j,k) .ne. 0) .and. (bincount(i,j,k) .ne. 2)) then
-			! print*, "Bincount error", i,j,k,bincount(i,j,k)
-			! !stop
-		! endif
-	! enddo
-	! enddo
-	! enddo
-
-
-	!DEBUG PRINT ALL CROSSINGS
-
-
-	!stop "get_crossings_bilinear"
-
 
 end subroutine get_crossings_bilinear
 
@@ -1151,342 +1032,68 @@ subroutine get_crossings_bilinear_old(self, r1, r2, bin1, bin2, n, rc, crossings
 	real(kind(0.d0)),dimension(3,2)  :: intersect, normal, intersect2
 	real(kind(0.d0)),dimension(:,:), allocatable  :: points, points2, temp
 
-	!7.5776540986517134       -1.8292289961682708       -2.2181649273007755  
-	! if ((r1(1) .gt. 7.5) .and.   (r1(1) .lt. 7.6) .and. &
-		 ! (r1(2) .gt. -1.85) .and. (r1(2) .lt. -1.75) .and. &
-		 ! (r1(3) .gt. -2.3) .and.  (r1(3) .lt. -2.1) ) then
-		! t1 = self%ixyz !mod(n,3)+1
-		! t2 = self%jxyz !mod(n+1,3)+1
-		! print*, r1, r2, bin1, bin2
-	! endif
-	! if  ( (r2(1) .gt. 7.5) .and.   (r2(1) .lt. 7.6) .and. &
-		 ! (r2(2) .gt. -1.85) .and. (r2(2) .lt. -1.75) .and. &
-		 ! (r2(3) .gt. -2.3) .and.  (r2(3) .lt. -2.1) ) then
-		! t1 = self%ixyz !mod(n,3)+1
-		! t2 = self%jxyz !mod(n+1,3)+1
-		! print*, r2, r1, bin1, bin2
-	! endif
+	!Tangents
+	t1 = self%ixyz !mod(n,3)+1
+	t2 = self%jxyz !mod(n+1,3)+1
+	minbin = min(bin1(n), bin2(n))
+	maxbin = max(bin1(n), bin2(n))
+	r12   = r2 - r1  !Molecule i trajectory between t-dt and t
+	where (abs(r12) .lt. 0.000001d0) r12 = 0.000001d0
 
-	!if (bin1(n) .eq. bin2(n)) then
-	!	crossings = .false.
-	!else
-	!	crossings = .true.
+	!Factor of two as can be maximum of two per surface
+	tempsize = 1
+	do i=1,3
+		minTbin = min(bin1(i), bin2(i))
+		maxTbin = max(bin1(i), bin2(i))
+		tempsize = tempsize * (maxTbin-minTbin+1)
+	enddo
+	allocate(points(4,3))
+	allocate(temp(3, 2*tempsize))
+	if (present(cbins)) allocate(cbinstemp(2*tempsize))
 
-		!Tangents
-		t1 = self%ixyz !mod(n,3)+1
-		t2 = self%jxyz !mod(n+1,3)+1
-		minbin = min(bin1(n), bin2(n))
-		maxbin = max(bin1(n), bin2(n))
-		r12   = r2 - r1  !Molecule i trajectory between t-dt and t
-		where (abs(r12) .lt. 0.000001d0) r12 = 0.000001d0
+	bc = 0
 
-		!Factor of two as can be maximum of two per surface
-		tempsize = 1
-		do i=1,3
-			minTbin = min(bin1(i), bin2(i))
-			maxTbin = max(bin1(i), bin2(i))
-			tempsize = tempsize * (maxTbin-minTbin+1)
+	do i=minbin-2, maxbin-1
+	do j=min(bin1(t1), bin2(t1)),max(bin1(t1), bin2(t1))
+	do k=min(bin1(t2), bin2(t2)),max(bin1(t2), bin2(t2))
+
+		points = self%indices_to_points(i,j,k)
+
+		!Get a patch of P values to use in bilinear patch & line calculation
+		P(:,:,1) = reshape(points(:,n ), (/2,2/))
+		P(:,:,2) = reshape(points(:,t1), (/2,2/))
+		P(:,:,3) = reshape(points(:,t2), (/2,2/))
+
+		call line_patch_intersect(r1, r12, P, intersect, normal, flag)
+
+
+		do ixyz=1,flag
+				bc = bc + 1
+				temp(:,bc) = intersect(:,ixyz)
+				if (present(cbins)) cbinstemp(bc) = i
 		enddo
-		allocate(points(4,3))
-		allocate(temp(3, 2*tempsize))
-		if (present(cbins)) allocate(cbinstemp(2*tempsize))
+	enddo
+	enddo
+	enddo
 
-
-		! print*, "range=", min(bin1(n ), bin2(n )),max(bin1(n ), bin2(n )), &
- 						  ! min(bin1(t1 ), bin2(t1 )),max(bin1(t1 ), bin2(t1 )), &
-						  ! min(bin1(t2 ), bin2(t2 )),max(bin1(t2 ), bin2(t2 ))
-
-		! if (r1(n) .lt. r2(n)) then
-			! rs = r1; re = r2
-			! ! bin_mdt = bin1 !self%get_bin(r1)
-		! else
-			! rs = r2; re = r1
-			! ! bin_mdt = bin2 !self%get_bin(r1)
-		! endif
-		! rb = rs
-		! dx = self%binsize(n)
-		! dy = self%binsize(n) * r12(t1)/r12(n)
-		! dz = self%binsize(n) * r12(t2)/r12(n)
-		
-		! do i=min(bin1(n ), bin2(n )),max(bin1(n ), bin2(n ))
-			! tbin = self%get_tangent_bins(rb)
-			! print'(a,3i5,5f10.5)', 'minimal bins', i, tbin, r1(1), & 
-							! rb(:), r2(1)
-			! rb(n) = rb(n) + dx
-			! rb(t1) = rb(t1) + dy
-			! rb(t2) = rb(t2) + dz
-		! enddo
-
-		! Ns = 100
-		! ds = 1.d0 / real(Ns, kind(0.d0))
-		! s = ds
-		! j = 1
-		! allocate(binstemp(Ns,3))
-		! binstemp(1,:) = self%get_bin(r1)
-		! do i=1,Ns
-			! rb(:) = r1(:) + s*r12(:)
-			! cbin = self%get_bin(rb)
-			! print*, i, j, rb, cbin, binstemp(j,:)
-			! if (cbin(1) .eq. binstemp(j,1) .and. &
-				! cbin(2) .eq. binstemp(j,2) .and. &
-				! cbin(3) .eq. binstemp(j,3)) then
-				! !Do nothing
-			! else 
-				! if (sum(abs(cbin(:)-binstemp(j,:))) .eq. 1) then 
-					! j = j + 1
-					! binstemp(j,:) = cbin
-				! else
-					! print*, r1, rb, s, cbin, binstemp(j,:)
-					! stop "More than one bin skipped"
-				! endif
-			! endif
-		! !	print'(a,3i5,5f10.5)', 's minimal bins', i, cbin, r1(1), & 
-		! !					 rb(:), r2(1)
-			! s = s+ds
-		! enddo
-		! if (minval(binstemp(:j,1)) .ne. minbin .or. &
-			! maxval(binstemp(:j,1)) .ne. maxbin) then
-			! print*, "Minvalues", minval(binstemp(:j,1)), minbin, maxval(binstemp(:j,1)), maxbin
-			! do i = 1,j
-				! print*, "Bins in range", i, j, binstemp(i,:)
-			! enddo
-		! endif
-
-		bc = 0
-
-		! do i = 1,j
-
-			! cbin = bintemp(i,:)
-			! points = self%indices_to_points(cbin(1),cbin(2),cbin(1))
-
-		do i=minbin-2, maxbin-1
-		do j=min(bin1(t1), bin2(t1)),max(bin1(t1), bin2(t1))
-		do k=min(bin1(t2), bin2(t2)),max(bin1(t2), bin2(t2))
-
-			points = self%indices_to_points(i,j,k)
-
-			!Get details of patch for intersection
-			!vert = self%index_to_vertex(j,k)
-			!points(1,t1) = vert(1); points(1,t2) = vert(2) !Bottom left
-			!points(2,t1) = vert(3); points(2,t2) = vert(2) !Bottom right
-			!points(3,t1) = vert(1); points(3,t2) = vert(4) !Top left
-			!points(4,t1) = vert(3); points(4,t2) = vert(4) !Top right			
-			!call self%get_surface_bilinear(points, self%Abilinear(:,:,j,k), elevation)
-
-			!Normal direction used in line plane intersect shifted by current bin
-			!shift = (i-1*self%nhb(n)-0.5d0)*self%binsize(n)-0.5d0*self%box(n)
-			!points(:,n) = elevation(:) + shift
-
-			!Get a patch of P values to use in bilinear patch & line calculation
-			P(:,:,1) = reshape(points(:,n ), (/2,2/))
-			P(:,:,2) = reshape(points(:,t1), (/2,2/))
-			P(:,:,3) = reshape(points(:,t2), (/2,2/))
-
-			!Special case of flat surface apparently causes problems so need to handle separatly
-			! if (P(1,1,1) .eq. P(2,1,1) .and. &
-				! P(2,1,1) .eq. P(1,2,1) .and. &
-				! P(1,2,1) .eq. P(2,2,1)) then
-			! if (abs(P(1,1,1)-P(2,1,1)) .lt. 1e-10 .and. &
-				! abs(P(2,1,1)-P(1,2,1)) .lt. 1e-10 .and. &
-				! abs(P(1,2,1)-P(2,2,1)) .lt. 1e-10) then
-				! intersect = -666
-				! intersect(1,1) = P(1,1,1)
-				! intersect(2,1) = r1(t1)+(r12(t1)/r12(n))*(intersect(1,1)-r1(n))            
-				! intersect(3,1) = r1(t2)+(r12(t2)/r12(n))*(intersect(1,1)-r1(n))
-				! flag = 1
-			! else
-				call line_patch_intersect(r1, r12, P, intersect, normal, flag)
-!			endif
-
-
-			do ixyz=1,flag
-				!cbin = self%get_bin(intersect(:,ixyz))+1e-12
-				!tbin = self%get_tangent_bins(intersect(:,ixyz))
-				!print'(a,3i5,5f10.5, 2i5)', 'line_plane_intersect output', i,j,k, r1(1), & 
-				!				intersect(:,ixyz), r2(1), tbin
-				!endif
-				!The minus one on i range avoids this check.
-				!if (((intersect(1,ixyz) .gt. r1(1)) .and. &
-				!	 (intersect(1,ixyz) .lt. r2(1))) .or. &
-				!	((intersect(1,ixyz) .lt. r1(1)) .and. &
-				!	 (intersect(1,ixyz) .gt. r2(1)))) then
-					bc = bc + 1
-					temp(:,bc) = intersect(:,ixyz)
-					if (present(cbins)) cbinstemp(bc) = i
-				!else
-				!	print*, "overshoot", temp(:,bc)
-				!endif
-			enddo
-		enddo
-		enddo
-		enddo
-
-
-		! ! First sample at r1 
-		! Ns = maxbin-minbin
-		! dx = self%binsize(n)
-		! dy = self%binsize(n) * r12(t1)/r12(n)
-		! dz = self%binsize(n) * r12(t2)/r12(n)
-		! !dz = self%binsize(n) * sqrt((r12(t2)/r12(n))**2 + 1.d0)
-		! !ds = 1.d0 / real(Ns, kind(0.d0))
-		! ds = sqrt(dx**2 + dy**2 + dz**2)
-		! !ds = self%binsize(n) * sqrt((r12(t1)/r12(n))**2 + (r12(t2)/r12(n))**2 + 1.d0)
-		! s = ds
-
-		! if (r1(n) .lt. r2(n)) then
-			! rs = r1; re = r2
-			! bin_mdt = bin1 !self%get_bin(r1)
-		! else
-			! rs = r2; re = r1
-			! bin_mdt = bin2 !self%get_bin(r1)
-		! endif
-		! rb = rs
-		
-		! !loop over bin range
-		! bc = 1
-		! do i = minbin, maxbin-1
-
-			! if (rb(n) .gt. re(n)) then
-				! rb = re
-			! endif
-
-			! ! Loop over all samples, s varies from 0 to 1
-			! ! Position of sample on line
-			! !if (s .le. 1.d0) then
-			! !	rb(:) = rs(:) + s*r12(:)
-			! !else 
-			! !	rb = re
-			! !endif
-			! bin = self%get_bin(rb)
-
-			! !Shift by the size of one bin
-			! shift = (bin(n)-1*self%nhb(n)-0.5d0)*self%binsize(n)-0.5d0*self%box(n)
-
-			! !if (bin(n) .ne. i) then
-			! !	print*, i, r1, rb, r2, bin, bin_mdt
-			! !	stop "Bin not equal to i"
-			! !endif
-
-			! !First chec we have a crossing in between
-			! if (abs(bin_mdt(n)-bin(n)) .eq. 1) then
-
-				! print'(a,i5,a,i5,a,2i5,3f10.5)', "crossings from", bin_mdt(n), " to ", bin(n), " between ", minbin, maxbin, r1(n), rb(n), r2(n)
-
-! !				if (abs(bin_mdt(n)-bin(n)) .gt. 1) then
-! !					print*, "get_crossings_bilinear - segment crosses two bins", i, s, r1(n), rb(n), r2(n), minbin, bin_mdt(n), bin(n), maxbin
-! !					stop "get_crossings_bilinear - segment crosses two bins"!
-! !				endif
-
-				! !Then loop over all tangential bins in both directions
-				! do j=min(bin(t1), bin_mdt(t1)),max(bin(t1), bin_mdt(t1))
-				! do k=min(bin(t2), bin_mdt(t2)),max(bin(t2), bin_mdt(t2))
-
-					! !Get details of patch for intersection
-					! !vert = self%index_to_vertex(j,k)
-					! !points(1,t1) = vert(1); points(1,t2) = vert(2) !Bottom left
-					! !points(2,t1) = vert(3); points(2,t2) = vert(2) !Bottom right
-					! !points(3,t1) = vert(1); points(3,t2) = vert(4) !Top left
-					! !points(4,t1) = vert(3); points(4,t2) = vert(4) !Top right			
-					! !call self%get_surface_bilinear(points, self%Abilinear(:,:,j,k), elevation)
-
-					! !Normal direction used in line plane intersect shifted by current bin
-					! !points(:,n) = elevation(:) + shift
-
-					! points = self%indices_to_points(i,j,k)
-
-					! !if (points(1,n) .lt. r1(n) .or. points(1,n) .gt. r2(n)) then
-					! !	print*, "intersect outside line", r1(n), points(1,n), r2(n), & 
-					! !			elevation + (bin(n)-1*self%nhb(n)-0.5d0)*self%binsize(n)-0.5d0*self%box(n)
-						! !stop "Error - intersect outside line" 
-					! !endif
-
-					! !Get a patch of P values to use in bilinear patch & line calculation
-					! P(:,:,1) = reshape(points(:,n ), (/2,2/))
-					! P(:,:,2) = reshape(points(:,t1), (/2,2/))
-					! P(:,:,3) = reshape(points(:,t2), (/2,2/))
-
-					! !print'(a,2i5,18f10.5)', "x_bilinear", i,j, p(1,1,:), P(1,2,:), P(2,1,:), p(2,2,:), r1(:), r12(:)
-
-					! !Special case of flat surface apparently causes problems so need to handle separatly
-					! if (P(1,1,1) .eq. P(2,1,1) .and. &
-						! P(2,1,1) .eq. P(1,2,1) .and. &
-						! P(1,2,1) .eq. P(2,2,1)) then
-						! intersect = -666
-						! intersect(1,1) = P(1,1,1)
-						! intersect(2,1) = r1(t1)+(r12(t1)/r12(n))*(intersect(1,1)-r1(n))            
-						! intersect(3,1) = r1(t2)+(r12(t2)/r12(n))*(intersect(1,1)-r1(n))
-						! flag = 1
-						! !PRINT*, "Flat surface", intersect(:,1)
-					! else
-						! call line_plane_intersect(r1, r12, P, intersect, normal, flag)
-						! !print*, 'line_plane_intersect output', i,j,k, r1(1), rb(1), r2(1),  vert, intersect(:,1), flag
-
-					! endif
-					! !if (flag .eq. 0) then
-					! !	print*, bin_mdt, bin, r1, rb, r2
-					! !endif
-					! !Loop over flag, whih counts number of intersects and add to temp if in patch
-					! do ixyz=1,flag
-						! !Only include crossing if within bounds of patch
-						! !if (intersect(t1,ixyz) .gt. vert(1) .and. &
-						! !	intersect(t1,ixyz) .le. vert(3) .and. &
-						! !	intersect(t2,ixyz) .gt. vert(2) .and. &
-						! !	intersect(t2,ixyz) .le. vert(4)) then
-						! tbin = self%get_tangent_bins(intersect(:,ixyz))
-						! if (tbin(1) .eq. j .and. tbin(2) .eq. k) then
-							! if (size(intersect,2) .ne. 1) print'(a,3i5,9f10.5)', "intrsect", ixyz, i, bc, r1, intersect(:,ixyz), r2
-							! temp(:,bc) = intersect(:,ixyz)
-							! if (present(cbins)) cbinstemp(bc) = bin(n)
-							! bc = bc + 1
-						! endif
-						! !print'(a,12f10.5, 10i5)', "patch", vert(1), intersect(t1,ixyz), vert(3), &
-						! !					   vert(2), intersect(t2,ixyz), vert(4), r1, r2, &
-						! !					j, k, tbin, bin(n), bin_mdt(n), bin(t1), bin_mdt(t1), bin(t2), bin_mdt(t2)
-					! enddo
-
-				! enddo
-				! enddo
-
-			! else if (abs(bin_mdt(n)-bin(n)) .gt. 1) then
-				! print*, "get_crossings_bilinear - segment crosses two bins", i, s, r1(n), rb(n), r2(n), minbin, bin_mdt(n), bin(n), maxbin
-				! stop "get_crossings_bilinear - segment crosses two bins"
-			! !else	
-			! !	stop "get_crossings_bilinear -Same bin"
-			! endif
-
-
-			! !Step alone in binsize in the normal direction
-			! !rb(:) = r1(:)
-			! rb(n)  = rb(n)  + dx
-			! rb(t1) = rb(t1) + dy
-			! rb(t2) = rb(t2) + dz
-
-			! bin_mdt = bin
-
-		! enddo
-
-		!print'(a,4i6,6f10.5)', "Crossings ", maxbin-minbin, size(yb,1), size(zb,1), bc, r1, r2
-
-		!Copy array of intersects to rc
-		if (bc .ge. 1) then
-			allocate(rc(3, bc))
-			rc = temp(:,1:bc)
-			if (present(cbins)) then
-				allocate(cbins(bc))
-				cbins = cbinstemp(1:bc)
-			endif
-			crossings = .true.
-		else
-			allocate(rc(3, 1)); rc = 0.d0
-			if (present(cbins)) then
-				allocate(cbins(1))
-				cbins = 1
-			endif
-			crossings = .false.
-			!stop "Error in get_crossing_bilinear - No crossings found"
+	!Copy array of intersects to rc
+	if (bc .ge. 1) then
+		allocate(rc(3, bc))
+		rc = temp(:,1:bc)
+		if (present(cbins)) then
+			allocate(cbins(bc))
+			cbins = cbinstemp(1:bc)
 		endif
-
-	!endif
+		crossings = .true.
+	else
+		allocate(rc(3, 1)); rc = 0.d0
+		if (present(cbins)) then
+			allocate(cbins(1))
+			cbins = 1
+		endif
+		crossings = .false.
+		!stop "Error in get_crossing_bilinear - No crossings found"
+	endif
 
 end subroutine get_crossings_bilinear_old
 
@@ -1617,26 +1224,6 @@ subroutine get_crossings(self, r1, r2, bin1, bin2, n, rc, crossings, cbins)
 				call line_plane_intersect(r1, r12, P, intersect, normal, flag)
 			endif
 			
-			
-			!Get surface sampled from bins
-			! call self%get_sampled_surface(rb, points2)
-			! points2(:,n) = points2(:,n) & 
-						  ! + (i-1*nhb(n)-0.5d0)*binsize(n) &
-						  ! -0.5d0*self%box(n)
-			! P(:,:,1) = reshape(points2(:,n ), (/2,2/))
-			! P(:,:,2) = reshape(points2(:,t1), (/2,2/))
-			! P(:,:,3) = reshape(points2(:,t2), (/2,2/))
-			! call line_plane_intersect(r1, r12, P, intersect2, normal, flag)
-			! if (abs(intersect2(1,1)+666) .lt. 1e-7) then
-				! intersect2(:,1) = r1(:) + (s-0.5d0*ds)*r12(:)
-			! endif
-			! !if (all(abs(intersect2(:,1)+666) .gt. 1e-7)) then
-				! print'(a,13f10.5)', "Elevation check ", & 
-					! r1, rb, points2(:,n), intersect(:,1)-intersect2(:,1)
-			!endif
-
-			
-			!print*, 'line_plane_intersect output', i, r1(1), points(1,n), r2(1), bin1(1)-self%nhb(1), yrb, yrt, zrb, zrt, intersect
 			!Loop over intersects and add to temp
 			do ixyz=1,size(intersect,2)
 				if (all(abs(intersect(:,ixyz)+666) .gt. 1e-7)) then
@@ -1648,8 +1235,6 @@ subroutine get_crossings(self, r1, r2, bin1, bin2, n, rc, crossings, cbins)
 			enddo
 
 		enddo
-
-		!print'(a,4i6,6f10.5)', "Crossings ", maxbin-minbin, size(yb,1), size(zb,1), bc, r1, r2
 
 		!Copy array of intersects to rc
 		if (bc .gt. 1) then
@@ -1703,7 +1288,6 @@ subroutine get_crossings(self, r1, r2, bin1, bin2, n, rc, crossings, cbins)
 	endif
 
 end subroutine get_crossings
-
 
 
 subroutine get_flat_crossings(self, r1, r2, bin1, bin2, n, rc, crossings)
@@ -2249,7 +1833,7 @@ subroutine get_initial_pivots(points, ISR, pivots)
 
     !Define bins
     bins = 3
-    !Take into account non-equal domain
+    !Take into account non-equal domains
     bins(2) = int(bins(1)*ISR%box(ISR%ixyz)/ISR%box(ISR%jxyz))
     allocate(sectors(bins(1), bins(2)))
     sectors = 0

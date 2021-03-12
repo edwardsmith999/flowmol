@@ -4627,30 +4627,6 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR)
             !Redefine bins here
             call ISR%get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings, cbins)
 
-			!DEBUG Match to flat surface case DEBUG
-			! call get_crossings_test(ri1, ri2, bin1, bin2, normal, rc_test, crossings_test)
-			! if (crossings .and. crossings_test) then
-				! if (size(rc) .ne. size(rc_test)) then
-					! print*, "Sizes not equal", size(rc,2), size(rc_test,2)
-					! do i=1,size(rc,2)
-						! print*, i, rc(:,i)
-					! enddo
-					! do i=1,size(rc_test,2)
-						! print*, i, rc_test(:,i)
-					! enddo
-				! else
-					! do i=1,size(rc_test,2)
-						! if (abs(sum(rc_test(:,i)-rc(:,i))) .gt. 1e-7) then	
-							! print'(a,i4, 7f10.5)', "TEST", i, abs(sum(rc_test(:,i)-rc(:,i))), rc_test(:,i), rc(:,i)
-						! endif
-					! enddo
-				! endif
-			! else if (crossings) then
-				! print*, "No flat crossing", size(rc)
-			! else if (crossings_test) then
-				! print*, "No intrinsic crossin", size(rc_test)
-			! endif
-			!DEBUG  Match to flat surface case DEBUG
 
         else
             call get_crossings(ri1, ri2, bin1, bin2, normal, rc, crossings)
@@ -4695,98 +4671,17 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR)
                     crossdir  = sign(1.d0, ri12(normal))
                 endif
 
-    		    !if (size(rc,2) .gt. 1) print'(a,i9,6i5,9f10.5)', "cross no ", iter, i, size(rc,2), & 
-                !                       ISR%get_bin(rci, nbins, nhb), cbins(i), ri1, rci, ri2
-                !if (cbin(normal) .ne. cbins(normal)) stop "Error"
-				!print*, "CBINS", rci, cbin, bin1, bin2
                 fluxes(cbin(1),cbin(2),cbin(3),:,normal) = & 
                     fluxes(cbin(1),cbin(2),cbin(3),:,normal) + crossdir*quantity(:)
                 fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),:,normal+3) = & 
                     fluxes(cbin(1),cbin(2),cbin(3),:,normal)
-
-				! if (present(ISR)) then
-				! if ((cbin(1) .ge. CVcheck_momentum%debug_CV(1) .and. & 
-					 ! cbin(1) .lt. CVcheck_momentum%debug_CV(1)+CVcheck_momentum%debug_CV_range(1)) .and. & 
-				    ! (cbin(2) .ge. CVcheck_momentum%debug_CV(2) .and. &
-					 ! cbin(2) .lt. CVcheck_momentum%debug_CV(2)+CVcheck_momentum%debug_CV_range(2)) .and. & 
-				    ! (cbin(3) .ge. CVcheck_momentum%debug_CV(3) .and. & 
-					 ! cbin(3) .lt. CVcheck_momentum%debug_CV(3)+CVcheck_momentum%debug_CV_range(3))) then
-					! print'(a,i8,2i3, 3i5,6f10.5,7f10.4)', "t crossing ", iter, i, normal, cbin, rci, & 
-								! 0.25*quantity(1)/(ISR%binsize(2)*ISR%binsize(3)), &
-								! 0.25*quantity(1)/(ISR%binsize(1)*ISR%binsize(3)), &
-								! 0.25*quantity(1)/(ISR%binsize(1)*ISR%binsize(2)),  &
-								! 0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,1)/(ISR%binsize(2)*ISR%binsize(3)), & 
-								! 0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,2)/(ISR%binsize(1)*ISR%binsize(3)), & 
-								! 0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,3)/(ISR%binsize(1)*ISR%binsize(2)), &
-								! 0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,4)/(ISR%binsize(2)*ISR%binsize(3)), & 
-								! 0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,5)/(ISR%binsize(1)*ISR%binsize(3)), & 
-								! 0.25d0*fluxes(cbin(1),cbin(2),cbin(3),1,6)/(ISR%binsize(1)*ISR%binsize(2)), &
-						   ! (fluxes(cbin(1),cbin(2),cbin(3),1,1)-fluxes(cbin(1),cbin(2),cbin(3),1,4))/ISR%binsize(1) &
-						  ! +(fluxes(cbin(1),cbin(2),cbin(3),1,2)-fluxes(cbin(1),cbin(2),cbin(3),1,5))/ISR%binsize(2) &
-						  ! +(fluxes(cbin(1),cbin(2),cbin(3),1,3)-fluxes(cbin(1),cbin(2),cbin(3),1,6))/ISR%binsize(3)
-					! write(586410,*) iter, normal, ri1, rci, ri2, quantity
-					! Xcount = Xcount + 1
-					! write(292847,*) iter, cbin(1),cbin(2),cbin(3), ISR_b%binsize, ISR_b%indices_to_points(cbin(1),cbin(2),cbin(3))
-					! changed = .true.
-				! endif
-				! if ((cbin(1)-bs(1) .ge. CVcheck_momentum%debug_CV(1) .and. & 
-					 ! cbin(1)-bs(1) .lt. CVcheck_momentum%debug_CV(1)+CVcheck_momentum%debug_CV_range(1)) .and. & 
-				    ! (cbin(2)-bs(2) .ge. CVcheck_momentum%debug_CV(2) .and. & 
-					 ! cbin(2)-bs(2) .lt. CVcheck_momentum%debug_CV(2)+CVcheck_momentum%debug_CV_range(2)) .and. & 
-				    ! (cbin(3)-bs(3) .ge. CVcheck_momentum%debug_CV(3) .and. & 
-					 ! cbin(3)-bs(3) .lt. CVcheck_momentum%debug_CV(3)+CVcheck_momentum%debug_CV_range(3))) then
-					! print'(a,i8,2i3, 3i5,6f10.5,7f10.4)', "b crossing ", iter, i, normal, cbin-bs, rci, & 
-								! 0.25*quantity(1)/(ISR%binsize(2)*ISR%binsize(3)), &
-								! 0.25*quantity(1)/(ISR%binsize(1)*ISR%binsize(3)), & 
-								! 0.25*quantity(1)/(ISR%binsize(1)*ISR%binsize(2)),  &
-								! 0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,1)/(ISR%binsize(2)*ISR%binsize(3)), &
-								! 0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,2)/(ISR%binsize(1)*ISR%binsize(3)), &
-								! 0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,3)/(ISR%binsize(1)*ISR%binsize(2)), &
-								! 0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,4)/(ISR%binsize(2)*ISR%binsize(3)), &
-								! 0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,5)/(ISR%binsize(1)*ISR%binsize(3)), &
-								! 0.25d0*fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,6)/(ISR%binsize(1)*ISR%binsize(2)), &
-						   ! (fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,1)& 
-						   ! -fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,4))/ISR%binsize(1) &
-						  ! +(fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,2)& 
-						   ! -fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,5))/ISR%binsize(2) &
-						  ! +(fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,3)& 
-						   ! -fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),1,6))/ISR%binsize(3)
-					! write(586410,*) iter, normal, ri1, rci, ri2, quantity
-					! Xcount = Xcount + 1
-					! write(292847,*) iter, cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3), ISR_b%binsize, & 
-						! ISR_b%indices_to_points(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3))
-					! changed = .true.
-				! endif
-				! endif
-
-				! if (changed) then
-					! print*, ri1, ri2, bin1, bin2, rci
-				! endif
-
 
             enddo
             deallocate(rc)
         endif
 
 	enddo
-
-	!if (changed .and. Xcount .ne. 2) then
-		!print*, "Crossing count", Xcount, ri1, ri2
-		! do i =136,137
-		! do j =18,19
-		! do k =18,19
-			! print'(a,i8,3i5, 6f11.4)', "fluxes ", iter, i, j, k, &
-				! 0.25d0*fluxes(i,j,k,1,1)/(ISR%binsize(2)*ISR%binsize(3)), &
-				! 0.25d0*fluxes(i,j,k,1,2)/0.069480940251555504, &
-				! 0.25d0*fluxes(i,j,k,1,3)/0.069480940251555504, &
-				! 0.25d0*fluxes(i,j,k,1,4)/(ISR%binsize(2)*ISR%binsize(3)), &
-				! 0.25d0*fluxes(i,j,k,1,5)/0.069480940251555504, &
-				! 0.25d0*fluxes(i,j,k,1,6)/0.069480940251555504	
-		! enddo
-		! enddo
-		! enddo
-	!endif
-
+ 
 end subroutine cumulative_flux_opt
 
 
@@ -4901,26 +4796,6 @@ subroutine control_volume_stresses_opt(fij, ri, rj)
 
 	real(kind(0.d0)),dimension(:), allocatable :: quantity
 
-    !print*, "ISR_mdt%coeff", maxval(ISR_mdt%coeff), sum(ISR_mdt%coeff)
-
-    !Limit calc to part of domain for debugging
-    !window = 3.d0
-    !call ISR_mdt%get_zero_mode(zeromode)
-    !zl = (/ zeromode, 0.d0, 0.d0 /)
-    !do ixyz=1,3
-        !if (bini(ixyz) .ge. CV_constraint%debug_CV(ixyz) .and. & 
-        !    bini(ixyz) .lt. CV_constraint%debug_CV(ixyz)+CV_constraint%debug_CV_range(ixyz)) then
-        !    cycle
-        !else
-        !    return
-        !endif
-     !   if (ri(ixyz) .lt. -window+zl(ixyz) .or. & 
-     !       rj(ixyz) .lt. -window+zl(ixyz) .or. &
-     !       ri(ixyz) .gt.  window+zl(ixyz) .or. &
-     !       rj(ixyz) .gt.  window+zl(ixyz)) return
-    !enddo
-    !print*,  get_bin(ri), get_bin(rj)
-
 	allocate(quantity(3))
 	quantity(:) = 2.d0*fij(:)
 	if (cluster_analysis_outflag .eq. 1 .and.  & 
@@ -4935,10 +4810,6 @@ subroutine control_volume_stresses_opt(fij, ri, rj)
 	if (CVforce_flag .ne. VOID .and. iter-initialstep+1 .ge. CVforce_starttime) then
 		CV_constraint%Pxy = Pxyface
 	endif
-
-    !Debug count interactions
-    !Ncount = Ncount + 1
-    !if (mod(Ncount,10000) .eq. 0) print*, "cumulative_flux_opt", Ncount, fij, ri, rj
 
 end subroutine control_volume_stresses_opt
 
@@ -4976,15 +4847,15 @@ subroutine mass_flux_averaging(flag)
     !print*, "Tsum = ", iter, tsum
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nmflux_ave) then
-
 		call mass_flux_io()
 		sample_count = 0
 		mass_flux = 0
-		call mass_snapshot()       
+		call mass_snapshot()
 		if (CV_debug .ne. 0) then
 		    mbinsize(:) = domain(:) / nbins(:)
             skipbinstop = ceiling((thermstattop + specular_wall)/mbinsize)
             skipbinsbot = ceiling((thermstatbottom + specular_wall)/mbinsize)
+            
             !E.S. this causes a compiler seg fault for 
             !     ifort version 13.0.1 which is fixed by 
             !     replacing 
@@ -8015,7 +7886,7 @@ contains
                                                CA_generate_xyz, CA_generate_xyz_res, &
 											   mflux_outflag, vflux_outflag, CV_conserve
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, & 
-								write_wave_xyz, write_waveobj
+								write_wave_xyz, write_waveobj, write_grid
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
         use arrays_MD, only : tag, r, intnscshift, glob_no
 #if ASSMBLY_HEAVISIDES
@@ -8194,6 +8065,14 @@ contains
     					call ISR%sample_surface(vertices)
                     endif
 					call write_waveobj(vertices, iter)
+
+				elseif (CA_generate_xyz .eq. 3) then
+                    if (CA_generate_xyz_res .gt. 0) then
+    					call ISR%sample_surface(vertices, (/1, CA_generate_xyz_res, CA_generate_xyz_res/))
+                    else
+    					call ISR%sample_surface(vertices)
+                    endif
+					call write_grid(vertices)
 				endif
 
 				!Get shift for intrinsic surface for each molecule
@@ -8304,6 +8183,82 @@ contains
     end subroutine get_cluster_properties
 
 
+    ! =======================================================
+    ! v v v v v v v v v v v v v v v v v v v v v v v v v v v v
+    ! v v v v v v v v v v v v v v v v v v v v v v v v v v v v					
+	! Get globalnumber of any changing molecules in cluster
+    ! This measures absorption and evaporation (although we
+    ! can do this indirectly with mass flux CV work)
+    ! v v v v v v v v v v v v v v v v v v v v v v v v v v v v
+    ! v v v v v v v v v v v v v v v v v v v v v v v v v v v v
+    ! =======================================================
+    !subroutine get_intrinsic_change()
+
+    !    integer                         :: n,m,i
+    !    integer, dimension(:), allocatable :: pivots, pivotmolnos, pivotmol_left, pivotmol_enter
+    !    integer, dimension(:), allocatable, save :: pivotmolnos_prev
+
+    !    double precision,dimension(:),allocatable :: x,y,z,f,pt,pb, elevation, pivotmolnos_r
+    !    double precision,dimension(:),allocatable,save :: coeffmdt
+    !    double precision,dimension(:,:),allocatable :: rnp, extents_grid
+    !    double precision,dimension(:,:),allocatable :: molnos, clustmolnos
+    !    double precision,dimension(:,:),allocatable, save :: points, pivots_prev
+
+	!	if (.not. allocated(molnos)) allocate(molnos(1,np))
+	!	molnos(1,:) = glob_no(1:np)
+	!	call cluster_to_array(self, clustNo, molnos, min_ngbr, clustmolnos)
+    !    !Real array as sort doesn't work for integers
+    !    allocate(pivotmolnos_r(size(pivots)))
+	!	do i=1,size(pivots)
+    !        pivotmolnos_r(i) = clustmolnos(1,pivots(i))
+    !    enddo
+    !    call Qsort(pivotmolnos_r)
+    !    !Copy to integer array
+    !    allocate(pivotmolnos(size(pivots)))
+    !    pivotmolnos = int(pivotmolnos_r)
+
+    !    !First timestep save previous molnos
+    !    if (.not. allocated(pivotmolnos_prev)) then
+    !        allocate(pivotmolnos_prev(size(pivotmolnos)))
+    !        pivotmolnos_prev = pivotmolnos
+    !    endif
+
+    !    !Allocate temp arrays then go trhough current and
+    !    !previous molecule arrays to check differences
+    !    n = 0; m = 0
+    !    maxlist=max(size(pivotmolnos), size(pivotmolnos_prev))
+    !    allocate(pivotmol_left(maxlist), pivotmol_enter(maxlist))
+    !    do i=1,maxlist
+    !        if (pivotmolnos(i+n) .gt. pivotmolnos_prev(i+m)) then
+    !            print*, "Molecule ", pivotmolnos_prev(i+m), " has left"
+    !            pivotmol_left(m+1) = pivotmolnos_prev(i+m)
+    !            m = m + 1
+    !        elseif (pivotmolnos(i+n) .lt. pivotmolnos_prev(i+m)) then
+    !            print*, "Molecule ", pivotmolnos(i+n), " has entered"
+    !            pivotmol_enter(n+1) = pivotmolnos(i+n)
+    !            n = n + 1
+    !        endif
+    !        if ((i+n .ge. maxlist) .or. (i+m .ge. maxlist)) exit
+    !    enddo
+    !   !Copy current molecules to previous array
+    !    deallocate(pivotmolnos_prev)
+    !   allocate(pivotmolnos_prev(size(pivotmolnos)))
+    !   pivotmolnos_prev = pivotmolnos
+
+    !   !Extract details of molecules leaving and entering
+    !   do i = 1,np
+    !       if (any(glob_no(i) .eq. pivotmol_left(1:m))) then
+    !           print*, "Molecules leaving surface", glob_no(i), r(:,i)
+    !       elseif (any(glob_no(i) .eq. pivotmol_enter(1:n))) then
+    !           print*, "Molecules entering surface", glob_no(i), r(:,i)
+    !       endif
+    !   enddo
+
+    !   print*, "Area = ", ISR%intrinsic_area()/ISR%area, ISR%intrinsic_area()
+
+	!end subroutine get_intrinsic_change()		
+
+
     subroutine write_cluster_xyz(self, min_ngbr)
         use computational_constants_MD, only : extralloc, globaldomain
         use physical_constants_MD, only : np, nd
@@ -8337,8 +8292,8 @@ contains
         else
             fileunit = get_new_fileunit()
             open(fileunit, file="./all_clusters.xyz", access='append')
-            write(fileunit,*) ""
             write(fileunit,*) Nrecords
+            write(fileunit,*) ""
         endif
 
         countwritten = 0
