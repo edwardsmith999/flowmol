@@ -8524,8 +8524,8 @@ contains
             open(unit=pid,file=trim(filename),status='replace')
         endif
 
-        if (mflux_outflag .ne. 0) mass_surface_flux = 0.d0
-        if (vflux_outflag .ne. 0) momentum_surface_flux = 0.d0
+        !if (mflux_outflag .ne. 0) mass_surface_flux = 0.d0
+        !if (vflux_outflag .ne. 0) momentum_surface_flux = 0.d0
 
         n1=ISR_mdt%normal
         t1=ISR_mdt%ixyz
