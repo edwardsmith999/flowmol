@@ -4276,11 +4276,12 @@ subroutine surface_evolution_mass_flux_io()
     use module_parallel_io
     use CV_objects, only : CVcheck_mass, CV_debug
     use messenger_bin_handler, only : swaphalos
+    use computational_constants_MD, only : II_normal
     implicit none
 
     integer             :: m,nresults
     character(41)       :: filename, outfile
-
+	real(kind(0.d0)),dimension(:,:,:,:), allocatable	:: surface_flux
 
     !Work out correct filename for i/o type
     filename='results/dsurf_mflux'
@@ -4292,7 +4293,19 @@ subroutine surface_evolution_mass_flux_io()
 
     !Store mass flux value in CV data object
     if (CV_debug .ne. 0) then
-        call CVcheck_mass%update_surface(mass_surface_flux)
+        !Surface evo stores other components in top and bottom so
+        !will ruin conservation, extract just normal for tests
+        if (Nsurfevo_outflag .eq. 2) then
+            allocate(surface_flux(size(mass_flux,1), size(mass_flux,2), & 
+                                  size(mass_flux,3), size(mass_flux,4)))
+            surface_flux = 0.d0
+            surface_flux(:,:,:,II_normal) = mass_surface_flux(:,:,:,II_normal)
+            surface_flux(:,:,:,II_normal+3) = mass_surface_flux(:,:,:,II_normal+3)
+            call CVcheck_mass%update_surface(surface_flux)
+            deallocate(surface_flux)
+        else
+            call CVcheck_mass%update_surface(mass_surface_flux)
+        endif
     endif
 
     !Calculate record number timestep
@@ -4314,12 +4327,14 @@ subroutine surface_evolution_momentum_flux_io()
     use module_parallel_io
     use CV_objects, only : CVcheck_momentum, CV_debug
     use messenger_bin_handler, only : swaphalos
+    use computational_constants_MD, only : II_normal
     implicit none
 
     integer             :: m,nresults, ixyz
     character(41)       :: filename, outfile
     real(kind(0.d0))                                :: binface
     real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: temp
+	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable	:: surface_flux
 
     !Work out correct filename for i/o type
     filename='results/dsurf_vflux'
@@ -4352,9 +4367,22 @@ subroutine surface_evolution_momentum_flux_io()
     momentum_surface_flux = momentum_surface_flux/(delta_t*Nvflux_ave)
 
 
-    !Store mass flux value in CV data object
+    !Store momentum flux value in CV data object
     if (CV_debug .ne. 0) then
-        call CVcheck_momentum%update_surface(momentum_surface_flux)
+        !Surface evo stores other components in top and bottom so
+        !will ruin conservation, extract just normal for tests
+        if (Nsurfevo_outflag .eq. 2) then
+            allocate(surface_flux(size(momentum_surface_flux,1), size(momentum_surface_flux,2), & 
+                                  size(momentum_surface_flux,3), size(momentum_surface_flux,4), &
+                                  size(momentum_surface_flux,5)))
+            surface_flux = 0.d0
+            surface_flux(:,:,:,:,II_normal) = momentum_surface_flux(:,:,:,:,II_normal)
+            surface_flux(:,:,:,:,II_normal+3) = momentum_surface_flux(:,:,:,:,II_normal+3)
+            call CVcheck_momentum%update_surface(surface_flux)
+            deallocate(surface_flux)
+        else
+            call CVcheck_momentum%update_surface(momentum_surface_flux)
+        endif
     endif
 
     !Calculate record number timestep

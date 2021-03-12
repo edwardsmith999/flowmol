@@ -3447,13 +3447,6 @@ subroutine pressure_tensor_forces_VA_trap(ri, rj, rF, VA_line_samples)
 	! First sample at midpoint of first segment 
 	s = 0.5d0*ds 
 
-    ! Special case of two parts assigned to particle locations 
-    ! instead of 0.25 and 0.75 as given by above convention
-	if (VA_line_samples .eq. 2) then
-        ds = 1.d0
-        s = 0.d0
-    endif
-
 	! Loop over all samples, s varies from 0 to 1
 	do ss = 1, Ns
 
@@ -4579,9 +4572,9 @@ module flux_opt
 
 contains
 
-subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR)
+subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR, surface_flux, stress)
 	use module_record, only : get_bin, get_crossings, nd, intrinsic_surface_real, &
-							ISR_b, iter
+							ISR_b, iter, delta_t, Nsurfevo_outflag
     use librarymod, only : CV_surface_flux, imaxloc
     use module_set_parameters, only : mass
 	use CV_objects, only : CVcheck_momentum
@@ -4590,6 +4583,8 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR)
     real(kind(0.d0)),dimension(3), intent(in)	:: ri1,ri2
 	real(kind(0.d0)),dimension(:), allocatable, intent(in) :: quantity
 	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable, intent(inout)	:: fluxes
+	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable, intent(inout), optional	:: surface_flux
+    logical, optional :: stress !Flag for stress stored at other side and scaled
 
 	class(intrinsic_surface_real), intent(in), optional	:: ISR
 
@@ -4599,7 +4594,7 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR)
 	integer							:: ixyz,i,j,k,n,n1,t1,t2, Xcount
 	integer		,dimension(3)		:: bin1,bin2,cbin,bs
 	real(kind(0.d0)),parameter		:: eps = 1e-12
-	real(kind(0.d0))        		:: crossdir
+	real(kind(0.d0))        		:: crossdir, denom, t1_curv, t2_curv
     real(kind(0.d0)),dimension(3)	:: ri12, rci
 
     integer, dimension(:), allocatable :: cbins
@@ -4659,8 +4654,30 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR)
                 if (present(ISR) .and. (ixyz .eq. n1)) then
                     !Set ixyz bin based on solution from bilinear crossinfs
                     cbin(ixyz) = cbins(i)+1
-					!if (cbins(i)+1 .ne. cbin(normal)) print*, cbin(normal), cbins(i)+1 
-                    crossdir = sign(1.d0,(ri12(n1) - ri12(t1)*dSdr(i,1) - ri12(t2)*dSdr(i,2)))
+                    denom = ri12(n1) - ri12(t1)*dSdr(i,1) - ri12(t2)*dSdr(i,2)
+                    crossdir = sign(1.d0,denom)
+
+                    !Save curvature terms in other 2 components of surface fluxes
+                    if (Nsurfevo_outflag .eq. 2 .and. present(surface_flux)) then
+
+                        !Keep full calculation
+                        t1_curv = -ri12(t1)*dSdr(i,1)/abs(denom)
+                        t2_curv = -ri12(t2)*dSdr(i,2)/abs(denom)
+
+                        !Add to just one side, for stresses swap this to other outside function
+                        if (present(stress)) then
+                            if (.not. stress) stop "Error, optional stress argument must be true or not included"
+                            surface_flux(cbin(1),cbin(2),cbin(3),:,t1+3) = & 
+                                surface_flux(cbin(1),cbin(2),cbin(3),:,t1+3) + 0.25d0*delta_t*t1_curv*quantity(:)
+                            surface_flux(cbin(1),cbin(2),cbin(3),:,t2+3) = &                      
+                                surface_flux(cbin(1),cbin(2),cbin(3),:,t2+3) + 0.25d0*delta_t*t2_curv*quantity(:)
+                        else
+                            surface_flux(cbin(1),cbin(2),cbin(3),:,t1) = & 
+                                surface_flux(cbin(1),cbin(2),cbin(3),:,t1) + t1_curv*quantity(:)
+                            surface_flux(cbin(1),cbin(2),cbin(3),:,t2) = &                      
+                                surface_flux(cbin(1),cbin(2),cbin(3),:,t2) + t2_curv*quantity(:)
+                        endif
+                    endif
 				else
                     crossdir  = sign(1.d0, ri12(ixyz))
                 endif
@@ -4679,10 +4696,10 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR)
 end subroutine cumulative_flux_opt
 
 
-subroutine cumulative_mass_flux_opt
+subroutine cumulative_mass_flux_opt()
 	use module_record, only : cluster_analysis_outflag, np, r, v, & 
                               delta_t, intrinsic_interface_outflag, & 
-							  mass_flux, ISR_mdt
+							  mass_flux, ISR_mdt, mass_surface_flux
     use module_set_parameters, only : mass
     implicit none
 
@@ -4691,7 +4708,7 @@ subroutine cumulative_mass_flux_opt
     integer :: n
     real(kind(0.d0)),dimension(3)	:: ri1,ri2
 	real(kind(0.d0)),dimension(:), allocatable :: quantity
-	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable	:: fluxes
+	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable	:: fluxes, surface_flux
 
     if (cluster_analysis_outflag .eq. 1 .and.  & 
         any(intrinsic_interface_outflag .eq. (/1,2/))) then
@@ -4705,24 +4722,30 @@ subroutine cumulative_mass_flux_opt
                     size(mass_flux,3), 1, size(mass_flux,4)))
     fluxes(:,:,:,1,:) = mass_flux(:,:,:,:)
 
+    allocate(surface_flux(size(mass_flux,1),    size(mass_flux,2), & 
+                          size(mass_flux,3), 1, size(mass_flux,4)))
+    surface_flux(:,:,:,1,:) = mass_surface_flux(:,:,:,:)
+
 	do n = 1,np
 		ri1(:) = r(:,n) 							!Molecule i at time t
 		ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
         quantity(1) = mass(n)
 		if (use_bilinear) then
-			call cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR_mdt)
+			call cumulative_flux_opt(ri1, ri2, fluxes, quantity, &
+                                     ISR_mdt, surface_flux)
 		else
 			call cumulative_flux_opt(ri1, ri2, fluxes, quantity)
 		endif
     enddo
     mass_flux(:,:,:,:) = fluxes(:,:,:,1,:)
+    mass_surface_flux(:,:,:,:) = surface_flux(:,:,:,1,:)
 
 end subroutine cumulative_mass_flux_opt
 
 subroutine cumulative_momentum_flux_opt(r_,v_,momentum_flux_,notcrossing)
 	use module_record, only : cluster_analysis_outflag, np, & 
                              delta_t, intrinsic_interface_outflag, &
-							 ISR_mdt
+							 ISR_mdt, momentum_surface_flux
    use module_set_parameters, only : mass
    implicit none
 
@@ -4757,7 +4780,8 @@ subroutine cumulative_momentum_flux_opt(r_,v_,momentum_flux_,notcrossing)
 		ri2(:) = r_(:,n)	- delta_t*v_(:,n)			!Molecule i at time t-dt
        quantity(:) = v_(:,n)
 		if (use_bilinear) then
-			call cumulative_flux_opt(ri1, ri2, momentum_flux_, quantity, ISR_mdt)
+			call cumulative_flux_opt(ri1, ri2, momentum_flux_, quantity, & 
+                                     ISR_mdt, momentum_surface_flux)
 		else
 			call cumulative_flux_opt(ri1, ri2, momentum_flux_, quantity)
 		endif
@@ -4777,7 +4801,8 @@ subroutine control_volume_stresses_opt(fij, ri, rj)
     use module_record, only : ISR, Pxyface, void, initialstep, &
 							  CVforce_flag, CVforce_starttime, &
 							  cluster_analysis_outflag, iter, &
-							  intrinsic_interface_outflag
+							  intrinsic_interface_outflag, &
+                              momentum_surface_flux, delta_t
 	use CV_objects, only : CV_constraint
 	use flux_opt, only : cumulative_flux_opt
     implicit none
@@ -4793,9 +4818,9 @@ subroutine control_volume_stresses_opt(fij, ri, rj)
 	allocate(quantity(3))
 	quantity(:) = 2.d0*fij(:)
 	if (cluster_analysis_outflag .eq. 1 .and.  & 
-	   any(intrinsic_interface_outflag .eq. (/1,2/))) then! .and. &
-        !maxval(ISR_mdt%coeff) .gt. 1e-4) then
-		call cumulative_flux_opt(ri, rj, Pxyface, quantity, ISR)
+	   any(intrinsic_interface_outflag .eq. (/1,2/))) then
+		call cumulative_flux_opt(ri, rj, Pxyface, quantity, & 
+                                 ISR, momentum_surface_flux, .true.)
 	else
 		call cumulative_flux_opt(ri, rj, Pxyface, quantity)
 	endif
@@ -4849,7 +4874,6 @@ subroutine mass_flux_averaging(flag)
 		    mbinsize(:) = domain(:) / nbins(:)
             skipbinstop = ceiling((thermstattop + specular_wall)/mbinsize)
             skipbinsbot = ceiling((thermstatbottom + specular_wall)/mbinsize)
-            
             !E.S. this causes a compiler seg fault for 
             !     ifort version 13.0.1 which is fixed by 
             !     replacing 
