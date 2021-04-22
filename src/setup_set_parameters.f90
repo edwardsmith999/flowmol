@@ -1783,9 +1783,12 @@ subroutine set_parameters_outputs
     use messenger, only : localise_bin
 	implicit none
 
-	integer					:: n,i,j,k, ixyz
+	integer					:: n,i,j,k, ixyz, mem_start, mem_end
 	real(kind(0.d0))		:: shift
 
+
+    !Profile memory use in setup
+    call system_mem_usage(mem_start)
 
 	!Use definition of temperature and re-arrange to define an average velocity minus 3 degrees of
 	!freedom - this is to fix the momentum of the domain boundaries 
@@ -2070,6 +2073,10 @@ subroutine set_parameters_outputs
 	!allocate(Gxybins(nbins(1),nbins(2),nbins(3),3,3))
 	!Gxybins = 0.d0
 
+    !Profile memory use in setup
+    call system_mem_usage(mem_end)
+    print*, "Memory allocated before CV=", (mem_end-mem_start)/1024, "Mb"
+
 	!Allocate array for Stress Method of Planes and/or 
 	!allocate bins for control volume momentum fluxes and forces
 	planespacing = cellsidelength(2)
@@ -2134,6 +2141,10 @@ subroutine set_parameters_outputs
 			momentum_flux 	= 0.d0
 			volume_momentum = 0.d0
 			volume_force 	= 0.d0
+            !Profile memory use in setup
+            call system_mem_usage(mem_end)
+            print*, "Total Memory allocated before CV debug=", (mem_end-mem_start)/1024, "Mb"
+
 			if (CV_debug .eq. 1) then
 				call CVcheck_mass%initialise(nbins,nhb,domain,delta_t,Nmflux_ave)   ! initialize CVcheck
 				call CVcheck_momentum%initialise(nbins,nhb,domain,delta_t,Nvflux_ave)   ! initialize CVcheck
@@ -2225,6 +2236,10 @@ subroutine set_parameters_outputs
 		endif
 	endif
 #endif
+
+    !Profile memory use in setup
+    call system_mem_usage(mem_end)
+    print*, "Total Memory allocated by set_parameters_outputs=", (mem_end-mem_start)/1024, "Mb"
 
 end subroutine set_parameters_outputs
 
