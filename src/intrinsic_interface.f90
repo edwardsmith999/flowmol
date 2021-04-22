@@ -319,6 +319,7 @@ subroutine update_real_surface(self, points)
 #if USE_LAPACK
     use lapack_fns, only : solve, multiply_by_tranpose
 #else
+	use librarymod, only : LUdcmp, lubksb
     use interfaces, only : error_abort
 #endif
     implicit none
@@ -328,6 +329,7 @@ subroutine update_real_surface(self, points)
     double precision, intent(in), dimension(:,:), allocatable ::  points
 
     integer :: j
+	integer,dimension(:),allocatable		:: indx
     double precision, dimension(:), allocatable :: b
     double precision, dimension(:,:), allocatable :: A, fuv
 
@@ -355,14 +357,17 @@ subroutine update_real_surface(self, points)
 #if USE_LAPACK
     call multiply_by_tranpose(fuv, fuv, A)
 #else
-    call error_abort("Error - must build with lapack (p_lapack or p_sys_lapack) to use intrinsic interface")
+	A = matmul(transpose(fuv), fuv)
+    !call error_abort("Error - must build with lapack (p_lapack or p_sys_lapack) to use intrinsic interface")
 #endif
     !This solves Ax = b
     A = A + self%diag_matrix
 #if USE_LAPACK
     call solve(A, b, x)
 #else
-    call error_abort("Error - must build with lapack (p_lapack or p_sys_lapack) to use intrinsic interface")
+	call LUdcmp(A,indx)
+	call lubksb(A,indx,b,x)
+    ! call error_abort("Error - must build with lapack (p_lapack or p_sys_lapack) to use intrinsic interface")
 #endif
 	self%coeff(:) = x(:)
 
