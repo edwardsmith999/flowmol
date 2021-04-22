@@ -2458,17 +2458,18 @@ end subroutine get_FileName
 !------------------------------------------------------------------------------
 ! Returns the version number of the current code from the version control
 ! system -- in this case subversion
+! MOVED TO version.f90 created by makefile
 
 function get_version_number()
-        
-        logical        :: file_exists
-        integer        :: unit_no, statusno
-        character(30)  :: get_version_number
+    implicit none
+!        logical        :: file_exists
+!        integer        :: unit_no, statusno
+        character(100)  :: get_version_number, version
 
         ! External system call -- this is almost certain not to
         ! work in general (e.g. not intel and not linux)
 
-        get_version_number = "DISABLED"
+        get_version_number = version()
 
 !		call system("svnversion > ./subversion_no_temp")
 !		!statusno = system("svnversion > ./subversion_no_temp")
