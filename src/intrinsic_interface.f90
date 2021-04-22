@@ -328,7 +328,7 @@ subroutine update_real_surface(self, points)
 
     double precision, intent(in), dimension(:,:), allocatable ::  points
 
-    integer :: j
+    integer :: i, j
 	integer,dimension(:),allocatable		:: indx
     double precision, dimension(:), allocatable :: b
     double precision, dimension(:,:), allocatable :: A, fuv
@@ -370,7 +370,6 @@ subroutine update_real_surface(self, points)
     ! call error_abort("Error - must build with lapack (p_lapack or p_sys_lapack) to use intrinsic interface")
 #endif
 	self%coeff(:) = x(:)
-
     !Check surface we just fitted actually matches our points
     if (debug) then
         call get_real_surface(self, points, surf)

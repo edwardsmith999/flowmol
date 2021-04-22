@@ -5649,7 +5649,7 @@ end subroutine system_mem_usage
 
 !======================================================================
 !Ensures functions work correctly
-program subroutine
+subroutine test
 	use librarymod
 #if USE_LAPACK
     use lapack_fns, only : solve, multiply_by_tranpose

@@ -2260,7 +2260,8 @@ subroutine set_parameters_outputs
 
     !Profile memory use in setup
     call system_mem_usage(mem_end)
-    print*, "Total Memory allocated by set_parameters_outputs=", (mem_end-mem_start)/1024, "Mb"
+    print*, "Total Memory allocated by set_parameters_outputs=", &
+         (mem_end-mem_start)/1024, "Mb"
 
 end subroutine set_parameters_outputs
 
