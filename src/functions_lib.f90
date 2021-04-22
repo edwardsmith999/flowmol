@@ -2265,11 +2265,11 @@ end function nonzero
 !a - input NxN matrix and output as LU matrix
 !indx - output vector storing row permutation
 
-subroutine LUdcmp(A,indx,d)
+subroutine LUdcmp(A,indx)
 	implicit none
 
-	real(kind(0.d0)), dimension(:,:), intent(inout)	:: A
-	integer, dimension(:), intent(out)				:: indx
+	real(kind(0.d0)),allocatable, dimension(:,:), intent(inout)	:: A
+	integer, dimension(:),allocatable, intent(out)				:: indx
 	real(kind(0.d0))								:: d
 	real(kind(0.d0)), dimension(size(A,1))			:: vv
 	integer											:: j, n, imax
@@ -2278,6 +2278,7 @@ subroutine LUdcmp(A,indx,d)
     ! call DGETRF( M, N, A, LDA, IPIV, INFO )
 
 	n = size(A,1)				!Store size of matrix
+	allocate(indx(n))
 	d=1.d0 						!Row interchange flag - zero as no row interchanges yet.
 	vv = maxval(abs(A),dim=2)	!Scaling information
 
@@ -2306,34 +2307,37 @@ end subroutine LUdcmp
 !Linear equation solver Ax=b taken from Fortran 90 Numerical Recipes
 !Matrix A must be in the form of an LU decomposition
 
-subroutine LUbksb(A,indx,b)
+subroutine LUbksb(A,indx,b,x)
 	implicit none
 
 	integer						:: i, n, ii, ll
-	integer, dimension(:), intent(in)		:: indx
+	integer, dimension(:),allocatable, intent(in)		:: indx
 	real(kind(0.d0))				:: summ
-	real(kind(0.d0)), dimension(:,:), intent(in)	:: A
-	real(kind(0.d0)), dimension(:), intent(inout)	:: b
+	real(kind(0.d0)), dimension(:,:),allocatable, intent(in)	:: A
+	real(kind(0.d0)), dimension(:),allocatable, intent(in)	:: b
+	real(kind(0.d0)), dimension(:),allocatable, intent(out)	:: x
 
         ! Lapack version, factorisation included
         ! call DGESV( N, NRHS, A, LDA, IPIV, B, LDB, INFO )
+
+	allocate(x(size(b,1))); x = b
 
 	n = size(a,1)
 	ii = 0
 	do i = 1,n
 		ll = indx(i)
-		summ=b(ll)
-		b(ll) = b(i)
+		summ=x(ll)
+		x(ll) = x(i)
 		if (ii .ne. 0) then		!Skip zero elements
-			summ = summ - dot_product(a(i,ii:i-1),b(ii:i-1))
+			summ = summ - dot_product(a(i,ii:i-1),x(ii:i-1))
 		elseif(summ .ne. 0.d0) then
 			ii = i			!Non zero element encountered so begin sum
 		endif
-		b(i) = summ
+		x(i) = summ
 	enddo
 	!Perform Back substitution
 	do i=n,1,-1
-		b(i) = (b(i)-dot_product(a(i,i+1:n),b(i+1:n)))/a(i,i)
+		x(i) = (x(i)-dot_product(a(i,i+1:n),x(i+1:n)))/a(i,i)
 	enddo
 
 end subroutine LUbksb
@@ -5645,18 +5649,21 @@ end subroutine system_mem_usage
 
 !======================================================================
 !Ensures functions work correctly
-subroutine check
+program subroutine
 	use librarymod
+#if USE_LAPACK
+    use lapack_fns, only : solve, multiply_by_tranpose
+#endif
 	implicit none
 
 	integer						:: i,j
-	integer						:: n,npoints
-	integer,dimension(3)		:: indx
+	integer						:: n,npoints,M
+	integer,allocatable,dimension(:)		:: indx
 	real(kind(0.d0))			:: d
 	real(kind(0.d0))			:: integral
 	real(kind(0.d0))			:: rand, x_interval, intercept, gradient
-	real(kind(0.d0)),dimension(3)			:: b
-	real(kind(0.d0)),dimension(3,3)			:: a
+	real(kind(0.d0)), allocatable, dimension(:)			:: b, x
+	real(kind(0.d0)), allocatable,dimension(:,:)			:: a, cTc, c
 	real(kind(0.d0)), dimension(:), allocatable	:: y
 
 	!Check least squares line
@@ -5696,9 +5703,10 @@ subroutine check
 	!	b(i) = i
 	!enddo
 	!enddo
+	allocate(a(3,3), b(3), x(3))
 
-	a = reshape(source= (/3,1,5,2,-3,-1,-5,2,4/), shape = (/ 3,3 /))
-	b(1)=12 ;b(2)=-13 ; b(3)=10
+	a = reshape(source= (/1,1,1,3,-1,6,-4,0,2/), shape = (/ 3,3 /))
+	b(1)=4 ;b(2)=-0; b(3)=3
 
 	do i=1,n
 	do j=1,n
@@ -5708,13 +5716,31 @@ subroutine check
 
 	print*, 'b', b
 
+#if USE_LAPACK
+    call solve(a, b, x)
+	print*, 'LAPACK soln', x
+
+
+	allocate(c(3,3)); c = 0.d0
+	c(1,3) = 4; c(1,1) = 1
+	call multiply_by_tranpose(c, c, cTc)
+	print*, "BLAS transpose",  cTc
+	deallocate(cTc)
+
+    M = size(c,2)
+	allocate(cTc(M,M))
+	cTc = matmul(transpose(c), c)
+	print*, "transpose",  cTc
+
+#endif
+
 	!call swap(a(1,:),a(2,:))
 
 	!print*, 'A', a
 	!print*, imaxloc(a(1,:))
 	!print*, outerprod(a(1,:),b)
 
-	call LUdcmp(a,indx,d)
+	call LUdcmp(a,indx)
 
 	do i=1,n
 	do j=1,n
@@ -5722,10 +5748,12 @@ subroutine check
 	enddo
 	enddo
 
-	call lubksb(a,indx,b)
+	call LUbksb(a,indx,b,x)
 
-	print*, 'soln', b
+	print*, 'soln', x
+
+
 
 	deallocate(y)
 
-end
+end subroutine
