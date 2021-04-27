@@ -3342,6 +3342,7 @@ end subroutine SubcommSumIntVect
 
 subroutine error_abort_s(msg)
     use mpi
+	use iso_fortran_env, only : stderr=>ERROR_UNIT   
     implicit none
 
     character(len=*), intent(in), optional :: msg
@@ -3349,7 +3350,7 @@ subroutine error_abort_s(msg)
 	integer errcode,ierr
 
     if (present(msg)) then 
-        write(*,*) msg
+        write(stderr,*) msg
     endif
 
 	!call MPI_barrier(MPI_COMM_WORLD,ierr)
@@ -3360,6 +3361,7 @@ end subroutine error_abort_s
 
 subroutine error_abort_si(msg,i)
     use mpi
+	use iso_fortran_env, only : stderr=>ERROR_UNIT   
     implicit none
 
     character(len=*), intent(in) :: msg
@@ -3367,7 +3369,7 @@ subroutine error_abort_si(msg,i)
 
     integer errcode,ierr
 
-    write(*,*) msg,i
+    write(stderr,*) msg,i
 
 	!call MPI_barrier(MPI_COMM_WORLD,ierr)
     call MPI_Abort(MPI_COMM_WORLD,errcode,ierr)
