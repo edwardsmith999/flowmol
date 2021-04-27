@@ -1078,7 +1078,7 @@ subroutine setup_set_parameters
 		potential_sLRC = 0.d0; Pressure_sLRC = 0.d0;
 	endif
 
-    print*, "sLRC = ", Pressure_sLRC, potential_sLRC
+    !print*, "sLRC = ", Pressure_sLRC, potential_sLRC
 
     !If Mie potential used, standard LRC are no longer valid
     if (Mie_potential .ne. 0) then
