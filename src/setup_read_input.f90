@@ -29,7 +29,7 @@ end module module_read_input
 
 subroutine setup_read_input
 	use module_read_input
-	use librarymod, only :locate, linspace
+	use librarymod, only :locate, linspace, find3factors
 	implicit none
 
 	logical					:: found_in_input, error, empty
@@ -40,7 +40,19 @@ subroutine setup_read_input
 	! Open input file
 	open(1,file=input_file)
 
-	!Simulation ensemble choice
+	! #########################################################################
+	! # Ensemble selector
+	! # [1] 0 - NVE
+	! # [1] 1 - NVT (Nosé-Hoover thermostat)
+	! # [1] 2 - NVT (Gaussian iso-kinetic thermostat) - only availble with VV
+	! # [1] 3 - NVT (Profile unbiased Nosé-Hoover thermostat)
+	! # [1] 4 - NVT (Pairwise additive Nosé-Hoover thermostat by Allen & Schmid)
+	! # [1] 5 - NVT (DPD thermostat by Soddemann)
+	! # [1] 6 - Tagged Move System
+	! # Dynamically update tags based on location of molecules
+	! # [2] 0 - Off
+	! # [2] 1 - On
+	! # -----------------------------------------------------------------------
 	call locate(1,'ENSEMBLE',.true.)
 	read(1,*) ensemble
 	if (ensemble .eq. 6) then
@@ -48,6 +60,11 @@ subroutine setup_read_input
 		if (ios .ne. 0) dynamically_update_tags  = .false.
 	endif
 
+	! #########################################################################
+	! # Ignore tags in restart file and use location to set tags again
+	! # [1] 0 - Off
+	! # [2] 1 - On
+	! # -----------------------------------------------------------------------
 	call locate(1,'RESET_TAGS_ON_RESTART',.false.,found_in_input)
 	if (found_in_input) then
         read(1,*) reset_tags_on_restart
@@ -58,18 +75,62 @@ subroutine setup_read_input
         reset_tags_on_restart = 0
     endif
 
-	!Setup initial configuration
+
+	! #########################################################################
+	! # Initial configuration
+	! # [1] 0 - FCC Lattice
+	! # [1] 1 - Special case, must be followed by string on next line. 
+	! # [1] 2 - Configuration file, e.g. pdb or lammps input. Under developement.
+	! #
+	! #        This string must be lower case, so the same string in capitals is
+	! #        reserved as an input flag for information about the special
+	! #        case. Options:
+	! #
+	! # [2] solid_liquid - tethered walls of different density to fluid
+	! # [2] dense_fene - connect monomers on an FCC lattice with a specified 
+	! #                  chain length and FENE potential parameters. 
+	! # [2] sparse_fene - connect monomers on a cubic lattice
+	! #                   separated by FENE equilibrium distance
+	! # [2] fene_solution - fene chains in an explicit solvent
+	! # [2] concentric_cylinders - build concentric cylinders from an FCC lattice
+	! #                 and melt them between specular walls
+	! # [2] fill_cylinders - tether concentric cylinders from previous simulation
+	! #                  to their initial sites, and fill them with fluid
+	! # [2] fill_cylinders_fene_solution - concentric cylinders with FENE 
+	! # [2] rotate_cylinders - restart from filled cylinder and rotate 
+	! # 						inner cylinder with specified angular velocity 
+	! # -----------------------------------------------------------------------
 	call locate(1,'INITIAL_CONFIG_FLAG',.true.)
-	read(1,*) initial_config_flag 
+	read(1,*) initial_config_flag
+	if (initial_config_flag .eq. 1) then
+		read(1,*) config_special_case
+	endif
 	select case (initial_config_flag)
 	case(0)
 	
 		potential_flag = 0
-
+		! #########################################################################
+		! # Number density of the particles in the system:
+		! # [1] float - Density (float)
+		! # -----------------------------------------------------------------------
 		call locate(1,'DENSITY',.true.)
 		read(1,*) density
+		! #########################################################################
+		! # Cut-off distance for particle interaction.
+		! # Longer gives a slower calculation, notable values inclue:
+		! # WCA cutofff is 2^(1/6) = 1.12246204830937
+		! # Typical value is 2.5
+		! # For surface tension which matches experiements ~4.5
+		! # [1] float - Cutoff distance (float)
+		! # -----------------------------------------------------------------------
 		call locate(1,'RCUTOFF',.true.)
 		read(1,*) rcutoff
+		! #########################################################################
+		! # Number of unit cells in the x,y,z directions, formatted:
+		! #   [1] int - number of FCC units in x
+		! #   [2] int - number of FCC units in y 
+		! #   [3] int - number of FCC units in z   
+		! # -----------------------------------------------------------------------
 		call locate(1,'INITIALNUNITS',.true.)
 		read(1,*) initialnunits(1)		!x dimension split into number of cells
 		read(1,*) initialnunits(2)		!y dimension split into number of cells
@@ -77,7 +138,6 @@ subroutine setup_read_input
 
 	case(1)	
 
-		read(1,*) config_special_case
 		select case (trim(config_special_case))
 		case('sparse_fene')	
 
@@ -144,6 +204,11 @@ subroutine setup_read_input
 
 			call locate(1,'DENSITY',.true.)
 			read(1,*) density
+			! #########################################################################
+			! # Number density of the untethered or liquid particles in the system
+			! # Use with solid_liquid config flag
+			! # [1] float - Density (float)
+			! # -----------------------------------------------------------------------
 			call locate(1,'LIQUIDDENSITY',.true.)
 			read(1,*) liquid_density
 			call locate(1,'RCUTOFF',.true.)
@@ -153,7 +218,7 @@ subroutine setup_read_input
 			read(1,*) initialnunits(2)		!y dimension split into number of cells
 			read(1,*) initialnunits(3)		!z dimension split into number of cells
 
-		case('droplet2D','droplet3D','2phase','2phase_LJ', "bubble", "film")
+		case('droplet2D','droplet3D','2phase','2phase_LJ', 'bubble', 'film')
 
 			!call locate(1,'POTENTIAL_FLAG',.true.)
             !read(1,*) potential_flag
@@ -472,25 +537,31 @@ subroutine setup_read_input
 
 	call locate(1,'INTEGRATION_ALGORITHM',.true.)
 	read(1,*) integration_algorithm
+
 	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
 	read(1,*) force_list
 	if (force_list .ne. 3 .and. ensemble .eq. 4) &
 		call error_abort("Half int neighbour list only is compatible with pwa_terms_pwaNH thermostat")
 	if (force_list .ne. 3 .and. ensemble .eq. 5) & 
 		call error_abort("Half int neighbour list only is compatible with DPD thermostat")
+
 	!Input computational co-efficients
 	call locate(1,'NSTEPS',.true.)
 	read(1,*) Nsteps 		!Number of computational steps
+
 	call locate(1,'DELTA_T',.true.)
 	read(1,*) delta_t 		!Size of time step
+
 	call locate(1,'TPLOT',.true.)
 	read(1,*) tplot 		!Frequency at which to record results
+
 	call locate(1,'INITIALISE_STEPS',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) initialise_steps 	!Number of initialisation steps for simulation
 	else
 		initialise_steps = 0
 	endif
+
     !Extra distance used for neighbour cell
 	call locate(1,'DELTA_RNEIGHBR',.true.) 
 	read(1,*) delta_rneighbr(1)
@@ -584,6 +655,24 @@ subroutine setup_read_input
     else
         Mie_potential = 0
     endif
+
+    call locate(1,'PROCESSORS',.false.,found_in_input)
+	if (found_in_input) then
+	    read(1,*) npx
+   		read(1,*) npy
+	    read(1,*) npz
+	    !check if npx*npy*npz=nproc
+	    if (npx * npy * npz .ne. nproc ) then
+			print*, npx, npy, npz , nproc
+			call error_abort(' Wrong specification for processor topology, nproc not equal to npx*npy*npz')
+	    endif
+	else
+		!Assign (using prime factors) to each dimension if not specified
+		call find3factors(nproc,npx,npy,npz)
+		print*, 'WARNING - Number of processors not specified - Arbitrarily assigned as follows:'
+		print*, 'npx = ', npx, 'npy = ', npy, 'npz = ', npz
+
+	endif
 
 
 	!Flags to determine if periodic boundaries are on or shearing Lees Edwards
@@ -773,43 +862,90 @@ subroutine setup_read_input
 	!Setup regions to remove molecules (used for some boundary forces)
     emptydistbottom = 0.d0; emptydisttop = 0.d0
 
-
+	! ########################################################################
+	! # Velocity of sliding molecules in wall
+	! # [1] float - x component of velocity of wall molecules
+	! # [2] float - y component of velocity of wall molecules
+	! # [3] float - z component of velocity of wall molecules
+	! # ----------------------------------------------------------------------
 	call locate(1,'WALLSLIDEV',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) wallslidev(1)
 		read(1,*) wallslidev(2)
 		read(1,*) wallslidev(3)
 	endif
+
+	! ########################################################################
+	! # Distance from domain bottom to Fix molecules, i.e. force v=0 
+	! # unless sliding
+	! # [1] float - distance from x bottom
+	! # [2] float - distance from y bottom
+	! # [3] float - distance from z bottom
+	! # ----------------------------------------------------------------------
 	call locate(1,'FIXDISTBOTTOM',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) fixdistbottom(1)
 		read(1,*) fixdistbottom(2)
 		read(1,*) fixdistbottom(3)
 	endif
+	! ########################################################################
+	! # Distance from domain top to Fix molecules, i.e. force v=0 
+	! # unless sliding
+	! # [1] float - distance from x top
+	! # [2] float - distance from y top
+	! # [3] float - distance from z top
 	call locate(1,'FIXDISTTOP',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) fixdisttop(1)
 		read(1,*) fixdisttop(2)
 		read(1,*) fixdisttop(3)
 	endif
+	! ########################################################################
+	! # Distance from domain bottom to apply sliding velocity to molecules 
+	! # where applied velocity v=WALLSLIDEV	
+	! # [1] float - distance from x bottom
+	! # [2] float - distance from y bottom
+	! # [3] float - distance from z bottom
+	! # ----------------------------------------------------------------------
 	call locate(1,'SLIDEDISTBOTTOM',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) slidedistbottom(1)
 		read(1,*) slidedistbottom(2)
 		read(1,*) slidedistbottom(3)
 	endif
+	! ########################################################################
+	! # Distance from domain top to apply sliding velocity to molecules 
+	! # where applied velocity v=WALLSLIDEV	
+	! # [1] float - distance from x top
+	! # [2] float - distance from y top
+	! # [3] float - distance from z top
+	! # ----------------------------------------------------------------------
 	call locate(1,'SLIDEDISTTOP',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) slidedisttop(1)
 		read(1,*) slidedisttop(2)
 		read(1,*) slidedisttop(3)
 	endif
+	! ########################################################################
+	! # Distance from domain bottom to tethered molecules using spring like
+	! # restoring forces
+	! # [1] float - distance from x top
+	! # [2] float - distance from y top
+	! # [3] float - distance from z top
+	! # ----------------------------------------------------------------------
 	call locate(1,'TETHEREDDISTBOTTOM',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) tethereddistbottom(1)
 		read(1,*) tethereddistbottom(2)
 		read(1,*) tethereddistbottom(3)
 	endif
+	! ########################################################################
+	! # Distance from domain top to tethered molecules using spring like
+	! # restoring forces
+	! # [1] float - distance from x top
+	! # [2] float - distance from y top
+	! # [3] float - distance from z top
+	! # ----------------------------------------------------------------------
 	call locate(1,'TETHEREDDISTTOP',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) tethereddisttop(1)
@@ -822,6 +958,24 @@ subroutine setup_read_input
 		tether_flag = 0
 	end if
 
+	! #######################################################################
+	! # Specifiy cooefficients of potential equation 
+	! # phi= - k2*rio^2 - k4*rio^4 - k6*rio^6 in format
+	! #  [1] float - k2
+	! #  [2] float - k4
+	! #  [3] float - k6
+	! #
+	! # Possible known combinations include:
+	! #
+	! # 	a)	Default from Petravich and Harrowell (2006) J. Chem. Phys.124, 014103. 
+	! # 		with constants  ( k2 = 0, k4 = 5,000, k6 = 5,000,000)
+	! # 	b)	B. D. Todd, Peter J. Daivis, and Denis J. Evans (1995) 
+	! #		Phys. Rev. E. 52, 5 with constants  (k2 = 28.575, k4 = 0, k6 = 0)
+	! #   c)  S. Y. Liem, D. Brown, and J. H. R. Clarke (1992) 
+	! #		Phys. Rev. A. 45, 6 with constants  (k2 = 36.0,   k4 = 0, k6 = 0)
+	! # Default Force constants (k2 = 0, k4 = 5,000, k6 = 5,000,000)  
+	! # from Petravich and Harrowell (2006) J. Chem. Phys.124, 014103.
+	! # ---------------------------------------------------------------------
 	call locate(1,'TETHERCOEFFICIENTS',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) teth_k2
@@ -837,6 +991,31 @@ subroutine setup_read_input
 		teth_k6=5000000.d0
 	endif
 
+	! ########################################################################
+	! # Apply wall texture - note must be used with tag move system
+	! # and replaces all tethered wall specifications with a texture
+	! # Different options have different meaning for parameters, for
+	! # example 
+	! # post, notch and roughness/fractal use texture_intensity
+	! # to set depth of features
+	! # Converging diverging nozzle:
+	! # texture_intensity - size of throat
+	! # Opt1 - fraction of domain for outlet region
+	! # Opt2 - fraction of domain for diverging nozzle
+	! # Opt3 - Set outlet region to still have wall
+	! # [1] 1 - posts
+	! # [1] 2 - random spikes using sines/cosines
+	! # [1] 3 - converging - diverging channel
+	! # [1] 4 - fractal roughness
+	! # [1] 5 - triangular notch
+	! # [2] float - texture intensity
+	! # [3] 0 - Thermostat applied to distance THERMSTATTOP and THERMSTATBOTTOM
+	! # [3] 1 - Thermostat whole wall following texture
+	! # [3] 2 - Slide whole wall including texture with WALLSLIDEV
+	! # [4] float - wall texture parameter 1
+	! # [5] float - wall texture parameter 2
+	! # [6] float - wall texture parameter 3
+	! # ----------------------------------------------------------------------
 	call locate(1,'WALL_TEXTURE',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) texture_type
@@ -863,24 +1042,52 @@ subroutine setup_read_input
 	else
 		texture_type = 0
 	endif
+	! ########################################################################
+	! # Distance from domain bottom to apply thermostat 
+	! # [1] float - distance from x top
+	! # [2] float - distance from y top
+	! # [3] float - distance from z top
+	! # ----------------------------------------------------------------------
 	call locate(1,'THERMSTATBOTTOM',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) thermstatbottom(1)
 		read(1,*) thermstatbottom(2)
 		read(1,*) thermstatbottom(3)
 	endif
+	! ########################################################################
+	! # Distance from domain top to apply thermostat 
+	! # [1] float - distance from x top
+	! # [2] float - distance from y top
+	! # [3] float - distance from z top
+	! # ----------------------------------------------------------------------
 	call locate(1,'THERMSTATTOP',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) thermstattop(1)
 		read(1,*) thermstattop(2)
 		read(1,*) thermstattop(3)
 	endif
+	! ########################################################################
+	! # Distance from domain top to remove particles
+	! # leaving a buffer region which prevents molecules escaping if tethered
+	! # or to strip out outer wall molecules to save computer time
+	! # [1] float - distance from x top
+	! # [2] float - distance from y top
+	! # [3] float - distance from z top
+	! # ----------------------------------------------------------------------
 	call locate(1,'EMPTYDISTTOP',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) emptydisttop(1)
 		read(1,*) emptydisttop(2)
 		read(1,*) emptydisttop(3)
 	endif
+	! ########################################################################
+	! # Distance from domain bottom to remove particles
+	! # leaving a buffer region which prevents molecules escaping if tethered
+	! # or to strip out outer wall molecules to save computer time
+	! # [1] float - distance from x top
+	! # [2] float - distance from y top
+	! # [3] float - distance from z top
+	! # ----------------------------------------------------------------------
 	call locate(1,'EMPTYDISTBOTTOM',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) emptydistbottom(1)
@@ -888,6 +1095,19 @@ subroutine setup_read_input
 		read(1,*) emptydistbottom(3)
 	endif
 
+	! ########################################################################
+	! # Turn on cluster analysis to build clusters from molecules
+	! # a linked list of all molecules within a cutoff distance of each other
+	! # [1] 0 - Cluster Analysis Off 
+	! # [1] 1 - Cluster Analysis On - allows intrinsic interface
+	! # [1] 2 - Cluster Analysis On - for average mass bin interface (OBSOLETE)
+	! # [2] float - Cutoff length for cluster search
+	! # [3] int - Minimum number of neighbours for inclusion in cluster
+	! # [4] 0 - Write interface as an xyz file (for VMD) with all molecuels in cluster.xyz 
+	! # [4] 1 - Write interface as an obj file (for Blender, etc)
+	! # [4] 2 - Write interface as surface.grid, a simple ascii grid of center locations 
+	! # [5] int - Resolution to write interface (Number of points in each direction)
+	! # ----------------------------------------------------------------------
 	call locate(1,'CLUSTER_ANALYSIS',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) cluster_analysis_outflag
