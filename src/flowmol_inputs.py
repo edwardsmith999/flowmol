@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-
-
-
+import time
 
 import wx
 import wx.propgrid as wxpg
 import wx.html as html
 from wx.adv import BitmapComboBox
+import wx.lib.dialogs
 
 from SetupInputs import SetupInputs
-
 
 # Code to read input file
 import sys
 sys.path.append("/home/es205/codes/SimWrapPy/")
 import simwraplib as swl
+
+
+import sys
+sys.path.append("/home/es205/codes/pyDataView/")
+import postproclib as ppl
+
 
 fdir = "./MD_2.in"
 InputFile = swl.KeywordInputMod(fdir)
@@ -23,7 +27,6 @@ InputFile = swl.KeywordInputMod(fdir)
 #Code to 
 FlowmolInputs = SetupInputs()
 FlowmolInputDict = FlowmolInputs.get_items()
-
 
 # InputsDict = {}
 # for key, item in FlowmolInputDict.items():
@@ -34,13 +37,8 @@ FlowmolInputDict = FlowmolInputs.get_items()
         # InputsDict[key]["vars"] = {i:"0" for i in item}
         # #InputsDict[key] = {"vars":{i:"0" for i in item}}
         # print(key, InputsDict[key])
-
-
     # except KeyError:
         # print("key ", key, " not found")
-
-
-
 #
 #InputsDict = {"INPUT":{"HELP":"THis is text to describe variable", "vars":{"name":"2"}}, 
 #              "THING":{"HELP":"different help text", "vars":{"xcells":"1","ycells":"2","zcells":"3"}},
@@ -51,6 +49,7 @@ FlowmolInputDict = FlowmolInputs.get_items()
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -59,6 +58,35 @@ matplotlib.use('WXAgg')
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.figure import Figure
+
+
+def _check_and_log_subprocess(command, logger, **kwargs):
+    """
+    Run *command*, returning its stdout output if it succeeds.
+
+    If it fails (exits with nonzero return code), raise an exception whose text
+    includes the failed command and captured stdout and stderr output.
+
+    Regardless of the return code, the command is logged at DEBUG level on
+    *logger*.  In case of success, the output is likewise logged.
+    """
+    logger.debug('%s', str(command))
+    proc = subprocess.run(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
+    if proc.returncode:
+        raise RuntimeError(
+            f"The command\n"
+            f"    {str(command)}\n"
+            f"failed and generated the following output:\n"
+            f"{proc.stdout.decode('utf-8')}\n"
+            f"and the following error:\n"
+            f"{proc.stderr.decode('utf-8')}")
+    logger.debug("stdout:\n%s", proc.stdout)
+    logger.debug("stderr:\n%s", proc.stderr)
+    return proc.stdout
+
+
+
 
 def axisEqual3D(ax):
     extents = np.array([getattr(ax, 'get_{}lim'.format(dim))() for dim in 'xyz'])
@@ -73,32 +101,48 @@ def axisEqual3D(ax):
 class CanvasPanel(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
+        self.parent = parent
         self.figure = Figure()
         self.canvas = FigureCanvas(self, -1, self.figure)
 
-        self.axes = self.figure.add_subplot(111, projection='3d')
+        self.axes = self.figure.add_subplot(111, projection='3d', proj_type = 'ortho')
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.canvas, 1, wx.LEFT | wx.TOP | wx.GROW)
         self.SetSizer(self.sizer)
         self.Fit()
 
+
+
     def draw(self):
-        N = 6831
-        r = np.fromfile("results/initial_dump_r",  dtype=np.float).reshape(N,3)
+
+        self.axes.cla()
+        resultsdir = "./temp/results/"
+        header = ppl.MDHeaderData(resultsdir)
+        N = int(header.globalnp)
+        r = np.fromfile(resultsdir + "/initial_dump_r",  dtype=np.float).reshape(N,3)
         try:
-            tag = np.fromfile("results/initial_dump_tag",  dtype=np.int)
-            c = tag
+            tag = np.fromfile(resultsdir + "/initial_dump_tag",  dtype=np.int)
+            c = cm.RdYlBu_r(tag/tag.max())
         except FileNotFoundError:
             c = "b"
-            
-        self.axes.plot(r[:,0], r[:,1], r[:,2],'.', c=c)
+        except ValueError:
+            print("Failed to load tags", tag.size, c.size)
+            c = "k"
+
+        self.axes.scatter(r[:,0], r[:,1], r[:,2], c=c)
         try:
             self.axes.set_box_aspect((np.ptp(r[:,0]), np.ptp(r[:,1]), np.ptp(r[:,2])))
         except AttributeError:
             axisEqual3D(self.axes)  
-        self.axes.view_init(0, 90)
+        self.axes.view_init(90, 90)
+        #size = tuple(self.parent.GetClientSize())
+        #self.figure.set_size_inches(float(size[0])/self.figure.get_dpi(),
+        #                            float(size[1])/self.figure.get_dpi())
+        #self.toolbar = NavigationToolbar2Wx(self.canvas)
+        #self.toolbar.Realize()
+        self.canvas.draw()
 
-
+        #self.Fit()
 
 class MyFrame(wx.Frame):
     def __init__(self, *args, **kwds):
@@ -113,28 +157,36 @@ class MyFrame(wx.Frame):
         #Top menu
         self.InitUI()
 
-        #Create panel
-        self.sizer_top = wx.BoxSizer(wx.HORIZONTAL)
-        self.panel_1 = self.create_input_panel()
-        self.sizer_top.Add(self.panel_1, 1, wx.EXPAND, 0)
+        #Top sizer
+        sizer_top = wx.BoxSizer(wx.HORIZONTAL)
 
+        #Split display and properties window
+        self.window_LR = wx.SplitterWindow(self, wx.ID_ANY)
+        self.window_LR.SetMinimumPaneSize(20)
+        sizer_top.Add(self.window_LR, 1, wx.EXPAND, 0)
 
-        #Add display panel
-        sizer_3 = wx.BoxSizer(wx.VERTICAL)
-        self.sizer_top.Add(sizer_3, 1, wx.EXPAND, 0)
+        #Left window
+        self.create_input_panel()
 
-        self.panel_2 = CanvasPanel(self)
-        self.panel_2.draw()
-        sizer_3.Add(self.panel_2, 1, wx.EXPAND, 0)
+        #Right window
+        self.window_right = wx.Panel(self.window_LR, wx.ID_ANY)
+        sizer_2 = wx.BoxSizer(wx.VERTICAL)
 
-        choices = ["choice 1", "choice 2", "choice 3", "choice 4"]
-        self.radio_box_1 = wx.RadioBox(self, wx.ID_ANY, "", 
-                                       choices=choices, majorDimension=2, 
-                                       style=wx.RA_SPECIFY_COLS)
+        self.plotpanel = CanvasPanel(self.window_right)
+        #self.plotpanel.draw()
+        #wx.Panel(self.window_right, wx.ID_ANY)
+        sizer_2.Add(self.plotpanel, 1, wx.EXPAND, 0)
+
+        self.radio_box_1 = wx.RadioBox(self.window_right, wx.ID_ANY, "", 
+                                       choices=["tags", "moltype", "v"], majorDimension=1, style=wx.RA_SPECIFY_COLS)
         self.radio_box_1.SetSelection(0)
-        sizer_3.Add(self.radio_box_1, 0, wx.EXPAND, 0)
+        sizer_2.Add(self.radio_box_1, 0, wx.EXPAND, 0)
 
-        self.SetSizer(self.sizer_top)
+        self.window_right.SetSizer(sizer_2)
+        self.window_help_props.SplitHorizontally(self.window_help, self.window_props)
+        self.window_LR.SplitVertically(self.window_left, self.window_right)
+        self.SetSizer(sizer_top)
+        self.Layout()
 
         #Close handle
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -157,65 +209,78 @@ class MyFrame(wx.Frame):
 
     def create_input_panel(self):
 
-        panel = wx.Panel(self, wx.ID_ANY)
+        self.window_left = wx.Panel(self.window_LR, wx.ID_ANY)
+        grid_sizer_1 = wx.BoxSizer(wx.VERTICAL)
 
-        self.sizer_1 = wx.BoxSizer(wx.VERTICAL)
-        self.sizer_2 = wx.FlexGridSizer(1, 3, 0, 0)
-        self.sizer_1.Add(self.sizer_2, 1, wx.ALL | wx.EXPAND, 0)
+        search_run_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        grid_sizer_1.Add(search_run_sizer, 0, wx.ALIGN_CENTER_HORIZONTAL, 0)
 
         #########################################
         # Search control for top level keywords #
         #########################################
-        self.searchctrl = BitmapComboBox(panel,
-                              size=wx.DefaultSize,  
+        self.searchctrl = BitmapComboBox(self.window_left,
+                              wx.ID_ANY,  
                               choices=[],
                               style= wx.TE_PROCESS_ENTER)# | wx.CB_SORT)
-
-        self.sizer_2.Add(self.searchctrl, 0, 0, 0)
+        self.searchctrl.SetMinSize((200, 30))
+        search_run_sizer.Add(self.searchctrl, 1, 0, 0)
 
         self.searchctrl.Bind(wx.EVT_TEXT_ENTER, self.on_search)
         self.searchctrl.Bind(wx.EVT_COMBOBOX, self.on_search)
         self.searchctrl.Bind(wx.EVT_TEXT, self.on_search)
         self.searchctrl.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.on_search)
-
         self.searchctrl.SetFocus()
+
 
         #########################################
         #             Run Button                #
         #########################################
-        self.runbtn = wx.Button(panel, wx.ID_ANY, "Run")
-        self.sizer_2.Add(self.runbtn, 0, 0, 0)
+        self.runbtn = wx.Button(self.window_left, wx.ID_ANY, "Run")
+        self.runbtn.SetMinSize((30, 30))
+        search_run_sizer.Add(self.runbtn, 1, 0, 0)
         self.runbtn.Bind(wx.EVT_BUTTON, self.run_btn)
+
+        #########################################
+        #           Setup Button                #
+        #########################################
+        self.button_2 = wx.Button(self.window_left, wx.ID_ANY, "Setup")
+        self.button_2.SetMinSize((50, 30))
+        search_run_sizer.Add(self.button_2, 1, 0, 0)
+        self.button_2.Bind(wx.EVT_BUTTON, self.run_setup)
+
+        #Setup adjustable window between properties and help
+        self.window_help_props = wx.SplitterWindow(self.window_left, wx.ID_ANY)
+        self.window_help_props.SetMinSize((-1, 600))
+        self.window_help_props.SetMinimumPaneSize(20)
+        grid_sizer_1.Add(self.window_help_props, 0, wx.EXPAND, 0)
 
         #########################################
         #             Help panel                #
         #########################################
-        self.helptxt = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY, size=(self.width/3, self.height/4))
+        self.window_help = wx.Panel(self.window_help_props, wx.ID_ANY)
+        sizer_help = wx.BoxSizer(wx.HORIZONTAL)
+        self.helptxt = wx.TextCtrl(self.window_help, style=wx.TE_MULTILINE | wx.TE_READONLY, size=(self.width/3, self.height/4))
         self.helptxt.SetValue("Help Text \n\n\n\n\n\n\n")
-        self.sizer_1.Add(self.helptxt, 0, wx.EXPAND, 0)
+        sizer_help.Add(self.helptxt, 1, wx.EXPAND, 0)
 
         #########################################
         #           Property Grid               #
         #########################################
-        self.propgrid = wxpg.PropertyGridManager(panel, wx.ID_ANY,
+        self.window_props = wx.Panel(self.window_help_props, wx.ID_ANY)
+        sizer_props = wx.BoxSizer(wx.HORIZONTAL)
+        self.propgrid = wxpg.PropertyGridManager(self.window_props, wx.ID_ANY,
                         style=wxpg.PG_SPLITTER_AUTO_CENTER)
-        self.sizer_1.Add(self.propgrid, 1, wx.EXPAND, 0)
-
+        sizer_props.Add(self.propgrid, 1, wx.EXPAND, 0)
         self.propgrid.Bind(wxpg.EVT_PG_CHANGED, self.change_propgrid)
-        panel.SetSizer(self.sizer_1)
 
+        self.window_props.SetSizer(sizer_props)
+        self.window_help.SetSizer(sizer_help)
+        self.window_left.SetSizer(grid_sizer_1)
+
+        #Not sure if any or all of these are needed to create the panel 
         self.Layout()
         self.Refresh()
         self.Update()
-        panel.Layout()
-        panel.Refresh()
-        panel.Update()
-        #self.Layout()
-        #self.Refresh()
-        #self.SetSize((self.width, self.height))
-        #self.Update()
-
-        return panel
 
     def populate_searchctrl(self):
         #Save choices
@@ -405,12 +470,33 @@ class MyFrame(wx.Frame):
         else:
             self.InputsDict[key]["vars"][prop] = str(val)
 
+        keys = self.InputsDict[key]["vars"].keys() 
         try:
-            self.ChangeDict[key][prop] = val
+            if isinstance(self.ChangeDict[key], list):
+                changes = self.ChangeDict[key] 
+            else:
+                changes = [[None]*len(keys)]
         except KeyError:
-            self.ChangeDict[key] = {prop:val}
+            self.ChangeDict[key] = [None]*len(keys)
+            changes = [[None]*len(keys)]
 
-        print("after", key, prop, self.InputsDict[key]["vars"][prop], self.ChangeDict)
+        for i, k in enumerate(keys):
+            if prop == k:
+                changes[0][i] = val
+                #print("change_propgrid vars", i, k, val)
+
+        self.ChangeDict[key] = changes
+
+        #print("Changes = ", self.ChangeDict)
+
+
+
+        # try:
+            # self.ChangeDict[key][prop] = val
+        # except KeyError:
+            # self.ChangeDict[key] = {prop:val}
+
+        #print("after", key, prop, self.InputsDict[key]["vars"][prop], self.ChangeDict)
         return
 
     def run_btn(self, event): 
@@ -425,8 +511,115 @@ class MyFrame(wx.Frame):
             if folderDiag.ShowModal() == wx.ID_CANCEL:
                 return     # the user changed their mind
 
-            fdir = folderDiag.GetPath()
-            print("Label of button = ", btn, fdir)
+            rundir = folderDiag.GetPath()
+            print("Label of button = ", btn, rundir)
+
+        run = swl.MDRun(srcdir, srcdir, rundir,
+                  "parallel_md.exe", 
+                  self.inputfilename.split("/")[-1], "setup.out",
+                  inputchanges=changes[0], finishargs = {},
+                  dryrun=False)
+
+
+        # Run the study
+        runlist = [run]
+        threadlist =[runlist]
+        with wx.BusyInfo("Working, please wait", self):
+            study = swl.Study(threadlist, ncpus)
+
+    def run_setup(self, event): 
+
+        btn = event.GetEventObject().GetLabel() 
+
+        # Number of threads and runs per thread
+        ncpus = 1
+        maxlicenses = ncpus
+
+        #Check input file has been loaded
+        try:
+            print("Running setup run", self.inputfilename)
+        except AttributeError:
+            msgbx = wx.MessageDialog(self, "Setup run with no input file specified",
+                                    style=wx.OK|wx.ICON_ERROR)
+            msgbx.ShowModal()
+            msgbx.Destroy()
+            return
+
+        #Create list of changes
+        try:
+            changes = swl.InputDict({'VMD_OUTFLAG': [5]})+swl.InputDict(self.ChangeDict)
+            print(self.ChangeDict, changes)
+
+        except IndexError:
+            changes = swl.InputDict({'VMD_OUTFLAG': [5]}).expand()
+
+
+        print("Running setup run", self.inputfilename, " with changes", changes)
+
+        srcdir = "/home/es205/codes/flowmol/src/"
+        inputfile = self.inputfilename
+        if srcdir in inputfile:
+            pathtoinput = inputfile.replace(srcdir,'')
+            inputfile = inputfile.split("/")[-1]
+            basedir = self.inputfilename.replace(inputfile,"")
+
+        print(inputfile)
+
+        run = swl.MDRun(srcdir, basedir, srcdir + "/temp/",
+                  "parallel_md.exe", 
+                  inputfile, "setup.out",
+                  inputchanges=changes[0], finishargs = {},
+                  dryrun=False, minimalcopy=True)                
+
+        run.setup()
+        #try:
+        run.execute(print_output=False, out_to_file=False, blocking=False)
+        self.progress = wx.ProgressDialog("Running Setup", "please wait", 
+                                           parent=self, 
+                                           style=wx.PD_AUTO_HIDE|wx.PD_CAN_ABORT)
+        i = 0
+        for stdout_line in iter(run.proc.stdout.readline, ""):
+            lastline = stdout_line.replace("\n","")
+            errormsg = run.proc.stderr.read()
+            #time.sleep(0.1)
+            contnue, skp = self.progress.Update(i, lastline)
+            if contnue is False:
+                print("Cancel Pressed")
+                self.progress.Destroy()
+                self.proc.stdout.close()
+                run.proc.kill()
+                break
+
+            print(lastline, run.proc.returncode, run.proc.stderr.read())
+            if "Time taken" in lastline:
+                self.progress.Destroy()
+                run.proc.kill()
+                break
+
+
+            # if run.proc.returncode:
+                # raise RuntimeError(
+                    # f"The command\n"
+                    # f"    {str(command)}\n"
+                    # f"failed and generated the following output:\n"
+                    # f"{run.proc.stdout.decode('utf-8')}\n"
+                    # f"and the following error:\n"
+                    # f"{run.proc.stderr.decode('utf-8')}")
+
+            if (run.proc.returncode or errormsg != ""):
+                stdout = run.proc.stdout.read()
+                lastline = "".join(stdout.split("\n")[-20:-1])
+        # except run.CalledProcessError:
+                self.progress.Destroy()
+                run.proc.kill()
+                msgbx = wx.MessageDialog(self, lastline+errormsg,
+                                     style=wx.OK|wx.ICON_ERROR)
+                msgbx.ShowModal()
+                msgbx.Destroy()
+                return
+
+        #Redraw the figure with latest setup
+        self.plotpanel.draw()
 
     def OnOpen(self, event):
 
@@ -440,6 +633,7 @@ class MyFrame(wx.Frame):
 
             # Proceed loading the file chosen by the user
             fdir = fileDialog.GetPath()
+            self.inputfilename = fdir
             try:
                 with open(fdir, 'r') as file:
                     #Destroy current panel if existing
@@ -480,6 +674,22 @@ class MyFrame(wx.Frame):
 
     def OnQuit(self, e):
         self.Close()
+
+
+    def About(self, event):
+        from platform import platform
+        myos = platform()
+        aboutInfo = wx.AboutDialogInfo()
+        aboutInfo.SetName("My Application ")
+        aboutInfo.SetVersion("1.0")
+        aboutInfo.SetDescription("My Super App," \
+            " That does amazing things\nRunning on: "+myos)
+        aboutInfo.SetCopyright("(C) Joe Bloggs-2016")
+        aboutInfo.SetLicense("https://www.gnu.org/licenses/gpl-2.0.html")
+        aboutInfo.AddDeveloper("Joe Bloggs")
+        aboutInfo.AddDocWriter("Joe Bloggs")
+        aboutInfo.SetWebSite('https://www.JoeBlogs.com')
+        wx.AboutBox(aboutInfo)
 
 
 class MyApp(wx.App):
