@@ -266,6 +266,9 @@ subroutine setup_initial_record
             print*, 'VMD output Domain+halos every:', tplot, 'iterations'
         case(4)
             print*, 'VMD output true unwrapped positions every:', tplot, 'iterations'
+		case(5)
+			print*, "Dumping initial molecular positions as binary files"
+			call initial_setup_dump()
         case default
             call error_abort("Invalid VMD output flag in input file")
         end select
@@ -671,6 +674,12 @@ subroutine setup_initial_record
         call simulation_header
 
     endif
+
+	if (vmd_outflag .eq. 5) then
+		print*, "VMD flag 5 triggers Setup, write files and stop" 
+		Nsteps = 0
+	endif
+
 
 end subroutine setup_initial_record
 
@@ -1295,3 +1304,47 @@ contains
     end subroutine Mie_chains
 
 end subroutine build_psf
+
+! A subroutine to dump initial setup to allow plotting
+subroutine initial_setup_dump()
+	use physical_constants_MD, only : np
+	use computational_constants_MD, only : tag_move, ensemble, prefix_dir
+	use arrays_MD, only : r, v, tag
+    use librarymod, only : get_new_fileunit
+	implicit none
+
+	integer :: m, unitno, length
+	double precision, allocatable, dimension(:,:) :: buf
+
+	unitno = get_new_fileunit()
+
+	!Write as ascii files
+	! open(unit=unitno, file=trim(prefix_dir)//'results/initial_dump_r',status='replace')
+	! do m=1,np
+		! write(unitno,*) r(:,m)
+	! enddo
+	! close(unitno,status='keep')
+
+	!Write as binary files
+	m = 1
+	allocate(buf(np,3))
+	buf = r(:,1:np)
+	inquire(iolength=length) buf
+	print*, length
+	open(unit=unitno, file=trim(prefix_dir)//'results/initial_dump_r', &
+		status='replace',form='unformatted',access='direct',recl=length)
+	write(unitno,rec=m) buf
+	close(unitno)
+	deallocate(buf)
+
+	if (ensemble .eq. tag_move) then
+		allocate(buf(np,1))
+		buf(:,1) = tag(1:np)
+		inquire(iolength=length) buf
+		open(unit=unitno, file=trim(prefix_dir)//'results/initial_dump_tag', & 
+			status='replace',form='unformatted',access='direct',recl=length)
+		write(unitno,rec=m) buf
+		close(unitno)
+	endif
+
+end subroutine initial_setup_dump
