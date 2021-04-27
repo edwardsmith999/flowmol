@@ -1096,8 +1096,11 @@ subroutine set_parameters_allocate
 	use shear_info_MD
 	implicit none
 
-	integer :: ixyz, n
+	integer :: ixyz, n, mem_start, mem_end
     double precision    :: temp
+
+    !Log memory useage
+    call system_mem_usage(mem_start)
 
 	!Calculate required extra allocation of molecules to allow copied Halos
 	!using ratio of halo to domain volume (with safety factor)
@@ -1122,6 +1125,10 @@ subroutine set_parameters_allocate
 !		allocate(a_old(nd,np+extralloc))
 !	endif
 
+    !Profile memory use in setup
+    call system_mem_usage(mem_end)
+    print*, "Memory allocated after r,v,a=", (mem_end-mem_start)/1024, "Mb"
+
 	!Allocate potential energy and virial per molecule array
 	allocate(potenergymol(np+extralloc))
 	!allocate(potenergymol_mdt(np+extralloc))
@@ -1134,6 +1141,11 @@ subroutine set_parameters_allocate
 		allocate(rtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
 		allocate(vtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
 	endif
+
+    !Profile memory use in setup
+    call system_mem_usage(mem_end)
+    print*, "Memory allocated after analysis potential and true=", & 
+            (mem_end-mem_start)/1024, "Mb"
 
 	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
 	!allocate(vmagnitude(np+extralloc))
@@ -1151,7 +1163,6 @@ subroutine set_parameters_allocate
         allocate(moltype(np+extralloc)) 
         !Default value is 2 (models 2 x water per bead with Mie)
         moltype(1:np) = default_moltype
-
     endif
 
 	!Allocate arrays use to fix molecules and allow sliding
@@ -1161,6 +1172,10 @@ subroutine set_parameters_allocate
 		allocate(rtether(nd,np+extralloc))
 		allocate(slidev(nd,np+extralloc))
 	endif
+
+    !Profile memory use in setup
+    call system_mem_usage(mem_end)
+    print*, "Memory allocated after moltype and tags=", (mem_end-mem_start)/1024, "Mb"
 
     !If necessary, allocate global molecular number
     if (global_numbering .ne. 0) then
@@ -1181,6 +1196,12 @@ subroutine set_parameters_allocate
     if (intrinsic_interface_outflag .ne. 0) then
         allocate(intnscshift(np+extralloc))
     endif
+
+    !Profile memory use in setup
+    call system_mem_usage(mem_end)
+    print*, "Memory allocated at end of set_parameters_allocate=", &
+             (mem_end-mem_start)/1024, "Mb"
+
 
 end subroutine set_parameters_allocate
 
@@ -1783,9 +1804,12 @@ subroutine set_parameters_outputs
     use messenger, only : localise_bin
 	implicit none
 
-	integer					:: n,i,j,k, ixyz
+	integer					:: n,i,j,k, ixyz, mem_start, mem_end
 	real(kind(0.d0))		:: shift
 
+
+    !Profile memory use in setup
+    call system_mem_usage(mem_start)
 
 	!Use definition of temperature and re-arrange to define an average velocity minus 3 degrees of
 	!freedom - this is to fix the momentum of the domain boundaries 
@@ -2070,6 +2094,10 @@ subroutine set_parameters_outputs
 	!allocate(Gxybins(nbins(1),nbins(2),nbins(3),3,3))
 	!Gxybins = 0.d0
 
+    !Profile memory use in setup
+    call system_mem_usage(mem_end)
+    print*, "Memory allocated before CV=", (mem_end-mem_start)/1024, "Mb"
+
 	!Allocate array for Stress Method of Planes and/or 
 	!allocate bins for control volume momentum fluxes and forces
 	planespacing = cellsidelength(2)
@@ -2134,6 +2162,10 @@ subroutine set_parameters_outputs
 			momentum_flux 	= 0.d0
 			volume_momentum = 0.d0
 			volume_force 	= 0.d0
+            !Profile memory use in setup
+            call system_mem_usage(mem_end)
+            print*, "Total Memory allocated before CV debug=", (mem_end-mem_start)/1024, "Mb"
+
 			if (CV_debug .eq. 1) then
 				call CVcheck_mass%initialise(nbins,nhb,domain,delta_t,Nmflux_ave)   ! initialize CVcheck
 				call CVcheck_momentum%initialise(nbins,nhb,domain,delta_t,Nvflux_ave)   ! initialize CVcheck
@@ -2225,6 +2257,11 @@ subroutine set_parameters_outputs
 		endif
 	endif
 #endif
+
+    !Profile memory use in setup
+    call system_mem_usage(mem_end)
+    print*, "Total Memory allocated by set_parameters_outputs=", &
+         (mem_end-mem_start)/1024, "Mb"
 
 end subroutine set_parameters_outputs
 

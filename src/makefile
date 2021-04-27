@@ -11,10 +11,12 @@
 # application name used in coupler build
 override NAME := stream_md
 
+GIT_VERSION := $(shell git rev-parse HEAD)
+
 #=======================================================================
 # File definitions
 #=======================================================================
-F90_MD_FILES = minpack.f90 interfaces.f90 bilinear_intersect.f90 functions_lib.f90 intrinsic_interface.f90 modules.f90 linklist.f90 messenger.serial.f90 setup_read_input.f90 control_volume.f90 setup_set_parameters.f90 parallel_io.serial.f90  simulation_compute_forces.f90 simulation_record.f90  molecular_properties.f90 md_coupler_socket.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_checkrebuild.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 simulation_move_particles_vv.f90 simulation_move_particles_lfv.f90
+F90_MD_FILES = version.f90 minpack.f90 interfaces.f90 bilinear_intersect.f90 functions_lib.f90 intrinsic_interface.f90 modules.f90 linklist.f90 messenger.serial.f90 setup_read_input.f90 control_volume.f90 setup_set_parameters.f90 parallel_io.serial.f90  simulation_compute_forces.f90 simulation_record.f90  molecular_properties.f90 md_coupler_socket.f90 setup_initialise_microstate.f90 setup_initial_record.f90 simulation_checkrebuild.f90 finish_final_record.f90 finish_clear_all.f90 md.f90 md_main.f90 external_forces.f90 simulation_move_particles_vv.f90 simulation_move_particles_lfv.f90
 
 F90_MD_FILES_P = $(patsubst parallel_io.serial.f90,parallel_io.MPI2.f90,$(patsubst messenger.serial.f90,messenger.MPI.f90,$(F90_MD_FILES)))
 
@@ -102,7 +104,7 @@ default:
 	@echo "Please add flag serial (s), parallel (p) or type help for options"
 s:
 	@make serial_md.exe
-p:
+p: version
 	@make $(MD_EXE)
 p_lapack:
 	@make MD_EXE_LAPACK "FPP_FLAGS=-cpp -DUSE_LAPACK=1 -fPIC" "LDFLAGS=lapack-3.8.0/lib*"
@@ -134,8 +136,11 @@ memprofile_s:
 	@make serial_md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
 profile_p:
 	@make $(MD_EXE) "FFLAGS = -O3 -g -pg -cpp -DUSE_COUPLER=0 -O3 -funroll-loops -Jobj -cpp -DUSE_COUPLER=0 -fno-underscoring"
-
-#-mpe=mpilog "
+version:
+	@echo "function version()" > version.f90
+	@echo "   character(100) :: version" >> version.f90
+	@echo "   version='$(GIT_VERSION)'" >> version.f90
+	@echo "end function" >> version.f90
 
 #Make executables
 md.exe: $(MD_EXE)

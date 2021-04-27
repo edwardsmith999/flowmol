@@ -138,7 +138,7 @@ subroutine setup_initial_record
         !Display all parameters required to describe simulation
         print*, 'Simulation run on Date: ', the_date
         print*, 'Simulation start time: ', the_time
-        print*, 'Subversion revision number: ', get_version_number()
+        print*, 'Git hash: ', get_version_number()
         print*, '================= Molecular Simulation Parameters ===================='
         print*, 'Number of Dimensions: ', nd
         print*, 'Number of Particles: ', globalnp
@@ -248,6 +248,11 @@ subroutine setup_initial_record
         print*, 'Random seed used for initial velocity generation:', seed
         print'(a,3(i4,a))', ' Rescue backup file saved every ', floor(rescue_snapshot_freq/3600.d0), ' hours ', &
                  floor(mod(rescue_snapshot_freq,3600.d0)/60.d0), ' minutes and ', floor(mod(rescue_snapshot_freq,60.d0)), ' seconds'
+#if USE_LAPACK
+        print*, "Built with LAPACK"
+#else
+        print*, "Built without LAPACK"
+#endif
         print*, '======================== Output Parameters ============================'
 
         if (separate_outfiles) then
@@ -613,7 +618,7 @@ subroutine setup_initial_record
            call print_macroscopic_properties(initialstep)
        end select
 
-        print*, "Simulation:"
+!       print*, "Simulation:"
 !       print*, "   =========================================================="
 !       print*, "   |    _____ _                 _       _   _               |"
 !       print*, "   |   /  ___(_)               | |     | | (_)              |"
