@@ -1696,8 +1696,10 @@ subroutine parallel_io_write_vmd(intervalno,reccount)
             call parallel_io_vmd_halo(reccount)
         case(4)
             call parallel_io_vmd_true(reccount)
+        case(5)
+            !Do nothing, dumped elsewhere
         case default
-            call error_abort('Unrecognised vmd_outflag in simulation_record')
+            call error_abort('Unrecognised vmd_outflag in parallel_io.MPI2, parallel_io_write_vmd')
         end select
         reccount = reccount + 1
     else if (vmd_iter.ge.vmd_intervals(2,intervalno)) then
