@@ -1,12 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 import time
+import os
+import shutil
 
 import wx
 import wx.propgrid as wxpg
 import wx.html as html
 from wx.adv import BitmapComboBox
 import wx.lib.dialogs
+
+import numpy as np
+
+import matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+from mpl_toolkits.mplot3d import Axes3D
+matplotlib.use('WXAgg')
+from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
+from matplotlib.backends.backend_wx import NavigationToolbar2Wx
+from matplotlib.figure import Figure
 
 from SetupInputs import SetupInputs
 
@@ -15,77 +28,8 @@ import sys
 sys.path.append("/home/es205/codes/SimWrapPy/")
 import simwraplib as swl
 
-
-import sys
 sys.path.append("/home/es205/codes/pyDataView/")
 import postproclib as ppl
-
-
-fdir = "./MD_2.in"
-InputFile = swl.KeywordInputMod(fdir)
-
-#Code to 
-FlowmolInputs = SetupInputs()
-FlowmolInputDict = FlowmolInputs.get_items()
-
-# InputsDict = {}
-# for key, item in FlowmolInputDict.items():
-    # try:
-        # InputsDict[key] = {}
-        # helpstr = FlowmolInputs.get_helpstring(key)
-        # InputsDict[key]["HELP"] = helpstr
-        # InputsDict[key]["vars"] = {i:"0" for i in item}
-        # #InputsDict[key] = {"vars":{i:"0" for i in item}}
-        # print(key, InputsDict[key])
-    # except KeyError:
-        # print("key ", key, " not found")
-#
-#InputsDict = {"INPUT":{"HELP":"THis is text to describe variable", "vars":{"name":"2"}}, 
-#              "THING":{"HELP":"different help text", "vars":{"xcells":"1","ycells":"2","zcells":"3"}},
-#"STR":{"HELP":"Example of a string with a really long help example to see if this fits in the box or needs to be wrapped", 
-#                "vars":{"string":"Hello","logical":".true.","int":"2","float":"3.14159",
-#                "List":{"names":['NVE', 'NVT', 'Tag Move system'], "numbers":[0,1,6]}}}}
-
-import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-
-from mpl_toolkits.mplot3d import Axes3D
-
-matplotlib.use('WXAgg')
-
-from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
-from matplotlib.backends.backend_wx import NavigationToolbar2Wx
-from matplotlib.figure import Figure
-
-
-def _check_and_log_subprocess(command, logger, **kwargs):
-    """
-    Run *command*, returning its stdout output if it succeeds.
-
-    If it fails (exits with nonzero return code), raise an exception whose text
-    includes the failed command and captured stdout and stderr output.
-
-    Regardless of the return code, the command is logged at DEBUG level on
-    *logger*.  In case of success, the output is likewise logged.
-    """
-    logger.debug('%s', str(command))
-    proc = subprocess.run(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
-    if proc.returncode:
-        raise RuntimeError(
-            f"The command\n"
-            f"    {str(command)}\n"
-            f"failed and generated the following output:\n"
-            f"{proc.stdout.decode('utf-8')}\n"
-            f"and the following error:\n"
-            f"{proc.stderr.decode('utf-8')}")
-    logger.debug("stdout:\n%s", proc.stdout)
-    logger.debug("stderr:\n%s", proc.stderr)
-    return proc.stdout
-
-
 
 
 def axisEqual3D(ax):
@@ -99,11 +43,12 @@ def axisEqual3D(ax):
 
 
 class CanvasPanel(wx.Panel):
-    def __init__(self, parent):
+    def __init__(self, parent, tmpdir="temp"):
         wx.Panel.__init__(self, parent)
         self.parent = parent
         self.figure = Figure()
         self.canvas = FigureCanvas(self, -1, self.figure)
+        self.tmpdir = tmpdir
 
         self.axes = self.figure.add_subplot(111, projection='3d', proj_type = 'ortho')
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -112,11 +57,10 @@ class CanvasPanel(wx.Panel):
         self.Fit()
 
 
-
     def draw(self):
 
         self.axes.cla()
-        resultsdir = "./temp/results/"
+        resultsdir = self.tmpdir + "/results/"
         header = ppl.MDHeaderData(resultsdir)
         N = int(header.globalnp)
         r = np.fromfile(resultsdir + "/initial_dump_r",  dtype=np.float).reshape(N,3)
@@ -126,7 +70,7 @@ class CanvasPanel(wx.Panel):
         except FileNotFoundError:
             c = "b"
         except ValueError:
-            print("Failed to load tags", tag.size, c.size)
+            #print("Failed to load tags", tag.size, c.size)
             c = "k"
 
         self.axes.scatter(r[:,0], r[:,1], r[:,2], c=c)
@@ -173,6 +117,7 @@ class MyFrame(wx.Frame):
         sizer_2 = wx.BoxSizer(wx.VERTICAL)
 
         self.plotpanel = CanvasPanel(self.window_right)
+        self.tmpdir = self.plotpanel.tmpdir
         #self.plotpanel.draw()
         #wx.Panel(self.window_right, wx.ID_ANY)
         sizer_2.Add(self.plotpanel, 1, wx.EXPAND, 0)
@@ -325,6 +270,18 @@ class MyFrame(wx.Frame):
                                     }     
                           }
         """
+
+        #Get src directory from local directory
+        self.srcdir = os.path.dirname(os.path.abspath(__file__)) 
+        fsetup = self.srcdir + "/setup_read_input.f90"
+        if os.path.isfile(fsetup):
+            #Code to get inputs from setup set parameters
+            FlowmolInputs = SetupInputs(fsetup='./setup_read_input.f90')
+            FlowmolInputDict = FlowmolInputs.get_items()
+        else:
+            raise FileNotFoundError("Error - setup_read_input.f90 not found " +
+                                    "in current directory, edit location in code")
+
         InputsDict = {}
         for key, item in FlowmolInputDict.items():
             try:
@@ -514,7 +471,7 @@ class MyFrame(wx.Frame):
             rundir = folderDiag.GetPath()
             print("Label of button = ", btn, rundir)
 
-        run = swl.MDRun(srcdir, srcdir, rundir,
+        run = swl.MDRun(self.srcdir, self.srcdir, rundir,
                   "parallel_md.exe", 
                   self.inputfilename.split("/")[-1], "setup.out",
                   inputchanges=changes[0], finishargs = {},
@@ -556,27 +513,38 @@ class MyFrame(wx.Frame):
 
         print("Running setup run", self.inputfilename, " with changes", changes)
 
-        srcdir = "/home/es205/codes/flowmol/src/"
+        #Remove and recreate temp directory
+        try:
+            shutil.rmtree(self.tmpdir)
+        except FileNotFoundError:
+            pass
+        print("Making ", self.tmpdir)
+        os.mkdir(self.tmpdir)
+        os.mkdir(self.tmpdir+"/results")
+
+        #Use current source code location
+        #srcdir = "/home/es205/codes/flowmol/src/"
         inputfile = self.inputfilename
-        if srcdir in inputfile:
-            pathtoinput = inputfile.replace(srcdir,'')
+        if self.srcdir in inputfile:
+            pathtoinput = inputfile.replace(self.srcdir,'')
             inputfile = inputfile.split("/")[-1]
             basedir = self.inputfilename.replace(inputfile,"")
 
-        print(inputfile)
+        #print(inputfile)
 
-        run = swl.MDRun(srcdir, basedir, srcdir + "/temp/",
+        run = swl.MDRun(self.srcdir, basedir, self.srcdir + self.tmpdir,
                   "parallel_md.exe", 
                   inputfile, "setup.out",
                   inputchanges=changes[0], finishargs = {},
                   dryrun=False, minimalcopy=True)                
 
         run.setup()
-        #try:
         run.execute(print_output=False, out_to_file=False, blocking=False)
         self.progress = wx.ProgressDialog("Running Setup", "please wait", 
                                            parent=self, 
                                            style=wx.PD_AUTO_HIDE|wx.PD_CAN_ABORT)
+
+        #Line by line step through
         i = 0
         for stdout_line in iter(run.proc.stdout.readline, ""):
             lastline = stdout_line.replace("\n","")
@@ -596,24 +564,20 @@ class MyFrame(wx.Frame):
                 run.proc.kill()
                 break
 
-
-            # if run.proc.returncode:
-                # raise RuntimeError(
-                    # f"The command\n"
-                    # f"    {str(command)}\n"
-                    # f"failed and generated the following output:\n"
-                    # f"{run.proc.stdout.decode('utf-8')}\n"
-                    # f"and the following error:\n"
-                    # f"{run.proc.stderr.decode('utf-8')}")
+        # except run.CalledProcessError:
 
             if (run.proc.returncode or errormsg != ""):
+                #print remaining stdout
                 stdout = run.proc.stdout.read()
-                lastline = "".join(stdout.split("\n")[-20:-1])
-        # except run.CalledProcessError:
+                print(stdout)
                 self.progress.Destroy()
                 run.proc.kill()
-                msgbx = wx.MessageDialog(self, lastline+errormsg,
-                                     style=wx.OK|wx.ICON_ERROR)
+                #Clean stderr
+                print("stderr = ", errormsg)
+                errormsg_box = errormsg.split("\n")[0]
+                msgbx = wx.MessageDialog(self, errormsg_box 
+                                         +"\n Look at terminal for more error information",
+                                         style=wx.OK|wx.ICON_ERROR)
                 msgbx.ShowModal()
                 msgbx.Destroy()
                 return
@@ -669,10 +633,13 @@ class MyFrame(wx.Frame):
                 wx.LogError("Cannot save current data in file '%s'." % fdir)
 
     def OnClose(self, event):
+        shutil.rmtree(self.tmpdir) 
         self.Destroy()
 
 
+
     def OnQuit(self, e):
+        shutil.rmtree(self.tmpdir) 
         self.Close()
 
 

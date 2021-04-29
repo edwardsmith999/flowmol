@@ -9,6 +9,29 @@ class SetupInputs():
         from flowmol setup_read_input
         which has all keywords and inputs which 
         can be read
+
+        Format is as follows
+
+            InputsDict = {}
+            for key, item in FlowmolInputDict.items():
+                try:
+                    InputsDict[key] = {}
+                    helpstr = FlowmolInputs.get_helpstring(key)
+                    InputsDict[key]["HELP"] = helpstr
+                    InputsDict[key]["vars"] = {i:"0" for i in item}
+                    #InputsDict[key] = {"vars":{i:"0" for i in item}}
+                    print(key, InputsDict[key])
+                except KeyError:
+                    print("key ", key, " not found")
+
+        Examples include:
+
+            InputsDict = {"INPUT":{"HELP":"THis is text to describe variable", "vars":{"name":"2"}}, 
+                         "THING":{"HELP":"different help text", "vars":{"xcells":"1","ycells":"2","zcells":"3"}},
+                          "STR":{"HELP":"Example of a string with a really long help example", 
+                           "vars":{"string":"Hello","logical":".true.","int":"2","float":"3.14159",
+                           "List":{"names":['NVE', 'NVT', 'Tag Move system'], "numbers":[0,1,6]}}}}
+
     """
 
     def __init__(self, fsetup='./setup_read_input.f90'):
