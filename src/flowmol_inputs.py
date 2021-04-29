@@ -49,6 +49,7 @@ class CanvasPanel(wx.Panel):
         self.figure = Figure()
         self.canvas = FigureCanvas(self, -1, self.figure)
         self.tmpdir = tmpdir
+        self.ft = True
 
         self.axes = self.figure.add_subplot(111, projection='3d', proj_type = 'ortho')
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -56,37 +57,62 @@ class CanvasPanel(wx.Panel):
         self.SetSizer(self.sizer)
         self.Fit()
 
+    def draw(self, plottype):
 
-    def draw(self):
+        if not self.ft:
+            #Store current angle and delete axis
+            azim = self.axes.azim
+            elev = self.axes.elev
+            self.axes.cla()
 
-        self.axes.cla()
+            #Delete any existing colorbar
+            try:
+                self.cb.remove()
+                del self.cb
+            except AttributeError:
+                pass
+
         resultsdir = self.tmpdir + "/results/"
-        header = ppl.MDHeaderData(resultsdir)
+        try:
+            header = ppl.MDHeaderData(resultsdir)
+        except FileNotFoundError:
+            return
         N = int(header.globalnp)
         r = np.fromfile(resultsdir + "/initial_dump_r",  dtype=np.float).reshape(N,3)
-        try:
-            tag = np.fromfile(resultsdir + "/initial_dump_tag",  dtype=np.int)
-            c = cm.RdYlBu_r(tag/tag.max())
-        except FileNotFoundError:
-            c = "b"
-        except ValueError:
-            #print("Failed to load tags", tag.size, c.size)
-            c = "k"
 
-        self.axes.scatter(r[:,0], r[:,1], r[:,2], c=c)
+        try:
+            print("plottype = ", plottype, plottype is "tags", plottype is "moltype", plottype is "v", plottype is "None")
+            if plottype == "tags":
+                tag = np.fromfile(resultsdir + "/initial_dump_tag",  dtype=np.int)
+                c = tag/tag.max()
+                self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=c, cmap=cm.RdYlBu_r)
+            elif plottype == "moltype":
+                moltype = np.fromfile(resultsdir + "/initial_dump_moltype",  dtype=np.int)
+                c = moltype/moltype.max()
+                self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=c, cmap=cm.RdYlBu_r)
+            elif plottype == "v":
+                v = np.fromfile(resultsdir + "/initial_dump_v",  dtype=np.float).reshape(N,3)
+                vmag = np.sqrt(v[:,0]**2 + v[:,1]**2 + v[:,2]**2)
+                c = vmag/vmag.max()
+                cs = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=c, cmap=cm.RdYlBu_r)
+                self.cb = self.figure.colorbar(cs, ax=self.axes)
+            elif plottype == "None":
+                self.axes.scatter(r[:,0], r[:,1], r[:,2], ".")
+        except (FileNotFoundError, ValueError) as e:
+            self.axes.scatter(r[:,0], r[:,1], r[:,2], ".")
+
         try:
             self.axes.set_box_aspect((np.ptp(r[:,0]), np.ptp(r[:,1]), np.ptp(r[:,2])))
         except AttributeError:
-            axisEqual3D(self.axes)  
-        self.axes.view_init(90, 90)
-        #size = tuple(self.parent.GetClientSize())
-        #self.figure.set_size_inches(float(size[0])/self.figure.get_dpi(),
-        #                            float(size[1])/self.figure.get_dpi())
-        #self.toolbar = NavigationToolbar2Wx(self.canvas)
-        #self.toolbar.Realize()
-        self.canvas.draw()
+            axisEqual3D(self.axes)
 
-        #self.Fit()
+        if self.ft:
+            self.axes.view_init(90, 90)
+            self.ft=False
+        else:
+            self.axes.view_init(elev, azim)
+
+        self.canvas.draw()
 
 class MyFrame(wx.Frame):
     def __init__(self, *args, **kwds):
@@ -94,7 +120,7 @@ class MyFrame(wx.Frame):
         kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_FRAME_STYLE
         wx.Frame.__init__(self, *args, **kwds)
         self.width = 800
-        self.height = 800
+        self.height = 600
         self.SetSize((self.width, self.height))
         self.SetTitle("Flowmol Input")
 
@@ -122,10 +148,14 @@ class MyFrame(wx.Frame):
         #wx.Panel(self.window_right, wx.ID_ANY)
         sizer_2.Add(self.plotpanel, 1, wx.EXPAND, 0)
 
+        self.plottypes = ["v", "tags", "moltype", "None"]
         self.radio_box_1 = wx.RadioBox(self.window_right, wx.ID_ANY, "", 
-                                       choices=["tags", "moltype", "v"], majorDimension=1, style=wx.RA_SPECIFY_COLS)
+                                       choices=self.plottypes, majorDimension=4, 
+                                       style=wx.RA_SPECIFY_COLS)
         self.radio_box_1.SetSelection(0)
+        self.plotype = "v"
         sizer_2.Add(self.radio_box_1, 0, wx.EXPAND, 0)
+        self.radio_box_1.Bind(wx.EVT_RADIOBOX, self.onRadioBox)
 
         self.window_right.SetSizer(sizer_2)
         self.window_help_props.SplitHorizontally(self.window_help, self.window_props)
@@ -214,7 +244,7 @@ class MyFrame(wx.Frame):
         self.window_props = wx.Panel(self.window_help_props, wx.ID_ANY)
         sizer_props = wx.BoxSizer(wx.HORIZONTAL)
         self.propgrid = wxpg.PropertyGridManager(self.window_props, wx.ID_ANY,
-                        style=wxpg.PG_SPLITTER_AUTO_CENTER)
+                                                 style=wxpg.PG_SPLITTER_AUTO_CENTER)
         sizer_props.Add(self.propgrid, 1, wx.EXPAND, 0)
         self.propgrid.Bind(wxpg.EVT_PG_CHANGED, self.change_propgrid)
 
@@ -228,6 +258,7 @@ class MyFrame(wx.Frame):
         self.Update()
 
     def populate_searchctrl(self):
+
         #Save choices
         self.choices = list(self.InputsDict.keys())
 
@@ -258,6 +289,7 @@ class MyFrame(wx.Frame):
     
 
     def Create_InputsDict(self):
+
         """
             Setup input of the form
 
@@ -284,74 +316,54 @@ class MyFrame(wx.Frame):
 
         InputsDict = {}
         for key, item in FlowmolInputDict.items():
+            InputsDict[key] = {}
+            #Get all variables
+            helpstr = FlowmolInputs.get_helpstring(key)
+            InputsDict[key]["HELP"] = helpstr
+            optional = FlowmolInputs.get_optional(key)
+            InputsDict[key]["Optional"] = optional
+            EnumProperties = FlowmolInputs.variables_from_string(helpstr)
+
+            #Get values from input file
             try:
-                InputsDict[key] = {}
+                params = self.InputFile.read_inputs(key)
+            except AttributeError:
+                params = []
 
-                helpstr = FlowmolInputs.get_helpstring(key)
-                InputsDict[key]["HELP"] = helpstr
-                optional = FlowmolInputs.get_optional(key)
-                InputsDict[key]["Optional"] = optional
-                EnumProperties = FlowmolInputs.variables_from_string(helpstr)
-                #Get values from input file
-                try:
-                    params = self.InputFile.read_inputs(key)
-                except AttributeError:
-                    params = []
-
-                if (len(EnumProperties) != 0):
+            if (len(EnumProperties) != 0):
+                EnumDict = {}
+                if (len(item) == len(params)):
                     EnumDict = {}
-                    if (len(item) == len(params)):
-                        EnumDict = {}
-                        for i in range(len(item)):
-                            try:
-                                setval = int(params[i])
-                            except ValueError:
-                                try:
-                                    setval = float(params[i])
-                                except ValueError:
-                                    setval = 0
-                            print("param=item", i, item[i], params[i], setval)
-                            EnumDict[item[i]] = {"names":[], "numbers":[], "set":setval}
-                    else:
-                        for i in range(len(item)):
-                            if (i < len(params)):
-                                EnumDict[item[i]] = {"names":[], "numbers":[], "set":params[i]}
-                            else:
-                                EnumDict[item[i]] = {"names":[], "numbers":[], "set":0}
-                    # if (len(item) == len(params)):
-                        # EnumDict = {}
-                        # for i in range(len(item)):
-                            # print(i, item[i], params[i])
-                            # EnumDict[item[i]] = {"names":[], "numbers":[], "set":params[i]}
-                    # else:
-                        # EnumDict = {i:{"names":[], "numbers":[], "set":0} for i in item}
-                    for e in EnumProperties:
-                        itemnum, val, name = e
+                    for i in range(len(item)):
                         try:
-                            EnumDict[item[itemnum-1]]["names"].append(name)
-                            EnumDict[item[itemnum-1]]["numbers"].append(val)
-                        except IndexError:
-                            print("IndexError", e)
-                        #EnumDict[item[itemnum-1]] = {"names":name, "numbers":val}
-                    InputsDict[key]["vars"] = EnumDict 
+                            setval = int(params[i])
+                        except ValueError:
+                            try:
+                                setval = float(params[i])
+                            except ValueError:
+                                setval = 0
+                        EnumDict[item[i]] = {"names":[], "numbers":[], "set":setval}
                 else:
-                    InputsDict[key]["vars"] = {}
                     for i in range(len(item)):
                         if (i < len(params)):
-                            #print(i, item[i], params[i])
-                            InputsDict[key]["vars"][item[i]] = params[i]
+                            EnumDict[item[i]] = {"names":[], "numbers":[], "set":params[i]}
                         else:
-                            InputsDict[key]["vars"][item[i]] = "0"
-
-                    #if (len(item) == len(params)):
-                    #    InputsDict[key]["vars"] = {}
-                    #    for i in range(len(item)):
-                    #        InputsDict[key]["vars"][item[i]] = params[i]
-                    #else:
-                    #    InputsDict[key]["vars"] = {i:"0" for i in item}
-            except KeyError:
-                print("key ", key, " not found")
-                raise
+                            EnumDict[item[i]] = {"names":[], "numbers":[], "set":0}
+                for e in EnumProperties:
+                    itemnum, val, name = e
+                    try:
+                        EnumDict[item[itemnum-1]]["names"].append(name)
+                        EnumDict[item[itemnum-1]]["numbers"].append(val)
+                    except IndexError:
+                        print("IndexError", e)
+                InputsDict[key]["vars"] = EnumDict 
+            else:
+                InputsDict[key]["vars"] = {}
+                for i in range(len(item)):
+                    if (i < len(params)):
+                        InputsDict[key]["vars"][item[i]] = params[i]
+                    else:
+                        InputsDict[key]["vars"][item[i]] = "0"
 
         return InputsDict
 
@@ -444,21 +456,11 @@ class MyFrame(wx.Frame):
 
         self.ChangeDict[key] = changes
 
-        #print("Changes = ", self.ChangeDict)
-
-
-
-        # try:
-            # self.ChangeDict[key][prop] = val
-        # except KeyError:
-            # self.ChangeDict[key] = {prop:val}
-
-        #print("after", key, prop, self.InputsDict[key]["vars"][prop], self.ChangeDict)
         return
 
     def run_btn(self, event): 
 
-        btn = event.GetEventObject().GetLabel() 
+        #btn = event.GetEventObject().GetLabel() 
 
         # otherwise ask the user what new file to open
         with wx.FileDialog(self, "Choose output directory",
@@ -469,7 +471,7 @@ class MyFrame(wx.Frame):
                 return     # the user changed their mind
 
             rundir = folderDiag.GetPath()
-            print("Label of button = ", btn, rundir)
+            #print("Label of button = ", btn, rundir)
 
         run = swl.MDRun(self.srcdir, self.srcdir, rundir,
                   "parallel_md.exe", 
@@ -532,7 +534,7 @@ class MyFrame(wx.Frame):
 
         #print(inputfile)
 
-        run = swl.MDRun(self.srcdir, basedir, self.srcdir + self.tmpdir,
+        run = swl.MDRun(self.srcdir, basedir, self.srcdir + "/" + self.tmpdir,
                   "parallel_md.exe", 
                   inputfile, "setup.out",
                   inputchanges=changes[0], finishargs = {},
@@ -583,7 +585,7 @@ class MyFrame(wx.Frame):
                 return
 
         #Redraw the figure with latest setup
-        self.plotpanel.draw()
+        self.plotpanel.draw(self.plotype)
 
     def OnOpen(self, event):
 
@@ -632,11 +634,14 @@ class MyFrame(wx.Frame):
             except IOError:
                 wx.LogError("Cannot save current data in file '%s'." % fdir)
 
+    def onRadioBox(self, e): 
+        print(self.radio_box_1.GetStringSelection(),' is clicked from Radio Box')
+        self.plotype = self.radio_box_1.GetStringSelection()
+        self.plotpanel.draw(self.plotype)
+
     def OnClose(self, event):
         shutil.rmtree(self.tmpdir) 
         self.Destroy()
-
-
 
     def OnQuit(self, e):
         shutil.rmtree(self.tmpdir) 

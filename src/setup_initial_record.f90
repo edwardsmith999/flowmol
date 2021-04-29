@@ -1313,8 +1313,8 @@ end subroutine build_psf
 ! A subroutine to dump initial setup to allow plotting
 subroutine initial_setup_dump()
 	use physical_constants_MD, only : np
-	use computational_constants_MD, only : tag_move, ensemble, prefix_dir
-	use arrays_MD, only : r, v, tag
+	use computational_constants_MD, only : tag_move, mie_potential, ensemble, prefix_dir
+	use arrays_MD, only : r, v, tag, moltype
     use librarymod, only : get_new_fileunit
 	implicit none
 
@@ -1330,6 +1330,7 @@ subroutine initial_setup_dump()
 	! enddo
 	! close(unitno,status='keep')
 
+
 	!Write as binary files
 	m = 1
 	allocate(buf(np,3))
@@ -1337,6 +1338,17 @@ subroutine initial_setup_dump()
 	inquire(iolength=length) buf
 	print*, length
 	open(unit=unitno, file=trim(prefix_dir)//'results/initial_dump_r', &
+		status='replace',form='unformatted',access='direct',recl=length)
+	write(unitno,rec=m) buf
+	close(unitno)
+	deallocate(buf)
+
+	m = 1
+	allocate(buf(np,3))
+	buf = v(:,1:np)
+	inquire(iolength=length) buf
+	print*, length
+	open(unit=unitno, file=trim(prefix_dir)//'results/initial_dump_v', &
 		status='replace',form='unformatted',access='direct',recl=length)
 	write(unitno,rec=m) buf
 	close(unitno)
@@ -1351,5 +1363,16 @@ subroutine initial_setup_dump()
 		write(unitno,rec=m) buf
 		close(unitno)
 	endif
+
+	if (mie_potential .ne. 0) then
+		allocate(buf(np,1))
+		buf(:,1) = moltype(1:np)
+		inquire(iolength=length) buf
+		open(unit=unitno, file=trim(prefix_dir)//'results/initial_dump_moltype', & 
+			status='replace',form='unformatted',access='direct',recl=length)
+		write(unitno,rec=m) buf
+		close(unitno)
+	endif
+
 
 end subroutine initial_setup_dump
