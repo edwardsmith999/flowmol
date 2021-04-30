@@ -1319,9 +1319,12 @@ subroutine initial_setup_dump()
 	implicit none
 
 	integer :: m, unitno, length
+	integer, allocatable, dimension(:,:) :: intbuf
+
 	double precision, allocatable, dimension(:,:) :: buf
 
 	unitno = get_new_fileunit()
+	m = 1
 
 	!Write as ascii files
 	! open(unit=unitno, file=trim(prefix_dir)//'results/initial_dump_r',status='replace')
@@ -1332,7 +1335,6 @@ subroutine initial_setup_dump()
 
 
 	!Write as binary files
-	m = 1
 	allocate(buf(np,3))
 	buf = r(:,1:np)
 	inquire(iolength=length) buf
@@ -1343,7 +1345,6 @@ subroutine initial_setup_dump()
 	close(unitno)
 	deallocate(buf)
 
-	m = 1
 	allocate(buf(np,3))
 	buf = v(:,1:np)
 	inquire(iolength=length) buf
@@ -1355,22 +1356,22 @@ subroutine initial_setup_dump()
 	deallocate(buf)
 
 	if (ensemble .eq. tag_move) then
-		allocate(buf(np,1))
-		buf(:,1) = tag(1:np)
-		inquire(iolength=length) buf
+		allocate(intbuf(np,1))
+		intbuf(:,1) = tag(1:np)
+		inquire(iolength=length) intbuf
 		open(unit=unitno, file=trim(prefix_dir)//'results/initial_dump_tag', & 
 			status='replace',form='unformatted',access='direct',recl=length)
-		write(unitno,rec=m) buf
+		write(unitno,rec=m) intbuf
 		close(unitno)
 	endif
 
 	if (mie_potential .ne. 0) then
-		allocate(buf(np,1))
-		buf(:,1) = moltype(1:np)
-		inquire(iolength=length) buf
+		allocate(intbuf(np,1))
+		intbuf(:,1) = moltype(1:np)
+		inquire(iolength=length) intbuf
 		open(unit=unitno, file=trim(prefix_dir)//'results/initial_dump_moltype', & 
 			status='replace',form='unformatted',access='direct',recl=length)
-		write(unitno,rec=m) buf
+		write(unitno,rec=m) intbuf
 		close(unitno)
 	endif
 

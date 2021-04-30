@@ -11,6 +11,7 @@ from wx.adv import BitmapComboBox
 import wx.lib.dialogs
 
 import numpy as np
+from itertools import product
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -32,16 +33,6 @@ sys.path.append("/home/es205/codes/pyDataView/")
 import postproclib as ppl
 
 
-def axisEqual3D(ax):
-    extents = np.array([getattr(ax, 'get_{}lim'.format(dim))() for dim in 'xyz'])
-    sz = extents[:,1] - extents[:,0]
-    centers = np.mean(extents, axis=1)
-    maxsize = max(abs(sz))
-    r = maxsize/2
-    for ctr, dim in zip(centers, 'xyz'):
-        getattr(ax, 'set_{}lim'.format(dim))(ctr - r, ctr + r)
-
-
 class CanvasPanel(wx.Panel):
     def __init__(self, parent, tmpdir="temp"):
         wx.Panel.__init__(self, parent)
@@ -50,12 +41,22 @@ class CanvasPanel(wx.Panel):
         self.canvas = FigureCanvas(self, -1, self.figure)
         self.tmpdir = tmpdir
         self.ft = True
+        self.resultsdir = self.tmpdir + "/results/"
 
         self.axes = self.figure.add_subplot(111, projection='3d', proj_type = 'ortho')
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.canvas, 1, wx.LEFT | wx.TOP | wx.GROW)
         self.SetSizer(self.sizer)
         self.Fit()
+
+    def axisEqual3D(self, ax):
+        extents = np.array([getattr(ax, 'get_{}lim'.format(dim))() for dim in 'xyz'])
+        sz = extents[:,1] - extents[:,0]
+        centers = np.mean(extents, axis=1)
+        maxsize = max(abs(sz))
+        r = maxsize/2
+        for ctr, dim in zip(centers, 'xyz'):
+            getattr(ax, 'set_{}lim'.format(dim))(ctr - r, ctr + r)
 
     def draw(self, plottype):
 
@@ -64,6 +65,8 @@ class CanvasPanel(wx.Panel):
             azim = self.axes.azim
             elev = self.axes.elev
             self.axes.cla()
+            self.draw_grid(self.gridcheck.IsChecked())
+            #self.parent.gridcheck.SetValue(False)
 
             #Delete any existing colorbar
             try:
@@ -72,29 +75,37 @@ class CanvasPanel(wx.Panel):
             except AttributeError:
                 pass
 
-        resultsdir = self.tmpdir + "/results/"
         try:
-            header = ppl.MDHeaderData(resultsdir)
+            header = ppl.MDHeaderData(self.resultsdir)
         except FileNotFoundError:
             return
         N = int(header.globalnp)
-        r = np.fromfile(resultsdir + "/initial_dump_r",  dtype=np.float).reshape(N,3)
+        r = np.fromfile(self.resultsdir + "/initial_dump_r",  dtype=np.float).reshape(N,3)
 
         try:
-            print("plottype = ", plottype, plottype is "tags", plottype is "moltype", plottype is "v", plottype is "None")
             if plottype == "tags":
-                tag = np.fromfile(resultsdir + "/initial_dump_tag",  dtype=np.int)
-                c = tag/tag.max()
-                self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=c, cmap=cm.RdYlBu_r)
+                tag = np.fromfile(self.resultsdir + "/initial_dump_tag",  dtype=np.int32)
+                print("tags include ", np.unique(tag))
+                scatter = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=tag, cmap=cm.RdYlBu_r)
+
+                #Generate tag labels from data
+                elems = scatter.legend_elements()
+                #tagDict = {"free": 0, "fixed": 1, "fixed_slide": 2, "teth": 3, "thermo": 4, 
+                #            "teth_thermo": 5, "teth_slide": 6, "teth_thermo_slide": 7}
+                tagList = ["free", "fixed", "fixed_slide", "teth", "thermo", 
+                            "teth_thermo", "teth_slide", "teth_thermo_slide"]
+                tags = [int(t.replace('$\\mathdefault{','').replace('}$','')) for t in elems[1]]
+                newelems = (elems[0], [tagList[t] for t in tags])
+                legend = self.axes.legend(*newelems)
+                self.axes.add_artist(legend)
             elif plottype == "moltype":
-                moltype = np.fromfile(resultsdir + "/initial_dump_moltype",  dtype=np.int)
+                moltype = np.fromfile(self.resultsdir + "/initial_dump_moltype",  dtype=np.int32)
                 c = moltype/moltype.max()
                 self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=c, cmap=cm.RdYlBu_r)
             elif plottype == "v":
-                v = np.fromfile(resultsdir + "/initial_dump_v",  dtype=np.float).reshape(N,3)
+                v = np.fromfile(self.resultsdir + "/initial_dump_v",  dtype=np.float).reshape(N,3)
                 vmag = np.sqrt(v[:,0]**2 + v[:,1]**2 + v[:,2]**2)
-                c = vmag/vmag.max()
-                cs = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=c, cmap=cm.RdYlBu_r)
+                cs = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=vmag, cmap=cm.RdYlBu_r)
                 self.cb = self.figure.colorbar(cs, ax=self.axes)
             elif plottype == "None":
                 self.axes.scatter(r[:,0], r[:,1], r[:,2], ".")
@@ -104,7 +115,7 @@ class CanvasPanel(wx.Panel):
         try:
             self.axes.set_box_aspect((np.ptp(r[:,0]), np.ptp(r[:,1]), np.ptp(r[:,2])))
         except AttributeError:
-            axisEqual3D(self.axes)
+            self.axisEqual3D(self.axes)
 
         if self.ft:
             self.axes.view_init(90, 90)
@@ -113,6 +124,68 @@ class CanvasPanel(wx.Panel):
             self.axes.view_init(elev, azim)
 
         self.canvas.draw()
+
+
+    def draw_grid(self, draw):
+
+        if draw:
+            try:
+                header = ppl.MDHeaderData(self.resultsdir)
+            except FileNotFoundError:
+                return
+
+            nx = int(header.globalncells1)
+            ny = int(header.globalncells2)
+            nz = int(header.globalncells3)
+
+            Lx = float(header.globaldomain1)
+            Ly = float(header.globaldomain2)
+            Lz = float(header.globaldomain3)
+
+            x = np.linspace(-Lx/2.,Lx/2., nx+1)
+            y = np.linspace(-Ly/2, Ly/2., ny+1)
+            z = np.linspace(-Lz/2, Lz/2., nz+1)
+            #X, Y, Z = np.meshgrid(x,y,z)
+
+            #Origin at zero
+            ox = oy = oz = 0.
+
+            x1, z1 = np.meshgrid(x, z)
+            y11 = np.ones_like(x1)*(oy-Ly/2)
+            y12 = np.ones_like(x1)*(oy+Ly/2)
+            x2, y2 = np.meshgrid(x, y)
+            z21 = np.ones_like(x2)*(oz-Lz/2)
+            z22 = np.ones_like(x2)*(oz+Lz/2)
+            y3, z3 = np.meshgrid(y, z)
+            x31 = np.ones_like(y3)*(ox-Lx/2)
+            x32 = np.ones_like(y3)*(ox+Lx/2)
+
+            self.grid = []
+            # outside surface
+            self.grid.append(self.axes.plot_wireframe(x1, y11, z1, color='k', rstride=1, cstride=1, alpha=0.6))
+            # inside surface
+            self.grid.append(self.axes.plot_wireframe(x1, y12, z1, color='k', rstride=1, cstride=1, alpha=0.6))
+            # bottom surface
+            self.grid.append(self.axes.plot_wireframe(x2, y2, z21, color='k', rstride=1, cstride=1, alpha=0.6))
+            # upper surface
+            self.grid.append(self.axes.plot_wireframe(x2, y2, z22, color='k', rstride=1, cstride=1, alpha=0.6))
+            # left surface
+            self.grid.append(self.axes.plot_wireframe(x31, y3, z3, color='k', rstride=1, cstride=1, alpha=0.6))
+            # right surface
+            self.grid.append(self.axes.plot_wireframe(x32, y3, z3, color='k', rstride=1, cstride=1, alpha=0.6))
+
+            self.canvas.draw()
+
+
+        else:
+            try:
+                for g in self.grid:
+                    g.remove()
+                del self.grid
+                self.canvas.draw()
+            except AttributeError:
+                pass
+    
 
 class MyFrame(wx.Frame):
     def __init__(self, *args, **kwds):
@@ -138,27 +211,10 @@ class MyFrame(wx.Frame):
         #Left window
         self.create_input_panel()
 
-        #Right window
-        self.window_right = wx.Panel(self.window_LR, wx.ID_ANY)
-        sizer_2 = wx.BoxSizer(wx.VERTICAL)
+        #Create matploltib panel
+        self.create_matplot_panel()
 
-        self.plotpanel = CanvasPanel(self.window_right)
-        self.tmpdir = self.plotpanel.tmpdir
-        #self.plotpanel.draw()
-        #wx.Panel(self.window_right, wx.ID_ANY)
-        sizer_2.Add(self.plotpanel, 1, wx.EXPAND, 0)
-
-        self.plottypes = ["v", "tags", "moltype", "None"]
-        self.radio_box_1 = wx.RadioBox(self.window_right, wx.ID_ANY, "", 
-                                       choices=self.plottypes, majorDimension=4, 
-                                       style=wx.RA_SPECIFY_COLS)
-        self.radio_box_1.SetSelection(0)
-        self.plotype = "v"
-        sizer_2.Add(self.radio_box_1, 0, wx.EXPAND, 0)
-        self.radio_box_1.Bind(wx.EVT_RADIOBOX, self.onRadioBox)
-
-        self.window_right.SetSizer(sizer_2)
-        self.window_help_props.SplitHorizontally(self.window_help, self.window_props)
+        #Add all sizers to windows
         self.window_LR.SplitVertically(self.window_left, self.window_right)
         self.SetSizer(sizer_top)
         self.Layout()
@@ -251,11 +307,53 @@ class MyFrame(wx.Frame):
         self.window_props.SetSizer(sizer_props)
         self.window_help.SetSizer(sizer_help)
         self.window_left.SetSizer(grid_sizer_1)
+        self.window_help_props.SplitHorizontally(self.window_help, self.window_props)
+
 
         #Not sure if any or all of these are needed to create the panel 
         self.Layout()
         self.Refresh()
         self.Update()
+
+
+    def create_matplot_panel(self):
+
+        #Right window
+        self.window_right = wx.Panel(self.window_LR, wx.ID_ANY)
+        sizer_Matplot_panel = wx.BoxSizer(wx.VERTICAL)
+
+        self.plotpanel = CanvasPanel(self.window_right)
+        self.tmpdir = self.plotpanel.tmpdir
+        sizer_Matplot_panel.Add(self.plotpanel, 1, wx.EXPAND, 0)
+
+        sizer_plotcontrol_panel = wx.BoxSizer(wx.HORIZONTAL)
+
+
+        #Create radiobox
+        self.plottypes = ["v", "tags", "moltype", "None"]
+        self.radio_box_1 = wx.RadioBox(self.window_right, wx.ID_ANY, "", 
+                                       choices=self.plottypes, majorDimension=4, 
+                                       style=wx.RA_SPECIFY_COLS)
+        self.radio_box_1.SetSelection(0)
+        self.plotype = "v"
+        self.radio_box_1.Bind(wx.EVT_RADIOBOX, self.onRadioBox)
+        sizer_plotcontrol_panel.Add(self.radio_box_1, 0, wx.EXPAND, 0)
+
+        #Add grid tickbox
+        self.gridcheck = wx.CheckBox(self.window_right, wx.ID_ANY, "Grid")
+        sizer_plotcontrol_panel.Add(self.gridcheck, 0, wx.EXPAND, 0)
+        self.gridcheck.Bind(wx.EVT_CHECKBOX , self.ongridtick)
+        self.plotpanel.gridcheck = self.gridcheck
+
+        #Add a loading gauge (FOR SOME REASON THIS DOESN'T WORK IN UBUNTU 18.04
+        #                     JUST SITS IN THE BOTTOM LEFT)
+        #self.gauge = wx.Gauge(self, range=100, style=wx.GA_HORIZONTAL)
+        #self.gauge.SetValue(100)
+        #sizer_Matplot_panel.Add(self.gauge)
+
+        sizer_Matplot_panel.Add(sizer_plotcontrol_panel, 0, wx.EXPAND, 0)
+        self.window_right.SetSizer(sizer_Matplot_panel)
+
 
     def populate_searchctrl(self):
 
@@ -444,19 +542,19 @@ class MyFrame(wx.Frame):
             if isinstance(self.ChangeDict[key], list):
                 changes = self.ChangeDict[key] 
             else:
-                changes = [[None]*len(keys)]
+                changes = [None]*len(keys)
         except KeyError:
             self.ChangeDict[key] = [None]*len(keys)
-            changes = [[None]*len(keys)]
+            changes = [None]*len(keys)
 
         for i, k in enumerate(keys):
             if prop == k:
-                changes[0][i] = val
+                changes[i] = val
                 #print("change_propgrid vars", i, k, val)
 
         self.ChangeDict[key] = changes
 
-        print("Changes = ", key, changes)
+        print("Changes = ", key, changes, self.ChangeDict)
 
         return
 
@@ -508,11 +606,13 @@ class MyFrame(wx.Frame):
 
         #Create list of changes
         try:
-            changes = swl.InputDict({'VMD_OUTFLAG': [5]})+swl.InputDict(self.ChangeDict)
-            print(self.ChangeDict, changes)
+            #Concat dictonaries (incase item already in)
+            changes = dict({'VMD_OUTFLAG': [5]}, **self.ChangeDict)
+            #Changes needs to be a list of dictonaries
+            #changes = [{k:v} for k,v in ChangeDict.items()]
 
         except IndexError:
-            changes = swl.InputDict({'VMD_OUTFLAG': [5]}).expand()
+            changes = {'VMD_OUTFLAG': [5]}
 
 
         print("Running setup run", self.inputfilename, " with changes", changes)
@@ -539,12 +639,13 @@ class MyFrame(wx.Frame):
         self.run = swl.MDRun(self.srcdir, basedir, self.srcdir + "/" + self.tmpdir,
                   "parallel_md.exe", 
                   inputfile, "setup.out",
-                  inputchanges=changes[0], finishargs = {},
+                  inputchanges=changes, finishargs = {},
                   dryrun=False, minimalcopy=True)                
 
         self.run.setup()
         self.run.execute(print_output=False, out_to_file=False, blocking=False)
         self.Bind(wx.EVT_IDLE, self.OnIdle)
+
 
         #self.progress = wx.ProgressDialog("Running Setup", "please wait", 
         #                                   parent=self, 
@@ -596,48 +697,32 @@ class MyFrame(wx.Frame):
 
         run = self.run
         stdout = run.proc.stdout.read()
-
+        errormsg = run.proc.stderr.read()
         if (stdout != ""):
             print(stdout)
-            errormsg = run.proc.stderr.read()
-
-            if (run.proc.returncode or errormsg != ""):
-                print(stdout)
-                run.proc.kill()
-                #Clean stderr
-                print("stderr = ", errormsg)
-                errormsg_box = errormsg.split("\n")[0]
-                msgbx = wx.MessageDialog(self, errormsg_box 
-                                         +"\n Look at terminal for more error information",
-                                         style=wx.OK|wx.ICON_ERROR)
-                msgbx.ShowModal()
-                msgbx.Destroy()
-                self.Unbind(wx.EVT_IDLE)
-                return
-
-            if "Time taken" in stdout:
-                run.proc.kill()
-            else:
-                event.RequestMore()
-                return
-
-            self.plotpanel.draw(self.plotype)
+        self.helptxt.SetValue(stdout)
+        #self.gauge.SetValue(0)
+        if (run.proc.returncode or errormsg != ""):
+            run.proc.kill()
+            #Clean stderr
+            print("stderr = ", errormsg, "stdout =", stdout)
+            errormsg_box = errormsg.split("\n")[0]
+            msgbx = wx.MessageDialog(self, errormsg_box 
+                                     +"\n Look at terminal for more error information",
+                                     style=wx.OK|wx.ICON_ERROR)
+            msgbx.ShowModal()
+            msgbx.Destroy()
             self.Unbind(wx.EVT_IDLE)
+            return
+
+        if "Time taken" in stdout:
+            run.proc.kill()
         else:
-            #Redraw the figure with latest setup
-            self.plotpanel.draw(self.plotype)
-            self.Unbind(wx.EVT_IDLE)
+            event.RequestMore()
+            return
 
-    # def run_block(runproc):
-        # stdout = runproc.stdout.read()
-        # errormsg = run.proc.stderr.read()
-        # if (runproc.returncode or errormsg != "" or
-            # "Time taken" in stdout):
-            # #print remaining stdout
-            # runproc.kill()
-            # yield errormsg
-        # else:
-            # yield stdout
+        self.plotpanel.draw(self.plotype)
+        self.Unbind(wx.EVT_IDLE)
         
 
     def OnOpen(self, event):
@@ -692,12 +777,22 @@ class MyFrame(wx.Frame):
         self.plotype = self.radio_box_1.GetStringSelection()
         self.plotpanel.draw(self.plotype)
 
+    def ongridtick(self, event):
+        cb = event.GetEventObject() 
+        self.plotpanel.draw_grid(cb.GetValue())
+
     def OnClose(self, event):
-        shutil.rmtree(self.tmpdir) 
+        try:
+            shutil.rmtree(self.tmpdir)
+        except FileNotFoundError:
+            pass        
         self.Destroy()
 
     def OnQuit(self, e):
-        shutil.rmtree(self.tmpdir) 
+        try:
+            shutil.rmtree(self.tmpdir)
+        except FileNotFoundError:
+            pass        
         self.Close()
 
 
