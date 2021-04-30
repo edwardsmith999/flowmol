@@ -456,6 +456,8 @@ class MyFrame(wx.Frame):
 
         self.ChangeDict[key] = changes
 
+        print("Changes = ", key, changes)
+
         return
 
     def run_btn(self, event): 
@@ -534,45 +536,73 @@ class MyFrame(wx.Frame):
 
         #print(inputfile)
 
-        run = swl.MDRun(self.srcdir, basedir, self.srcdir + "/" + self.tmpdir,
+        self.run = swl.MDRun(self.srcdir, basedir, self.srcdir + "/" + self.tmpdir,
                   "parallel_md.exe", 
                   inputfile, "setup.out",
                   inputchanges=changes[0], finishargs = {},
                   dryrun=False, minimalcopy=True)                
 
-        run.setup()
-        run.execute(print_output=False, out_to_file=False, blocking=False)
-        self.progress = wx.ProgressDialog("Running Setup", "please wait", 
-                                           parent=self, 
-                                           style=wx.PD_AUTO_HIDE|wx.PD_CAN_ABORT)
+        self.run.setup()
+        self.run.execute(print_output=False, out_to_file=False, blocking=False)
+        self.Bind(wx.EVT_IDLE, self.OnIdle)
 
-        #Line by line step through
-        i = 0
-        for stdout_line in iter(run.proc.stdout.readline, ""):
-            lastline = stdout_line.replace("\n","")
+        #self.progress = wx.ProgressDialog("Running Setup", "please wait", 
+        #                                   parent=self, 
+        #                                   style=wx.PD_AUTO_HIDE|wx.PD_CAN_ABORT)
+
+        # #Line by line step through
+        # i = 0
+        # for stdout_line in iter(run.proc.stdout.readline, ""):
+            # lastline = stdout_line.replace("\n","")
+            # errormsg = run.proc.stderr.read()
+            # #time.sleep(0.1)
+            # contnue, skp = self.progress.Update(i, lastline)
+            # if contnue is False:
+                # print("Cancel Pressed")
+                # self.progress.Destroy()
+                # self.proc.stdout.close()
+                # run.proc.kill()
+                # break
+
+            # print(lastline, run.proc.returncode, run.proc.stderr.read())
+            # if "Time taken" in lastline:
+                # self.progress.Destroy()
+                # run.proc.kill()
+                # break
+
+        # # except run.CalledProcessError:
+
+            # if (run.proc.returncode or errormsg != ""):
+                # #print remaining stdout
+                # stdout = run.proc.stdout.read()
+                # print(stdout)
+                # self.progress.Destroy()
+                # run.proc.kill()
+                # #Clean stderr
+                # print("stderr = ", errormsg)
+                # errormsg_box = errormsg.split("\n")[0]
+                # msgbx = wx.MessageDialog(self, errormsg_box 
+                                         # +"\n Look at terminal for more error information",
+                                         # style=wx.OK|wx.ICON_ERROR)
+                # msgbx.ShowModal()
+                # msgbx.Destroy()
+                # return
+
+        # #Redraw the figure with latest setup
+        # self.plotpanel.draw(self.plotype)
+
+
+    def OnIdle(self, event):
+
+        run = self.run
+        stdout = run.proc.stdout.read()
+
+        if (stdout != ""):
+            print(stdout)
             errormsg = run.proc.stderr.read()
-            #time.sleep(0.1)
-            contnue, skp = self.progress.Update(i, lastline)
-            if contnue is False:
-                print("Cancel Pressed")
-                self.progress.Destroy()
-                self.proc.stdout.close()
-                run.proc.kill()
-                break
-
-            print(lastline, run.proc.returncode, run.proc.stderr.read())
-            if "Time taken" in lastline:
-                self.progress.Destroy()
-                run.proc.kill()
-                break
-
-        # except run.CalledProcessError:
 
             if (run.proc.returncode or errormsg != ""):
-                #print remaining stdout
-                stdout = run.proc.stdout.read()
                 print(stdout)
-                self.progress.Destroy()
                 run.proc.kill()
                 #Clean stderr
                 print("stderr = ", errormsg)
@@ -582,10 +612,33 @@ class MyFrame(wx.Frame):
                                          style=wx.OK|wx.ICON_ERROR)
                 msgbx.ShowModal()
                 msgbx.Destroy()
+                self.Unbind(wx.EVT_IDLE)
                 return
 
-        #Redraw the figure with latest setup
-        self.plotpanel.draw(self.plotype)
+            if "Time taken" in stdout:
+                run.proc.kill()
+            else:
+                event.RequestMore()
+                return
+
+            self.plotpanel.draw(self.plotype)
+            self.Unbind(wx.EVT_IDLE)
+        else:
+            #Redraw the figure with latest setup
+            self.plotpanel.draw(self.plotype)
+            self.Unbind(wx.EVT_IDLE)
+
+    # def run_block(runproc):
+        # stdout = runproc.stdout.read()
+        # errormsg = run.proc.stderr.read()
+        # if (runproc.returncode or errormsg != "" or
+            # "Time taken" in stdout):
+            # #print remaining stdout
+            # runproc.kill()
+            # yield errormsg
+        # else:
+            # yield stdout
+        
 
     def OnOpen(self, event):
 
