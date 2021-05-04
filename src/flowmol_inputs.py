@@ -29,9 +29,9 @@ import sys
 sys.path.append("/home/es205/codes/SimWrapPy/")
 import simwraplib as swl
 
-sys.path.append("/home/es205/codes/pyDataView/")
+sys.path.insert(0, "/home/es205/codes/pyDataView/")
 import postproclib as ppl
-
+import postproclib.visualiser as pplv
 
 class CanvasPanel(wx.Panel):
     def __init__(self, parent, tmpdir="temp"):
@@ -81,12 +81,14 @@ class CanvasPanel(wx.Panel):
             return
         N = int(header.globalnp)
         r = np.fromfile(self.resultsdir + "/initial_dump_r",  dtype=np.float).reshape(N,3)
-
+        #Limit plots to be fast
+        skip = int(N/1000.)
+        r = r[::skip,:]
         try:
             if plottype == "tags":
                 tag = np.fromfile(self.resultsdir + "/initial_dump_tag",  dtype=np.int32)
                 print("tags include ", np.unique(tag))
-                scatter = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=tag, cmap=cm.RdYlBu_r)
+                scatter = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=tag[::skip], cmap=cm.RdYlBu_r)
 
                 #Generate tag labels from data
                 elems = scatter.legend_elements()
@@ -100,11 +102,10 @@ class CanvasPanel(wx.Panel):
                 self.axes.add_artist(legend)
             elif plottype == "moltype":
                 moltype = np.fromfile(self.resultsdir + "/initial_dump_moltype",  dtype=np.int32)
-                c = moltype/moltype.max()
-                self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=c, cmap=cm.RdYlBu_r)
+                self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=moltype[::skip], cmap=cm.RdYlBu_r)
             elif plottype == "v":
                 v = np.fromfile(self.resultsdir + "/initial_dump_v",  dtype=np.float).reshape(N,3)
-                vmag = np.sqrt(v[:,0]**2 + v[:,1]**2 + v[:,2]**2)
+                vmag = np.sqrt(v[::skip,0]**2 + v[::skip,1]**2 + v[::skip,2]**2)
                 cs = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=vmag, cmap=cm.RdYlBu_r)
                 self.cb = self.figure.colorbar(cs, ax=self.axes)
             elif plottype == "None":
@@ -118,7 +119,7 @@ class CanvasPanel(wx.Panel):
             self.axisEqual3D(self.axes)
 
         if self.ft:
-            self.axes.view_init(90, 90)
+            self.axes.view_init(90, -90)
             self.ft=False
         else:
             self.axes.view_init(elev, azim)
@@ -200,11 +201,17 @@ class MyFrame(wx.Frame):
         #Top menu
         self.InitUI()
 
+        #Setup notebook pages
+        self.notebook_1 = wx.Notebook(self, wx.ID_ANY)
+        self.notebook_1_pane_1 = wx.Panel(self.notebook_1, wx.ID_ANY)
+        self.notebook_1.AddPage(self.notebook_1_pane_1, "Setup")
+
+
         #Top sizer
         sizer_top = wx.BoxSizer(wx.HORIZONTAL)
 
         #Split display and properties window
-        self.window_LR = wx.SplitterWindow(self, wx.ID_ANY)
+        self.window_LR = wx.SplitterWindow(self.notebook_1_pane_1, wx.ID_ANY)
         self.window_LR.SetMinimumPaneSize(20)
         sizer_top.Add(self.window_LR, 1, wx.EXPAND, 0)
 
@@ -216,8 +223,14 @@ class MyFrame(wx.Frame):
 
         #Add all sizers to windows
         self.window_LR.SplitVertically(self.window_left, self.window_right)
-        self.SetSizer(sizer_top)
+        self.notebook_1_pane_1.SetSizer(sizer_top)
         self.Layout()
+
+        #Add pyDataView to second tab
+        self.notebook_1_pane_2 = pplv.MainPanel(self.notebook_1, "./", 
+                                                catch_noresults=False)
+        self.notebook_1.AddPage(self.notebook_1_pane_2, "Results")
+    
 
         #Close handle
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -800,15 +813,15 @@ class MyFrame(wx.Frame):
         from platform import platform
         myos = platform()
         aboutInfo = wx.AboutDialogInfo()
-        aboutInfo.SetName("My Application ")
+        aboutInfo.SetName("Flowmol")
         aboutInfo.SetVersion("1.0")
-        aboutInfo.SetDescription("My Super App," \
-            " That does amazing things\nRunning on: "+myos)
-        aboutInfo.SetCopyright("(C) Joe Bloggs-2016")
-        aboutInfo.SetLicense("https://www.gnu.org/licenses/gpl-2.0.html")
-        aboutInfo.AddDeveloper("Joe Bloggs")
-        aboutInfo.AddDocWriter("Joe Bloggs")
-        aboutInfo.SetWebSite('https://www.JoeBlogs.com')
+        aboutInfo.SetDescription("Flowmol," \
+            " Molecular Fluid Dynamics simulation toool: "+myos)
+        aboutInfo.SetCopyright("(C) Edward Smith-2021")
+        aboutInfo.SetLicense("https://www.gnu.org/licenses/gpl-3.0.html")
+        aboutInfo.AddDeveloper("Edward Smith")
+        aboutInfo.AddDocWriter("Edward Smith")
+        aboutInfo.SetWebSite('https://www.edwardsmith.co.uk')
         wx.AboutBox(aboutInfo)
 
 
@@ -819,10 +832,12 @@ class MyApp(wx.App):
         self.frame.Show()
         return True
 
-# end of class MyApp
+#import wx.lib.inspection
 
 if __name__ == "__main__":
     app = MyApp(0)
+    #Use wxPython debugging tool
+    #wx.lib.inspection.InspectionTool().Show()
     app.MainLoop()
 
 
