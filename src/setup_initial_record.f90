@@ -1363,6 +1363,7 @@ subroutine initial_setup_dump()
 			status='replace',form='unformatted',access='direct',recl=length)
 		write(unitno,rec=m) intbuf
 		close(unitno)
+    	deallocate(intbuf)
 	endif
 
 	if (mie_potential .ne. 0) then
@@ -1373,6 +1374,7 @@ subroutine initial_setup_dump()
 			status='replace',form='unformatted',access='direct',recl=length)
 		write(unitno,rec=m) intbuf
 		close(unitno)
+    	deallocate(intbuf)
 	endif
 
 

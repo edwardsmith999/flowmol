@@ -26,10 +26,10 @@ from SetupInputs import SetupInputs
 
 # Code to read input file
 import sys
-sys.path.append("/home/es205/codes/SimWrapPy/")
+sys.path.append("/home/es205/codes/python/SimWrapPy/")
 import simwraplib as swl
 
-sys.path.insert(0, "/home/es205/codes/pyDataView/")
+sys.path.insert(0, "/home/es205/codes/python/pyDataView/")
 import postproclib as ppl
 import postproclib.visualiser as pplv
 
@@ -42,8 +42,11 @@ class CanvasPanel(wx.Panel):
         self.tmpdir = tmpdir
         self.ft = True
         self.resultsdir = self.tmpdir + "/results/"
-
-        self.axes = self.figure.add_subplot(111, projection='3d', proj_type = 'ortho')
+        self.ThreeD = True
+        if (self.ThreeD):
+            self.axes = self.figure.add_subplot(111, projection='3d', proj_type = 'ortho')
+        else:
+            self.axes = self.figure.add_subplot(111)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.canvas, 1, wx.LEFT | wx.TOP | wx.GROW)
         self.SetSizer(self.sizer)
@@ -88,8 +91,10 @@ class CanvasPanel(wx.Panel):
             if plottype == "tags":
                 tag = np.fromfile(self.resultsdir + "/initial_dump_tag",  dtype=np.int32)
                 print("tags include ", np.unique(tag))
-                scatter = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=tag[::skip], cmap=cm.RdYlBu_r)
-
+                if (self.ThreeD):
+                    scatter = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=tag[::skip], cmap=cm.RdYlBu_r)
+                else:
+                    scatter = self.axes.scatter(r[:,0], r[:,1], c=tag[::skip], cmap=cm.RdYlBu_r)
                 #Generate tag labels from data
                 elems = scatter.legend_elements()
                 #tagDict = {"free": 0, "fixed": 1, "fixed_slide": 2, "teth": 3, "thermo": 4, 
@@ -102,27 +107,40 @@ class CanvasPanel(wx.Panel):
                 self.axes.add_artist(legend)
             elif plottype == "moltype":
                 moltype = np.fromfile(self.resultsdir + "/initial_dump_moltype",  dtype=np.int32)
-                self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=moltype[::skip], cmap=cm.RdYlBu_r)
+                if (self.ThreeD):
+                    self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=moltype[::skip], cmap=cm.RdYlBu_r)
+                else:
+                    self.axes.scatter(r[:,0], r[:,1], c=moltype[::skip], cmap=cm.RdYlBu_r)
             elif plottype == "v":
                 v = np.fromfile(self.resultsdir + "/initial_dump_v",  dtype=np.float).reshape(N,3)
                 vmag = np.sqrt(v[::skip,0]**2 + v[::skip,1]**2 + v[::skip,2]**2)
-                cs = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=vmag, cmap=cm.RdYlBu_r)
+                if (self.ThreeD):
+                    cs = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=vmag, cmap=cm.RdYlBu_r)
+                else:
+                    cs = self.axes.scatter(r[:,0], r[:,1], c=vmag, cmap=cm.RdYlBu_r)
                 self.cb = self.figure.colorbar(cs, ax=self.axes)
             elif plottype == "None":
-                self.axes.scatter(r[:,0], r[:,1], r[:,2], ".")
+                if (self.ThreeD):
+                    self.axes.scatter(r[:,0], r[:,1], r[:,2], ".")
+                else:
+                    self.axes.scatter(r[:,0], r[:,1])
         except (FileNotFoundError, ValueError) as e:
-            self.axes.scatter(r[:,0], r[:,1], r[:,2], ".")
+            if (self.ThreeD):
+                self.axes.scatter(r[:,0], r[:,1], r[:,2], ".")
+            else:
+                self.axes.scatter(r[:,0], r[:,1])
 
-        try:
-            self.axes.set_box_aspect((np.ptp(r[:,0]), np.ptp(r[:,1]), np.ptp(r[:,2])))
-        except AttributeError:
-            self.axisEqual3D(self.axes)
+        if (self.ThreeD):
+            #try:
+            #    self.axes.set_box_aspect((np.ptp(r[:,0]), np.ptp(r[:,1]), np.ptp(r[:,2])))
+            #except AttributeError:
+            #    self.axisEqual3D(self.axes)
 
-        if self.ft:
-            self.axes.view_init(90, -90)
-            self.ft=False
-        else:
-            self.axes.view_init(elev, azim)
+            if self.ft:
+                self.axes.view_init(90, -90)
+                self.ft=False
+            else:
+                self.axes.view_init(elev, azim)
 
         self.canvas.draw()
 
@@ -135,9 +153,9 @@ class CanvasPanel(wx.Panel):
             except FileNotFoundError:
                 return
 
-            nx = int(header.globalncells1)
-            ny = int(header.globalncells2)
-            nz = int(header.globalncells3)
+            nx = int(header.gnbins1)
+            ny = int(header.gnbins2)
+            nz = int(header.gnbins3)
 
             Lx = float(header.globaldomain1)
             Ly = float(header.globaldomain2)

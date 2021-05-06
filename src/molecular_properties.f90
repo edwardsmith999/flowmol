@@ -83,8 +83,9 @@ contains
             if (texture_type .eq. triangle_notch .or. & 
                 texture_type .eq. converge_diverge) then
                 call wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
-                tagdistbottom(:) = tagdistbottom - tethereddistbottom + emptydistbottom
-                tagdisttop(:)	 = tagdisttop - tethereddisttop + emptydisttop
+                !print*, "get_tag_status nonexistent", tagdistbottom, tethereddistbottom, emptydistbottom
+                tagdistbottom(2) = tagdistbottom(2) - tethereddistbottom(2) + emptydistbottom(2)
+                tagdisttop(2)	 = tagdisttop(2) - tethereddisttop(2) + emptydisttop(2)
                 if (tagdistbottom(2) < 0.d0) then 
                     tag_status = .false.
                     return
