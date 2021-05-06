@@ -313,7 +313,7 @@ class MyFrame(wx.Frame):
         self.window_props = wx.Panel(self.window_help_props, wx.ID_ANY)
         sizer_props = wx.BoxSizer(wx.HORIZONTAL)
         self.propgrid = wxpg.PropertyGridManager(self.window_props, wx.ID_ANY,
-                                                 style=wxpg.PG_SPLITTER_AUTO_CENTER)
+                                                 style=wxpg.PG_BOLD_MODIFIED|wxpg.PG_SPLITTER_AUTO_CENTER)
         sizer_props.Add(self.propgrid, 1, wx.EXPAND, 0)
         self.propgrid.Bind(wxpg.EVT_PG_CHANGED, self.change_propgrid)
 
@@ -479,64 +479,135 @@ class MyFrame(wx.Frame):
         return InputsDict
 
 
-    def on_search(self, event):
+    def Create_Propertygrid(self):
 
-        # Get key and build property grid
-        value = self.searchctrl.GetValue()
+        pg = self.propgrid
+        pg.Clear()
+        pg.AddPage("Page1")
 
-        #Look for value in Dict
-        try:
-            VarsDict = self.InputsDict[value]
-        except KeyError:
-            #print("Keyword ", value, "not found in ", self.InputsDict.keys())
-            return 
+        #Setup all possible options as pages
+        pages = {}
+        for Ik in self.InputsDict.keys():
 
-        try:
-            cleantext = VarsDict["HELP"].replace("#","").replace("!","").replace("--","").replace("\t","")
-            self.helptxt.SetValue(cleantext)
-            vars = VarsDict["vars"]
-        except KeyError:
-            print("InputDict entries should contain HELP and vars entries")
-            raise
+            #Look for value in Dict
+            try:
+                VarsDict = self.InputsDict[Ik]
+                vars = VarsDict["vars"]
+            except KeyError:
+                print("InputDict entries should contain vars entries")
+                return
+            print(Ik)
+            pg.Append( wxpg.PropertyCategory(Ik))
 
-        self.propgrid.Clear()
-        self.propgrid.AddPage( "Page" )
-
-        if isinstance(vars, dict):
             for k, var in vars.items():
                 try:
+                    #pg = pages[k]
                     #Should be in form of nested dictonaries
                     if isinstance(var, dict):
                         #A list of numbers corresponding to flags
                         if isinstance(var["numbers"][0], int):
-                            self.propgrid.Append( wxpg.EnumProperty(k, k, var["names"], var["numbers"], int(var["set"])) )
+                            pg.Append( wxpg.EnumProperty(k, k, var["names"], var["numbers"], int(var["set"])) )
                         #Integers such as number of unit cells
                         elif ("int" in var["numbers"][0]):
-                            self.propgrid.Append( wxpg.IntProperty(k, value=int(var["set"])) )
+                            pg.Append( wxpg.IntProperty(k, value=int(var["set"])) )
                         #Floats such as density of system
                         elif ("float" in var["numbers"][0]):
-                            self.propgrid.Append( wxpg.FloatProperty(k, value=float(var["set"])) )
+                            pg.Append( wxpg.FloatProperty(k, value=float(var["set"])) )
                         #Or a case with string based keywords 
                         #(so store a mapping to use enum list) 
                         elif isinstance(var["numbers"][0], str):
                             mapping = list(range(len(var["numbers"])))
                             print(k, var["numbers"], mapping, var["set"])
 
-                            self.propgrid.Append( wxpg.EnumProperty(k, k, var["numbers"], mapping,   int(var["set"])) )
+                            pg.Append( wxpg.EnumProperty(k, k, var["numbers"], mapping,   int(var["set"])) )
                         else:
                             raise KeyError("Dictonary format not known")
                         #print(n)
                     elif ".true." in var:
-                        self.propgrid.Append( wxpg.BoolProperty(k, value=True) )
+                        pg.Append( wxpg.BoolProperty(k, value=True) )
                     elif ".false." in var:
-                        self.propgrid.Append( wxpg.BoolProperty(k, value=False) )
+                        pg.Append( wxpg.BoolProperty(k, value=False) )
                     elif "." in var:
-                        self.propgrid.Append( wxpg.FloatProperty(k, value=float(var)) )
+                        pg.Append( wxpg.FloatProperty(k, value=float(var)) )
                     else: 
-                        self.propgrid.Append( wxpg.IntProperty(k, value=int(var)) )
+                        pg.Append( wxpg.IntProperty(k, value=int(var)) )
                 except ValueError:
-                    self.propgrid.Append( wxpg.StringProperty(k,value=str(var)) )
-                    raise
+                    pg.Append( wxpg.StringProperty(k,value=str(var)) )
+                    print("Value error", var)   
+                except wx._core.wxAssertionError:
+                    print("Trying to re add existing", var)
+
+        pg.CollapseAll()
+
+
+    def on_search(self, event):
+
+        # Get key and build property grid
+        value = self.searchctrl.GetValue()
+
+        if value == "":
+            return
+
+        #Look for value in Dict
+        try:
+            VarsDict = self.InputsDict[value]
+            cleantext = VarsDict["HELP"].replace("#","").replace("!","").replace("--","").replace("\t","")
+            self.helptxt.SetValue(cleantext)
+            vars = VarsDict["vars"]
+        except KeyError:
+            print("InputDict entries should contain HELP and vars entries, missing for", value)
+            raise
+
+        pg = self.propgrid
+        pg.CollapseAll()
+        pg.SelectProperty(value, focus=True)
+        pg.Expand(value)   
+        pg.EnsureVisible(value)
+
+        for k in vars.keys():
+            pg.EnsureVisible(k)
+
+        # pg = self.propgrid
+        # pg.Clear()
+        # pg.AddPage("Page1")
+        # pg.Append( wxpg.PropertyCategory(value))
+
+        # if isinstance(vars, dict):
+            # for k, var in vars.items():
+                # try:
+                    # #pg = pages[k]
+                    # #Should be in form of nested dictonaries
+                    # if isinstance(var, dict):
+                        # #A list of numbers corresponding to flags
+                        # if isinstance(var["numbers"][0], int):
+                            # pg.Append( wxpg.EnumProperty(k, k, var["names"], var["numbers"], int(var["set"])) )
+                        # #Integers such as number of unit cells
+                        # elif ("int" in var["numbers"][0]):
+                            # pg.Append( wxpg.IntProperty(k, value=int(var["set"])) )
+                        # #Floats such as density of system
+                        # elif ("float" in var["numbers"][0]):
+                            # pg.Append( wxpg.FloatProperty(k, value=float(var["set"])) )
+                        # #Or a case with string based keywords 
+                        # #(so store a mapping to use enum list) 
+                        # elif isinstance(var["numbers"][0], str):
+                            # mapping = list(range(len(var["numbers"])))
+                            # print(k, var["numbers"], mapping, var["set"])
+
+                            # pg.Append( wxpg.EnumProperty(k, k, var["numbers"], mapping,   int(var["set"])) )
+                        # else:
+                            # raise KeyError("Dictonary format not known")
+                        # #print(n)
+                    # elif ".true." in var:
+                        # pg.Append( wxpg.BoolProperty(k, value=True) )
+                    # elif ".false." in var:
+                        # pg.Append( wxpg.BoolProperty(k, value=False) )
+                    # elif "." in var:
+                        # pg.Append( wxpg.FloatProperty(k, value=float(var)) )
+                    # else: 
+                        # pg.Append( wxpg.IntProperty(k, value=int(var)) )
+                # except ValueError:
+                    # pg.Append( wxpg.StringProperty(k,value=str(var)) )
+                    # raise
 
     def change_propgrid(self, event):
         key = self.searchctrl.GetValue()
@@ -764,6 +835,8 @@ class MyFrame(wx.Frame):
                     self.InputsDict = self.Create_InputsDict()
                     #Create all details
                     self.populate_searchctrl()
+                    #Create propertygrid
+                    self.Create_Propertygrid()
 
             except IOError:
                 wx.LogError("Cannot open file '%s'." % fdir)
