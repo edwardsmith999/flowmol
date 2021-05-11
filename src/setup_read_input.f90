@@ -63,6 +63,9 @@ subroutine setup_read_input
 	! #########################################################################
 	! # Ignore tags in restart file and use location to set tags again
 	! # [1] 0 - Off
+	! # [1] 1 - On
+	! # Debug mode write all tags to files thermo_tags, teth_tags__, etc
+	! # [2] 0 - Off
 	! # [2] 1 - On
 	! # -----------------------------------------------------------------------
 	call locate(1,'RESET_TAGS_ON_RESTART',.false.,found_in_input)
@@ -91,6 +94,7 @@ subroutine setup_read_input
 	! #                  chain length and FENE potential parameters. 
 	! # [2] sparse_fene - connect monomers on a cubic lattice
 	! #                   separated by FENE equilibrium distance
+	! # [2] single_fene - A single fene chain
 	! # [2] fene_solution - fene chains in an explicit solvent
 	! # [2] concentric_cylinders - build concentric cylinders from an FCC lattice
 	! #                 and melt them between specular walls
@@ -105,8 +109,7 @@ subroutine setup_read_input
 	if (initial_config_flag .eq. 1) then
 		read(1,*) config_special_case
 	endif
-	select case (initial_config_flag)
-	case(0)
+	if (initial_config_flag .eq. 0) then
 	
 		potential_flag = 0
 		! #########################################################################
@@ -136,7 +139,7 @@ subroutine setup_read_input
 		read(1,*) initialnunits(2)		!y dimension split into number of cells
 		read(1,*) initialnunits(3)		!z dimension split into number of cells
 
-	case(1)	
+	elseif (initial_config_flag .eq. 1)	then
 
 		select case (trim(config_special_case))
 		case('sparse_fene')	
@@ -467,11 +470,11 @@ subroutine setup_read_input
 
 		end select
 
-	case(2)
+	elseif (initial_config_flag .eq. 2) then
 		call error_abort("ERROR in setup_read_input -- Generic input file read in is not developed yet")
-	case default
+	else
 		call error_abort("ERROR in setup_read_input -- Unrecognised initial_config_flag")
-	end select 
+	endif 
 
 	!Read in initial temperature
 	call locate(1,'INPUTTEMPERATURE',.true.)
@@ -1103,9 +1106,10 @@ subroutine setup_read_input
 	! # [1] 2 - Cluster Analysis On - for average mass bin interface (OBSOLETE)
 	! # [2] float - Cutoff length for cluster search
 	! # [3] int - Minimum number of neighbours for inclusion in cluster
-	! # [4] 0 - Write interface as an xyz file (for VMD) with all molecuels in cluster.xyz 
-	! # [4] 1 - Write interface as an obj file (for Blender, etc)
-	! # [4] 2 - Write interface as surface.grid, a simple ascii grid of center locations 
+	! # [4] 1 - Write interface as an xyz file (for VMD) with all molecuels in cluster.xyz 
+	! # [4] 2 - Write interface as an obj file (for Blender, etc)
+	! # [4] 3 - Write interface as surface.grid, a simple ascii grid of center locations 
+	! # [4] 4 - Write modes to ascii file 
 	! # [5] int - Resolution to write interface (Number of points in each direction)
 	! # ----------------------------------------------------------------------
 	call locate(1,'CLUSTER_ANALYSIS',.false.,found_in_input)
@@ -1207,7 +1211,7 @@ subroutine setup_read_input
                 !Check if interval in form of comma seperated list of inputs
                 read(1,'(a)',iostat=ios) str
                 backspace(1)
-                if(scan(str, ",").gt.0) then
+                if (scan(str, ",").gt.0) then
                     read(1,*,iostat=ios) vmd_intervals
                 !Otherwise, use Nvmd_interval_size to specify linearly space records
                 else
@@ -1323,7 +1327,7 @@ subroutine setup_read_input
 	call locate(1,'TEMPERATURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) temperature_outflag
-		if (temperature_outflag .ne. 0)	then
+		if (temperature_outflag .ne. 0) then
 			read(1,*) NTemp_ave
 			read(1,*,iostat=ios) peculiar_flag
 			if (ios .ne. 0) peculiar_flag = 0 !default to zero if value not found
@@ -1332,14 +1336,14 @@ subroutine setup_read_input
 	call locate(1,'ENERGY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) energy_outflag
-		if (energy_outflag .ne. 0)	then
+		if (energy_outflag .ne. 0) then
 			read(1,*) Nenergy_ave
 		endif
 	endif
 	call locate(1,'CENTRE_OF_MASS_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) centre_of_mass_outflag
-		if (centre_of_mass_outflag .ne. 0)	then
+		if (centre_of_mass_outflag .ne. 0) then
 			read(1,*) Ncom_ave
 		endif
 	endif
