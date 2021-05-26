@@ -7987,7 +7987,6 @@ contains
 
             endif
 
-
             !Only recheck external molecules of cluster every tplot timesteps
             if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 
@@ -8017,9 +8016,6 @@ contains
                 !Get surface in terms of modes
 				call ISR%fit_intrinsic_surface(points, tau, ns, pivots)
  				
-				!Write out surface modes to file
-				!call ISR_mdt%write_modes(iter)
-
 				!Save initial surface for debugging
 				!if (first_time_coeff) then
 					! allocate(coeffmdt(size(ISR%coeff,1)))
@@ -8091,6 +8087,9 @@ contains
     					call ISR%sample_surface(vertices)
                     endif
 					call write_grid(vertices)
+				elseif (CA_generate_xyz .eq. 4) then
+					!Write out surface modes to file
+					call ISR%write_modes(iter)
 				endif
 
 				!Get shift for intrinsic surface for each molecule
