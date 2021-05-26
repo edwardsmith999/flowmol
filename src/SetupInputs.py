@@ -104,6 +104,83 @@ class SetupInputs():
                     break
         return optional
 
+
+    def get_conditional(self, var, maxsteps=1000):
+
+        conditions = []; convariables = []
+        for l, item in enumerate(self.listout):
+            condition = None; convariable = []
+            if (item.find('if ') != -1 and item.lower().find(var.lower()) != -1):
+
+                #Look for comments and ignore
+                if (item.lstrip()[0] == "!"):
+                    continue
+
+                #print(var, item, item.find(var) != -1,  item.find('if') != -1)
+                if (item.find('ios') != -1):
+                    continue
+                # First get what condition is extracting
+                # between brackets "()" handling newline "&"
+                # assuming more than 10 is unlikely
+                condition = item
+                #print("condition = ", condition, var, item.find('if') != -1)
+                for i in range(1,10):
+                    if (self.listout[l+i].find('&') == -1):
+                        condition += self.listout[l+i]
+                    else:
+                        break
+                #Single space on "if (" followed by a ") then" at the line end 
+                #assumed, currently true and prevents
+                #issues with other brackets in conditionals
+                condition = condition.replace("&","").split("if (")[1]
+                if (item.find(') then') != -1):
+                    condition = condition.split(") then")[0]
+                else:
+                    condition = condition.split(")")[0]
+
+                #print("Conditional = ", condition)
+                nestif = 1
+                for i in range(1, maxsteps):
+                    line = self.listout[l+i]
+                    print(condition, nestif,  line)
+                    #Then look for a read statement
+                    if (line.find('read(') != -1):
+                        convariable.append(re.split('\*\\)|ios\\)',
+                                            line)[-1].strip(' ').split('\t')[0].split("!")[0].strip(" "))
+                    elif (line.find(' locate') != -1):                
+                        convariable.append(re.split(',',line)[1].strip("'"))
+
+                    #Handle if statements before end of main block
+                    if (line.find('if ') != -1 and line.find('then') != -1):
+                        nestif += 1
+                    elif (line.find('if ') != -1 and line.find('&') != -1):
+                        for n in range(1,10):
+                            fline = self.listout[l+i+n]
+                            print(fline,fline.find('&'),  fline.find('then'))
+                            if (fline.find('&') != -1):
+                                pass
+                            elif (fline.find('then') != -1):
+                                nestif += 1
+                                break
+                            #else:
+                            #    raise IOError("Runaway argument in SetupInputs get_conditional due to ampersand and if statements ")
+
+                    #Go until endif
+                    if (line.find('endif') != -1 or line.find('end if') != -1):
+                        nestif -= 1
+                        if (nestif == 0):
+                            break
+                    if (line.find('elseif') != -1 or line.find('else if') != -1):
+                        if (nestif == 1):
+                            break
+
+                #Only add them if they are non zero
+                if (condition != None and convariable != []):
+                    conditions.append(condition)
+                    convariables.append(convariable)
+
+        return conditions, convariables
+
     def get_helpstring(self, key):
         for n in range(len(self.listout)):
             if (self.listout[n].find(' locate') != -1):
@@ -144,6 +221,67 @@ class SetupInputs():
                 out.append([varnum, val, name])
         return out
 
+    def fortran_ifstatement(self, string, varcheck=None, varDict=None):
+        logical = None
+        if (".and." in string):
+            for s in string.split(".and."):
+                logical = logical and self.fortran_logical(s, varcheck, varDict)
+        elif (".or." in string):
+            for s in string.split(".or."):
+                logical = logical or self.fortran_logical(s, varcheck, varDict)
+        else:
+            logical = self.fortran_logical(string, varcheck, varDict)
+        return logical
+
+    def fortran_logical(self, string, varcheck=None, varDict=None):
+
+        import operator
+
+        if (varcheck != None and varDict != None):
+            raise IOError("Either varcheck or varDict needs to be supplied")
+
+        if (".eq." in string):
+            var, con = string.split(".eq.")
+            logicalop = operator.eq
+        elif (".ne." in string):
+            var, con = string.split(".ne.")
+            logicalop = operator.ne
+        elif (".gt." in string):
+            var, con = string.split(".gt.")
+            logicalop = operator.gt
+        elif (".ge." in string):
+            var, con = string.split(".ge.")
+            logicalop = operator.ge
+        elif (".lt." in string):
+            var, con = string.split(".lt.")
+            logicalop = operator.lt
+        elif (".le." in string):
+            var, con = string.split(".le.")
+            logicalop = operator.le
+        else:
+            logical = None
+            return logical
+
+        if (varcheck != None):
+            #Compare either integers or strings
+            try:
+                logical = logicalop(int(varcheck), int(con))
+            except ValueError:
+                logical = logicalop(varcheck, con)
+            print("fortran logical", var.strip(), logicalop, con, varcheck,  logical)
+        elif (varDict != None):
+            #Compare either integers or strings
+            try:
+                logical = logicalop(int(varDict[var.strip()]), int(con))
+            except ValueError:
+                logical = logicalop(str(varDict[var.strip()]).strip().lower(), 
+                                    con.strip().lower())
+            print("fortran logical", var.strip(), con, varDict[var.strip()], logical)
+        else:
+            raise IOError("varcheck or varDict needs to be supplied")
+
+        return logical
+
 if __name__ == "__main__":
     a = SetupInputs()
     b = a.get_keys()
@@ -154,15 +292,33 @@ if __name__ == "__main__":
 
     for key in b:
         try:
-            print(key,c[key],  a.get_optional(key))
             helpstr = a.get_helpstring(key)
             vars = a.variables_from_string(helpstr)
-            print(helpstr, vars)
+            print("Key = ", key, c[key],  a.get_optional(key))
+
+            #print(helpstr, vars)
         except KeyError:
             print("key ", key, " not found")
 
-        
-           
+    #Next plot the conditional dependence
+    print("\n\n\n\n\n")
+    for var in a.get_values():
+        b = a.get_conditional(var)
+        #if b[0]:
+        #print("Options = ", var)
+        for i, z in enumerate(zip(b[0], b[1])):
+                #if (z[1]  != []):
+            #print(i, z)
+
+            testDict = {}
+            s = z[0]
+            testDict[var] = 6
+            try:
+                print("Logical test", var, s, a.fortran_ifstatement(s, varDict=testDict), z[1])
+            except KeyError:
+                print("logical and key not matching", var, s)
+            except TypeError:
+                print("Not a flag", var, s)
 
 
 

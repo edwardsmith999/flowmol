@@ -12,6 +12,7 @@ import wx.lib.dialogs
 
 import numpy as np
 from itertools import product
+import argparse
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -26,10 +27,10 @@ from SetupInputs import SetupInputs
 
 # Code to read input file
 import sys
-sys.path.append("/home/es205/codes/python/SimWrapPy/")
+sys.path.append("/home/es205/codes/SimWrapPy/")
 import simwraplib as swl
 
-sys.path.insert(0, "/home/es205/codes/python/pyDataView/")
+sys.path.insert(0, "/home/es205/codes/pyDataView/")
 import postproclib as ppl
 import postproclib.visualiser as pplv
 
@@ -85,7 +86,10 @@ class CanvasPanel(wx.Panel):
         N = int(header.globalnp)
         r = np.fromfile(self.resultsdir + "/initial_dump_r",  dtype=np.float).reshape(N,3)
         #Limit plots to be fast
-        skip = int(N/1000.)
+        if (N > 2000):
+            skip = int(N/1000.)
+        else:
+            skip = 1
         r = r[::skip,:]
         try:
             if plottype == "tags":
@@ -108,9 +112,18 @@ class CanvasPanel(wx.Panel):
             elif plottype == "moltype":
                 moltype = np.fromfile(self.resultsdir + "/initial_dump_moltype",  dtype=np.int32)
                 if (self.ThreeD):
-                    self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=moltype[::skip], cmap=cm.RdYlBu_r)
+                    scatter = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=moltype[::skip], cmap=cm.RdYlBu_r)
                 else:
-                    self.axes.scatter(r[:,0], r[:,1], c=moltype[::skip], cmap=cm.RdYlBu_r)
+                    scatter = self.axes.scatter(r[:,0], r[:,1], c=moltype[::skip], cmap=cm.RdYlBu_r)
+
+                elems = scatter.legend_elements()
+                #molList = ["free", "fixed", "fixed_slide", "teth", "thermo", 
+                #            "teth_thermo", "teth_slide", "teth_thermo_slide"]
+                #mols = [int(t.replace('$\\mathdefault{','').replace('}$','')) for t in elems[1]]
+                #newelems = (elems[0], [molList[t] for t in mols])
+                legend = self.axes.legend(*elems)
+                self.axes.add_artist(legend)
+
             elif plottype == "v":
                 v = np.fromfile(self.resultsdir + "/initial_dump_v",  dtype=np.float).reshape(N,3)
                 vmag = np.sqrt(v[::skip,0]**2 + v[::skip,1]**2 + v[::skip,2]**2)
@@ -144,6 +157,30 @@ class CanvasPanel(wx.Panel):
 
         self.canvas.draw()
 
+    def wave_function(self, x, u):
+        """
+            Assumed x is normalised to -1 to +1 (e.g. x/Lx)
+        """
+
+        if (u >= 0):
+            return np.cos(2.0 * np.pi * u * x)
+        else:
+            return np.sin(2.0 * np.pi * np.abs(u) * x)
+
+
+    def intrnsic_surf(self, y, z):
+        if self.intrinsic:
+            #return np.sin(2.*np.pi*y)+np.cos(2.*np.pi*z)
+            elevation = 0.0
+            for i in range(self.u.shape[0]):
+                j = int(self.indx[i])-1
+                #print(i, j, self.u[i], self.v[i], self.modes[j], elevation)
+                elevation += (  self.modes[j]
+                             * self.wave_function(y, self.u[i])
+                             * self.wave_function(z, self.v[i]))
+            return elevation
+        else:
+            return 0.
 
     def draw_grid(self, draw):
 
@@ -153,6 +190,9 @@ class CanvasPanel(wx.Panel):
             except FileNotFoundError:
                 return
 
+
+            initialstep = int(header.initialstep)
+
             nx = int(header.gnbins1)
             ny = int(header.gnbins2)
             nz = int(header.gnbins3)
@@ -160,6 +200,17 @@ class CanvasPanel(wx.Panel):
             Lx = float(header.globaldomain1)
             Ly = float(header.globaldomain2)
             Lz = float(header.globaldomain3)
+
+            try:
+                data = np.genfromtxt(self.resultsdir + "/surfacemodes.{:07d}".format(initialstep))
+                self.u = data[:,0]
+                self.v = data[:,1]
+                self.indx = data[:,2]
+                self.modes = data[:,3]
+                self.intrinsic = True
+            except (FileNotFoundError, ValueError, OSError) as e:
+                self.modes=None
+                self.intrinsic = False
 
             x = np.linspace(-Lx/2.,Lx/2., nx+1)
             y = np.linspace(-Ly/2, Ly/2., ny+1)
@@ -181,17 +232,23 @@ class CanvasPanel(wx.Panel):
 
             self.grid = []
             # outside surface
-            self.grid.append(self.axes.plot_wireframe(x1, y11, z1, color='k', rstride=1, cstride=1, alpha=0.6))
+            self.grid.append(self.axes.plot_wireframe(x1+self.intrnsic_surf(y11/Ly, z1/Lz), 
+                              y11, z1, color='k', rstride=1, cstride=1, alpha=0.6))
             # inside surface
-            self.grid.append(self.axes.plot_wireframe(x1, y12, z1, color='k', rstride=1, cstride=1, alpha=0.6))
+            self.grid.append(self.axes.plot_wireframe(x1+self.intrnsic_surf(y12/Ly, z1/Lz), 
+                              y12, z1, color='k', rstride=1, cstride=1, alpha=0.6))
             # bottom surface
-            self.grid.append(self.axes.plot_wireframe(x2, y2, z21, color='k', rstride=1, cstride=1, alpha=0.6))
+            self.grid.append(self.axes.plot_wireframe(x2+self.intrnsic_surf(y2/Ly, z21/Lz), 
+                              y2, z21, color='k', rstride=1, cstride=1, alpha=0.6))
             # upper surface
-            self.grid.append(self.axes.plot_wireframe(x2, y2, z22, color='k', rstride=1, cstride=1, alpha=0.6))
+            self.grid.append(self.axes.plot_wireframe(x2+self.intrnsic_surf(y2/Ly, z22/Lz), 
+                              y2, z22, color='k', rstride=1, cstride=1, alpha=0.6))
             # left surface
-            self.grid.append(self.axes.plot_wireframe(x31, y3, z3, color='k', rstride=1, cstride=1, alpha=0.6))
+            self.grid.append(self.axes.plot_wireframe(x31+self.intrnsic_surf(y3/Ly, z3/Lz), 
+                              y3, z3, color='k', rstride=1, cstride=1, alpha=0.6))
             # right surface
-            self.grid.append(self.axes.plot_wireframe(x32, y3, z3, color='k', rstride=1, cstride=1, alpha=0.6))
+            self.grid.append(self.axes.plot_wireframe(x32+self.intrnsic_surf(y3/Ly, z3/Lz), 
+                              y3, z3, color='k', rstride=1, cstride=1, alpha=0.6))
 
             self.canvas.draw()
 
@@ -204,26 +261,25 @@ class CanvasPanel(wx.Panel):
                 self.canvas.draw()
             except AttributeError:
                 pass
-    
+
 
 class MyFrame(wx.Frame):
-    def __init__(self, *args, **kwds):
+    def __init__(self, parent=None, inputfilename=None, restartfilename=None,
+                 width=800, height=600, title="Flowmol Input"):
+
         # begin wxGlade: MyFrame.__init__
-        kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_FRAME_STYLE
-        wx.Frame.__init__(self, *args, **kwds)
-        self.width = 800
-        self.height = 600
+        wx.Frame.__init__(self, parent)
+        self.width = width
+        self.height = height
         self.SetSize((self.width, self.height))
-        self.SetTitle("Flowmol Input")
+        self.SetTitle(title)
 
         #Top menu
         self.InitUI()
-
         #Setup notebook pages
         self.notebook_1 = wx.Notebook(self, wx.ID_ANY)
         self.notebook_1_pane_1 = wx.Panel(self.notebook_1, wx.ID_ANY)
         self.notebook_1.AddPage(self.notebook_1_pane_1, "Setup")
-
 
         #Top sizer
         sizer_top = wx.BoxSizer(wx.HORIZONTAL)
@@ -248,7 +304,24 @@ class MyFrame(wx.Frame):
         self.notebook_1_pane_2 = pplv.MainPanel(self.notebook_1, "./", 
                                                 catch_noresults=False)
         self.notebook_1.AddPage(self.notebook_1_pane_2, "Results")
-    
+
+        if inputfilename:
+            self.inputfilename = os.path.abspath(inputfilename) 
+            print("inputfilename=", self.inputfilename)
+            self.read_filename(self.inputfilename)
+        else:
+            self.inputfilename = None
+
+        if restartfilename:
+            self.restartfilename = os.path.abspath(restartfilename)
+            print("restartfilename=", self.restartfilename)
+            self.read_restart(self.restartfilename)
+        else:
+            self.restartfilename = None
+
+        #Optional parameters
+        self.showhide_conditional = self.Editcondition.IsChecked()
+
 
         #Close handle
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -259,14 +332,30 @@ class MyFrame(wx.Frame):
         fileMenu = wx.Menu()
         open = fileMenu.Append(wx.ID_OPEN, '&Open\tCtrl+O')
         save = fileMenu.Append(wx.ID_SAVE, '&Save\tCtrl+S')
+        saveas = fileMenu.Append(wx.ID_SAVEAS, '&Save As...\tCtrl+Alt+S')
+        setinitial = fileMenu.Append(wx.ID_ANY, '&Set Initial state\tCtrl+shift+O')
         quit = fileMenu.Append(wx.ID_EXIT, '&Quit\tCtrl+Q')
 
         menubar.Append(fileMenu, '&File')
-        self.SetMenuBar(menubar)
-        
+
         self.Bind(wx.EVT_MENU, self.OnOpen, open)
-        self.Bind(wx.EVT_MENU, self.OnSaveAs, save)
+        self.Bind(wx.EVT_MENU, self.OnSave, save)
+        self.Bind(wx.EVT_MENU, self.OnSaveAs, saveas)
+        self.Bind(wx.EVT_MENU, self.OnSetInitial, setinitial)
         self.Bind(wx.EVT_MENU, self.OnQuit, quit)
+
+        EditMenu = wx.Menu()
+        self.Editcondition = EditMenu.AppendCheckItem(wx.ITEM_CHECK, 'Conditional On')
+        menubar.Append(EditMenu, '&Edit')
+        self.Bind(wx.EVT_MENU, self.OnConditional, self.Editcondition)
+
+        HelpMenu = wx.Menu()
+        about = HelpMenu.Append(wx.ID_ABOUT, '&About\tCtrl+A')
+        menubar.Append(HelpMenu, '&Help')
+
+        self.Bind(wx.EVT_MENU, self.About, about)
+
+        self.SetMenuBar(menubar)
 
 
     def create_input_panel(self):
@@ -334,6 +423,9 @@ class MyFrame(wx.Frame):
                                                  style=wxpg.PG_BOLD_MODIFIED|wxpg.PG_SPLITTER_AUTO_CENTER)
         sizer_props.Add(self.propgrid, 1, wx.EXPAND, 0)
         self.propgrid.Bind(wxpg.EVT_PG_CHANGED, self.change_propgrid)
+        #self.propgrid.Bind(wxpg.EVT_PG_CHANGING, self.on_select_child_of_category)
+        self.propgrid.Bind(wxpg.EVT_PG_ITEM_EXPANDED, self.on_click)
+
 
         self.window_props.SetSizer(sizer_props)
         self.window_help.SetSizer(sizer_help)
@@ -400,7 +492,7 @@ class MyFrame(wx.Frame):
         self.set = []; self.unset = []
         for k in self.choices:
             try:
-                set = self.InputFile.read_inputs(k)
+                set = self.InputFileMod.read_inputs(k)
             except AttributeError:
                 set = []
             if not set:
@@ -414,7 +506,8 @@ class MyFrame(wx.Frame):
                 else:
                     self.searchctrl.Append(k, ops)
 
-        out = self.searchctrl.AutoComplete(list(self.InputsDict.keys()))
+        self.autolist = list(self.InputsDict.keys())
+        out = self.searchctrl.AutoComplete(self.autolist)
     
 
     def Create_InputsDict(self):
@@ -437,11 +530,12 @@ class MyFrame(wx.Frame):
         fsetup = self.srcdir + "/setup_read_input.f90"
         if os.path.isfile(fsetup):
             #Code to get inputs from setup set parameters
-            FlowmolInputs = SetupInputs(fsetup='./setup_read_input.f90')
+            FlowmolInputs = SetupInputs(fsetup=fsetup)
             FlowmolInputDict = FlowmolInputs.get_items()
+            self.FlowmolInputs = FlowmolInputs
         else:
             raise FileNotFoundError("Error - setup_read_input.f90 not found " +
-                                    "in current directory, edit location in code")
+                                    "in current directory, edit fsetup in code")
 
         InputsDict = {}
         for key, item in FlowmolInputDict.items():
@@ -455,14 +549,17 @@ class MyFrame(wx.Frame):
 
             #Get values from input file
             try:
-                params = self.InputFile.read_inputs(key)
+                params = self.InputFileMod.read_inputs(key)
             except AttributeError:
                 params = []
 
+            #This logic builds up the dropdown lists
             if (len(EnumProperties) != 0):
                 EnumDict = {}
+                #Fill in all values
                 if (len(item) == len(params)):
                     EnumDict = {}
+                    #Get default values from existing input file
                     for i in range(len(item)):
                         try:
                             setval = int(params[i])
@@ -470,14 +567,16 @@ class MyFrame(wx.Frame):
                             try:
                                 setval = float(params[i])
                             except ValueError:
-                                setval = 0
+                                setval = params[i]
                         EnumDict[item[i]] = {"names":[], "numbers":[], "set":setval}
                 else:
+                    #Fill in as many values as the inputfile has
                     for i in range(len(item)):
                         if (i < len(params)):
                             EnumDict[item[i]] = {"names":[], "numbers":[], "set":params[i]}
                         else:
                             EnumDict[item[i]] = {"names":[], "numbers":[], "set":0}
+                #Put all values in EnumDict
                 for e in EnumProperties:
                     itemnum, val, name = e
                     try:
@@ -485,6 +584,10 @@ class MyFrame(wx.Frame):
                         EnumDict[item[itemnum-1]]["numbers"].append(val)
                     except IndexError:
                         print("IndexError", e)
+                    #if (params != [] and str(params[-1]) in str(val)):
+                    #    print(params[-1], val, itemnum, val, name)
+                    #    EnumDict[item[itemnum-1]]["set"] = val
+
                 InputsDict[key]["vars"] = EnumDict 
             else:
                 InputsDict[key]["vars"] = {}
@@ -493,6 +596,28 @@ class MyFrame(wx.Frame):
                         InputsDict[key]["vars"][item[i]] = params[i]
                     else:
                         InputsDict[key]["vars"][item[i]] = "0"
+
+
+
+        #Store additional names for each var to prevent nameclash
+        #and save conditionals
+        # included = []
+        # for Ik in InputsDict.keys():
+            # for kcheck, var in InputsDict[Ik]["vars"].items():
+
+                # if kcheck in included:
+                    # k = Ik + " " + kcheck
+                # else:
+                    # k = kcheck
+                # included.append(k) 
+
+                # #Save alias name for variables
+                # #InputsDict[Ik]["vars"][k] = InputsDict[Ik]["vars"][kcheck]
+
+                # conditions = self.FlowmolInputs.get_conditional(kcheck)
+                # if conditions[1] != []:
+                    # print("Setup conditionals=", Ik, kcheck, conditions)
+
 
         return InputsDict
 
@@ -503,8 +628,8 @@ class MyFrame(wx.Frame):
         pg.Clear()
         pg.AddPage("Page1")
 
-        #Setup all possible options as pages
-        pages = {}
+        #Setup all possible options as catagories
+        #included = []
         for Ik in self.InputsDict.keys():
 
             #Look for value in Dict
@@ -514,49 +639,103 @@ class MyFrame(wx.Frame):
             except KeyError:
                 print("InputDict entries should contain vars entries")
                 return
-            print(Ik)
             pg.Append( wxpg.PropertyCategory(Ik))
 
-            for k, var in vars.items():
+            for kcheck, var in vars.items():
+
+                #if kcheck in included:
+                k = Ik + " " + kcheck
+                #else:
+                #    k = kcheck
+                #included.append(k) 
+
+                #print("K and check = ", k, kcheck)
+
                 try:
-                    #pg = pages[k]
                     #Should be in form of nested dictonaries
                     if isinstance(var, dict):
+                        print(kcheck, var["numbers"])
                         #A list of numbers corresponding to flags
                         if isinstance(var["numbers"][0], int):
-                            pg.Append( wxpg.EnumProperty(k, k, var["names"], var["numbers"], int(var["set"])) )
+                            pg.Append( wxpg.EnumProperty(kcheck, k, var["names"], 
+                                           var["numbers"], int(var["set"])) )
                         #Integers such as number of unit cells
                         elif ("int" in var["numbers"][0]):
-                            pg.Append( wxpg.IntProperty(k, value=int(var["set"])) )
+                            pg.Append( wxpg.IntProperty(kcheck, k, value=int(var["set"])) )
                         #Floats such as density of system
                         elif ("float" in var["numbers"][0]):
-                            pg.Append( wxpg.FloatProperty(k, value=float(var["set"])) )
+                            pg.Append( wxpg.FloatProperty(kcheck, k, value=float(var["set"])) )
                         #Or a case with string based keywords 
                         #(so store a mapping to use enum list) 
                         elif isinstance(var["numbers"][0], str):
                             mapping = list(range(len(var["numbers"])))
-                            print(k, var["numbers"], mapping, var["set"])
+                            #Store the number if the current option if it exists
+                            if var["set"]:
+                                for i, s in enumerate(var["numbers"]):
+                                    found = False
+                                    if var["set"] in s:
+                                        var["set"] = i
+                                        found=True
+                                        break
+                            else:
+                                found=True
+                                var["set"] = 0
 
-                            pg.Append( wxpg.EnumProperty(k, k, var["numbers"], mapping,   int(var["set"])) )
+                            #The Enumerate list has associated numbers for set
+                            if not found:
+                                print("Variable ", var["set"], "not found in list for",  kcheck)
+                                var["set"] = 0
+                            propobj = wxpg.EnumProperty(kcheck, k, var["numbers"], 
+                                       mapping, int(var["set"]))
+                            propobj.mapping = mapping
+                            pg.Append(propobj)
                         else:
                             raise KeyError("Dictonary format not known")
                         #print(n)
                     elif ".true." in var:
-                        pg.Append( wxpg.BoolProperty(k, value=True) )
+                        pg.Append( wxpg.BoolProperty(kcheck, k, value=True) )
                     elif ".false." in var:
-                        pg.Append( wxpg.BoolProperty(k, value=False) )
+                        pg.Append( wxpg.BoolProperty(kcheck, k, value=False) )
                     elif "." in var:
-                        pg.Append( wxpg.FloatProperty(k, value=float(var)) )
+                        pg.Append( wxpg.FloatProperty(kcheck, k, value=float(var)) )
                     else: 
-                        pg.Append( wxpg.IntProperty(k, value=int(var)) )
+                        pg.Append( wxpg.IntProperty(kcheck, k, value=int(var)) )
                 except ValueError:
-                    pg.Append( wxpg.StringProperty(k,value=str(var)) )
-                    print("Value error", var)   
+                    pg.Append( wxpg.StringProperty(kcheck, k, value=str(var)) )
+                    print("Cannot determine type of ", Ik, k, var , "adding as string") 
                 except wx._core.wxAssertionError:
-                    print("Trying to re add existing", var)
+                    print("Trying to re add existing", Ik, k, var)
 
         pg.CollapseAll()
 
+
+    def on_click(self, event):
+
+        key = event.GetPropertyName()
+
+        #Look for value in Dict
+        try:
+            VarsDict = self.InputsDict[key]
+            cleantext = VarsDict["HELP"].replace("#","").replace("!","").replace("--","").replace("\t","")
+            self.helptxt.SetValue(cleantext)
+        except KeyError:
+            print("InputDict entries should contain HELP, missing for", value)
+            raise
+
+    # def on_select_child_of_category(self, event):
+
+        # prop = event.GetPropertyName()
+        # categoryObj = self.propgrid.GetPropertyCategory(prop)
+        # key = categoryObj.GetLabel()
+
+        # #Look for value in Dict
+        # try:
+            # VarsDict = self.InputsDict[key]
+            # cleantext = VarsDict["HELP"].replace("#","").replace("!","").replace("--","").replace("\t","")
+            # self.helptxt.SetValue(cleantext)
+        # except KeyError:
+            # print("InputDict entries should contain HELP, missing for", value)
+            # raise
 
     def on_search(self, event):
 
@@ -574,7 +753,8 @@ class MyFrame(wx.Frame):
             vars = VarsDict["vars"]
         except KeyError:
             print("InputDict entries should contain HELP and vars entries, missing for", value)
-            raise
+            return
+            #raise
 
         pg = self.propgrid
         pg.CollapseAll()
@@ -583,59 +763,31 @@ class MyFrame(wx.Frame):
         pg.EnsureVisible(value)
 
         for k in vars.keys():
-            pg.EnsureVisible(k)
-
-        # pg = self.propgrid
-        # pg.Clear()
-        # pg.AddPage("Page1")
-        # pg.Append( wxpg.PropertyCategory(value))
-
-        # if isinstance(vars, dict):
-            # for k, var in vars.items():
-                # try:
-                    # #pg = pages[k]
-                    # #Should be in form of nested dictonaries
-                    # if isinstance(var, dict):
-                        # #A list of numbers corresponding to flags
-                        # if isinstance(var["numbers"][0], int):
-                            # pg.Append( wxpg.EnumProperty(k, k, var["names"], var["numbers"], int(var["set"])) )
-                        # #Integers such as number of unit cells
-                        # elif ("int" in var["numbers"][0]):
-                            # pg.Append( wxpg.IntProperty(k, value=int(var["set"])) )
-                        # #Floats such as density of system
-                        # elif ("float" in var["numbers"][0]):
-                            # pg.Append( wxpg.FloatProperty(k, value=float(var["set"])) )
-                        # #Or a case with string based keywords 
-                        # #(so store a mapping to use enum list) 
-                        # elif isinstance(var["numbers"][0], str):
-                            # mapping = list(range(len(var["numbers"])))
-                            # print(k, var["numbers"], mapping, var["set"])
-
-                            # pg.Append( wxpg.EnumProperty(k, k, var["numbers"], mapping,   int(var["set"])) )
-                        # else:
-                            # raise KeyError("Dictonary format not known")
-                        # #print(n)
-                    # elif ".true." in var:
-                        # pg.Append( wxpg.BoolProperty(k, value=True) )
-                    # elif ".false." in var:
-                        # pg.Append( wxpg.BoolProperty(k, value=False) )
-                    # elif "." in var:
-                        # pg.Append( wxpg.FloatProperty(k, value=float(var)) )
-                    # else: 
-                        # pg.Append( wxpg.IntProperty(k, value=int(var)) )
-                # except ValueError:
-                    # pg.Append( wxpg.StringProperty(k,value=str(var)) )
-                    # raise
+            pg.EnsureVisible(value + " " + k)
 
     def change_propgrid(self, event):
-        key = self.searchctrl.GetValue()
-        prop = event.GetPropertyName()
+
+        propName = event.GetPropertyName()
         val = event.GetPropertyValue()
         PropObj = event.GetProperty()
+        categoryObj = self.propgrid.GetPropertyCategory(propName)
+        category = categoryObj.GetLabel()
+        #key = categoryObj.GetValueAsString(argFlags=0)
+        key = categoryObj.GetLabel()
+        #key = self.searchctrl.GetValue()
+        prop = propName.replace(category,"").replace(" ", "")
+
+        #print(prop, val, PropObj, key, categoryObj.GetValue(), categoryObj.GetName(), categoryObj.GetLabel(), propName)#, dir(categoryObj))
+
+        #print(categoryObj.GetName(), key, prop.replace(category,"").replace(" ", ""))
+
+        #if (key == ""):
+        #    return
+
         #print(event.GetSelection(), event.GetProperty())
         if (isinstance(self.InputsDict[key]["vars"][prop], dict)):
             self.InputsDict[key]["vars"][prop]["set"] = val
-            #print("Set value = ", val, PropObj.GetChoiceSelection(), PropObj.ValueToString(val))
+            #print("Set value = ", val, PropObj, PropObj.GetChoiceSelection(), PropObj.ValueToString(val))
         else:
             self.InputsDict[key]["vars"][prop] = str(val)
 
@@ -649,16 +801,138 @@ class MyFrame(wx.Frame):
             self.ChangeDict[key] = [None]*len(keys)
             changes = [None]*len(keys)
 
+        #Loop over all input variables and store any changes
         for i, k in enumerate(keys):
             if prop == k:
-                changes[i] = val
+                #If this was a list of strings, we stored a mapping attribute
+                #so we can use this to determine if we use string
+                try:
+                    PropObj.mapping
+                    changes[i] = PropObj.ValueToString(val)
+                except AttributeError:
+                    changes[i] = val
+                    #raise
                 #print("change_propgrid vars", i, k, val)
 
         self.ChangeDict[key] = changes
 
         print("Changes = ", key, changes, self.ChangeDict)
 
+        if self.showhide_conditional:
+            self.Apply_conditional(key, prop, val)
+
+        # #Get conditional arguments and hide property grid as apropriate
+        # conditions = self.FlowmolInputs.get_conditional(prop)
+
+        # #Could use val from event.GetPropertyValue() here
+        # try:
+            # setval = self.InputsDict[key]["vars"][int(prop)]["set"]
+        # except ValueError:
+            # try:
+                # setval = self.InputsDict[key]["vars"][prop]["set"]
+            # except TypeError:
+                # setval = self.InputsDict[key]["vars"][prop]
+
+        # #Conditions are stored as 
+        # # [[condition1, condition2, ... ], [dependent1, dependent2, ...]]
+        # for i, c in enumerate(conditions[0]):
+            # hideprops = conditions[1][i]
+            # check = self.FlowmolInputs.fortran_ifstatement(c, varcheck=setval) 
+            # print("Conditions=", prop, c, setval, check, hideprops)
+
+            # if (check):
+                # for hp in hideprops:
+                    # print("showing ", hp)
+
+                    # self.propgrid.HideProperty(hp, hide=False)
+                    # if (hp.isupper()):
+                        # self.autolist.append(hp)
+                # out = self.searchctrl.AutoComplete(self.autolist)
+            # else:
+                # for hp in hideprops:
+                    # print("hiding ", hp)
+
+                    # self.propgrid.HideProperty(hp, hide=True)
+                    # try:
+                        # if (hp.isupper()):
+                            # self.autolist.remove(hp)
+                    # except ValueError:
+                        # pass
+                # out = self.searchctrl.AutoComplete(self.autolist)
+
+
+        #Proof of concept for conditional hiding of catagories
+        # hideprops = ["FIXDISTBOTTOM", "FIXDISTTOP", "TETHEREDDISTTOP", 
+                     # "TETHEREDDISTBOTTOM", "TETHERCOEFFICIENTS", "SLIDEDISTBOTTOM", 
+                     # "SLIDEDISTTOP", "THERMSTATBOTTOM", "THERMSTATTOP"]
+        # if (prop == "ensemble" and val == 6):
+            # self.propgrid.HideProperty("dynamically_update_tags", hide=False)
+            # for hp in hideprops:
+                # self.propgrid.HideProperty(hp, hide=False)
+                # self.autolist.append(hp)
+            # out = self.searchctrl.AutoComplete(self.autolist)
+        # else:
+            # self.propgrid.HideProperty("dynamically_update_tags", hide=True)
+            # for hp in hideprops:
+                # self.propgrid.HideProperty(hp, hide=True)
+                # try:
+                    # self.autolist.remove(hp)
+                # except ValueError:
+                    # pass
+            # out = self.searchctrl.AutoComplete(self.autolist)
+
         return
+
+
+    def Apply_conditional(self, key, prop, val):
+
+        #Get conditional arguments and hide property grid as apropriate
+        conditions = self.FlowmolInputs.get_conditional(prop)
+
+        setval = val
+        # #Could use val from event.GetPropertyValue() here
+        # try:
+            # setval = self.InputsDict[key]["vars"][int(prop)]["set"]
+        # except ValueError:
+            # try:
+                # setval = self.InputsDict[key]["vars"][prop]["set"]
+            # except TypeError:
+                # setval = self.InputsDict[key]["vars"][prop]
+
+        #Conditions are stored as 
+        # [[condition1, condition2, ... ], [dependent1, dependent2, ...]]
+        for i, c in enumerate(conditions[0]):
+            hideprops = conditions[1][i]
+            check = self.FlowmolInputs.fortran_ifstatement(c, varcheck=setval) 
+            print("Conditions=", key, prop, c, setval, check, hideprops)
+            currentkey = key
+            if (check):
+                for hp in hideprops:
+                    if (hp.isupper()):
+                        print("showing ", hp)
+                        self.propgrid.HideProperty(hp, hide=False)
+                        self.autolist.append(hp)
+                        currentkey = hp
+                    else:
+                        print("showing ", currentkey+" "+hp)
+                        self.propgrid.HideProperty(currentkey + " " + hp, hide=False)
+                out = self.searchctrl.AutoComplete(self.autolist)
+            else:
+                for hp in hideprops:
+                    if (hp.isupper()):
+                        print("hiding ", hp)
+                        self.propgrid.HideProperty(hp, hide=True)
+                        currentkey = hp
+                        #To avoid removing already removed keys
+                        try:
+                            self.autolist.remove(hp)
+                        except ValueError:
+                            pass
+                    else:
+                        print("hiding ", currentkey+" "+hp)
+                        self.propgrid.HideProperty(currentkey + " " + hp, hide=True)
+
+                out = self.searchctrl.AutoComplete(self.autolist)
 
     def run_btn(self, event): 
 
@@ -736,12 +1010,20 @@ class MyFrame(wx.Frame):
             inputfile = inputfile.split("/")[-1]
             basedir = self.inputfilename.replace(inputfile,"")
 
-        #print(inputfile)
+        restartfile = self.restartfilename
+        if restartfile and self.srcdir in restartfile:
+            pathtorestart = restartfile.replace(self.srcdir,'')
+            restartfile = restartfile.split("/")[-1]
+            checkbasedir = self.restartfilename.replace(restartfile,"")
+            assert(checkbasedir == basedir)
+
+        print("Restart file =", self.restartfilename, " inputfile = ",  self.inputfilename)
 
         self.run = swl.MDRun(self.srcdir, basedir, self.srcdir + "/" + self.tmpdir,
                   "parallel_md.exe", 
                   inputfile, "setup.out",
                   inputchanges=changes, finishargs = {},
+                  restartfile = restartfile,
                   dryrun=False, minimalcopy=True)                
 
         self.run.setup()
@@ -838,46 +1120,119 @@ class MyFrame(wx.Frame):
                 return     # the user changed their mind
 
             # Proceed loading the file chosen by the user
-            fdir = fileDialog.GetPath()
-            self.inputfilename = fdir
-            try:
-                with open(fdir, 'r') as file:
-                    #Destroy current panel if existing
-                    #try:
-                    #    self.panel_1.destroy()
-                    #except AttributeError:
-                    #    print("Creating new panel")
-                    #Load new input file
-                    self.InputFile = swl.KeywordInputMod(fdir)
-                    #Create dictonary of inputs from flowmol setup_read_inputs
-                    self.InputsDict = self.Create_InputsDict()
-                    #Create all details
-                    self.populate_searchctrl()
-                    #Create propertygrid
-                    self.Create_Propertygrid()
+            inputfilename = fileDialog.GetPath()
+            self.read_filename(inputfilename)
 
-            except IOError:
-                wx.LogError("Cannot open file '%s'." % fdir)
+
+    def read_filename(self, inputfilename):
+        self.inputfilename = inputfilename
+        print("Opening filename=", self.inputfilename)
+        try:
+            with open(inputfilename, 'r') as file:
+                #Load new input file
+                self.InputFileMod = swl.KeywordInputMod(inputfilename)
+                #Create dictonary of inputs from flowmol setup_read_inputs
+                self.InputsDict = self.Create_InputsDict()
+                #Create all details
+                self.populate_searchctrl()
+                #Create propertygrid
+                self.Create_Propertygrid()
+
+        except IOError:
+            wx.LogError("Cannot open file '%s'." % inputfilename)
+
+
+    def OnSetInitial(self, event):
+        # otherwise ask the user what new file to open
+        with wx.FileDialog(self, "Open Flowmol restart/initial state file", 
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return     # the user changed their mind
+            restartfilename = fileDialog.GetPath()
+            self.read_restart(restartfilename)
+
+
+    def read_restart(self, restartfilename):
+        self.restartfilename = restartfilename
+        print("read_restart not implemented yet")
+
+
+    def OnSave(self, event, filename=False):
+
+        """
+            Saving applied the changes to the 
+        """
+
+        if (filename):
+            self.inputfilename = filename
+            self.InputFileMod = swl.KeywordInputMod(filename)
+
+        try:
+            for key, values in self.ChangeDict.items():
+                print("Dryrun in OnSave - saving to ", self.inputfilename, "keys=", key, "values=",values)
+                self.InputFileMod.replace_input(key, values)
+
+            #Clear history of changes
+            self.ChangeDict = {}
+        except AttributeError:
+            print("No changes to save")
+            pass
 
     def OnSaveAs(self, event):
 
-        with wx.FileDialog(self, "Save Flowmol input file", wildcard="in files (*.in)|*.in",
-                           style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
+        try:
+            defaultfile = self.inputfilename
+            currentfile  = self.inputfilename
+        except AttributeError:
+            wx.LogError("Inputfile not opened, must edit existing file and save." + 
+                        " Open default.in if you're not sure where to start.")
+            return
+            #defaultfile = ""
+            #currentfile = None
+
+        print("default file = ", defaultfile) 
+
+        with wx.FileDialog(self, "Save Flowmol input file", defaultFile=defaultfile,
+                       wildcard="in files (*.in)|*.in",
+                       style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
 
             # the user changed their mind
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return    
 
             # save the current contents in the file
-            fdir = fileDialog.GetPath()
+            filename = fileDialog.GetPath()
+            print("copying filename = ", currentfile,  " to ", filename)
+
+            #Save as, create a copy of the directory with new name and apply changes
+            shutil.copy(currentfile, filename)
+
+            #Apply changes to filename
             try:
-                with open(fdir, 'w') as file:
-                    self.doSaveData(file)
+                self.OnSave(event, filename)
             except IOError:
-                wx.LogError("Cannot save current data in file '%s'." % fdir)
+                wx.LogError("Cannot save current data in file '%s'." % filename)
+
+    def OnConditional(self, event):
+        self.showhide_conditional = self.Editcondition.IsChecked()
+        if (not self.showhide_conditional):
+            #This whole code should be as simple as 
+            #for hp in self.propgrid.GetIterator()
+            #but I assume wxPython hasn't got his
+            pgit = self.propgrid.GetIterator()
+            maxprops = 10000
+            for i in range(maxprops):
+                propObj = pgit.GetProperty()
+                hp = propObj.GetName()
+                pgit.Next()
+                if pgit.AtEnd():
+                    break 
+                #print(i, hp, pgit.AtEnd())
+                self.propgrid.HideProperty(hp, hide=False)
 
     def onRadioBox(self, e): 
-        print(self.radio_box_1.GetStringSelection(),' is clicked from Radio Box')
+        #print(self.radio_box_1.GetStringSelection(),' is clicked from Radio Box')
         self.plotype = self.radio_box_1.GetStringSelection()
         self.plotpanel.draw(self.plotype)
 
@@ -903,7 +1258,7 @@ class MyFrame(wx.Frame):
     def About(self, event):
         from platform import platform
         myos = platform()
-        aboutInfo = wx.AboutDialogInfo()
+        aboutInfo = wx.adv.AboutDialogInfo()
         aboutInfo.SetName("Flowmol")
         aboutInfo.SetVersion("1.0")
         aboutInfo.SetDescription("Flowmol," \
@@ -913,108 +1268,35 @@ class MyFrame(wx.Frame):
         aboutInfo.AddDeveloper("Edward Smith")
         aboutInfo.AddDocWriter("Edward Smith")
         aboutInfo.SetWebSite('https://www.edwardsmith.co.uk')
-        wx.AboutBox(aboutInfo)
+        wx.adv.AboutBox(aboutInfo)
 
-
-class MyApp(wx.App):
-    def OnInit(self):
-        self.frame = MyFrame(None, wx.ID_ANY, "")
-        self.SetTopWindow(self.frame)
-        self.frame.Show()
-        return True
 
 #import wx.lib.inspection
 
 if __name__ == "__main__":
-    app = MyApp(0)
+
+    #Keyword arguments
+    parser = argparse.ArgumentParser(
+                           description="""
+                           Flowmol MD code""",
+                           parents=[argparse.ArgumentParser(add_help=False)])
+    parser.add_argument('-i', '--input', dest='inputfilename', 
+                        help='Input file name', 
+                        default=None)
+    parser.add_argument('-r', '--restart', dest='restartfilename', 
+                        help='Restart file name', 
+                        default=None)
+    args = vars(parser.parse_args())
+    app = wx.App()
+
+    print(args["inputfilename"])
+
+    frame = MyFrame(None, inputfilename=args["inputfilename"], 
+                          restartfilename=args["restartfilename"])
+    app.SetTopWindow(frame)
+    frame.Show()
+
     #Use wxPython debugging tool
     #wx.lib.inspection.InspectionTool().Show()
     app.MainLoop()
-
-
-
-    # def create_panel(self):
-        # self.panel_1 = wx.Panel(self, wx.ID_ANY)
-        # self.sizer_1 = wx.BoxSizer(wx.VERTICAL)
-
-        # self.sizer_2 = wx.FlexGridSizer(1, 3, 0, 0)
-        # self.sizer_1.Add(self.sizer_2, 1, wx.ALL | wx.EXPAND, 0)
-
-
-        # #########################################
-        # # Search control for top level keywords #
-        # #########################################
-        # self.choices = list(self.InputsDict.keys())
-        # self.searchctrl = BitmapComboBox(self.panel_1,
-                              # size=wx.DefaultSize,  
-                              # choices=[],
-                              # style= wx.TE_PROCESS_ENTER)# | wx.CB_SORT)
-
-        # #Images for optional and compulsory
-        # req = wx.Image('Required.png').ConvertToBitmap()
-        # ops = wx.Image('Optional.png').ConvertToBitmap()
-
-        # #Order by if they have values
-        # self.ChangeDict = {}
-        # self.set = []; self.unset = []
-        # for k in self.choices:
-            # try:
-                # set = self.InputFile.read_inputs(k)
-            # except AttributeError:
-                # set = []
-            # if not set:
-                # self.unset.append(k)
-            # else:
-                # self.set.append(k)
-        # for s in [self.set, self.unset]:
-            # for k in s:
-                # if (self.InputsDict[k]["Optional"]):
-                    # self.searchctrl.Append(k, req)
-                # else:
-                    # self.searchctrl.Append(k, ops)
-
-        # self.sizer_2.Add(self.searchctrl, 0, 0, 0)
-        # out = self.searchctrl.AutoComplete(list(self.InputsDict.keys()))
-
-        # self.searchctrl.Bind(wx.EVT_TEXT_ENTER, self.on_search)
-        # self.searchctrl.Bind(wx.EVT_COMBOBOX, self.on_search)
-        # self.searchctrl.Bind(wx.EVT_TEXT, self.on_search)
-        # self.searchctrl.Bind(wx.EVT_COMBOBOX_CLOSEUP, self.on_search)
-
-        # self.searchctrl.SetFocus()
-
-        # #########################################
-        # #             Run Button                #
-        # #########################################
-        # self.runbtn = wx.Button(self.panel_1, wx.ID_ANY, "Run")
-        # self.sizer_2.Add(self.runbtn, 0, 0, 0)
-        # self.runbtn.Bind(wx.EVT_BUTTON, self.run_btn)
-
-        # #########################################
-        # #             Help panel                #
-        # #########################################
-        # self.helptxt = wx.TextCtrl(self.panel_1, style=wx.TE_MULTILINE | wx.TE_READONLY, size=(800, 400))
-        # self.helptxt.SetValue("Help Text \n\n\n\n\n\n\n")
-        # self.sizer_1.Add(self.helptxt, 0, wx.EXPAND, 0)
-
-        # #########################################
-        # #           Property Grid               #
-        # #########################################
-        # self.propgrid = wxpg.PropertyGridManager(self.panel_1, wx.ID_ANY,
-                        # style=wxpg.PG_SPLITTER_AUTO_CENTER)
-        # self.sizer_1.Add(self.propgrid, 1, wx.EXPAND, 0)
-
-        # self.propgrid.Bind(wxpg.EVT_PG_CHANGED, self.change_propgrid)
-        # self.panel_1.SetSizer(self.sizer_1)
-
-        # self.Layout()
-        # self.Refresh()
-        # self.Update()
-        # self.panel_1.Layout()
-        # self.panel_1.Refresh()
-        # self.panel_1.Update()
-        # #self.Layout()
-        # #self.Refresh()
-        # #self.SetSize((self.width, self.height))
-        # #self.Update()
 
