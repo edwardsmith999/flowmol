@@ -61,21 +61,76 @@ subroutine setup_read_input
 	endif
 
 	! #########################################################################
-	! # Ignore tags in restart file and use location to set tags again
-	! # [1] 0 - Off
-	! # [1] 1 - On
-	! # Debug mode write all tags to files thermo_tags, teth_tags__, etc
-	! # [2] 0 - Off
-	! # [2] 1 - On
+	! # Number density of the particles in the system:
+	! # [1] float - Density (float)
 	! # -----------------------------------------------------------------------
-	call locate(1,'RESET_TAGS_ON_RESTART',.false.,found_in_input)
+	call locate(1,'DENSITY',.true.)
+	read(1,*) density
+
+	! #########################################################################
+	! # Cut-off distance for particle interaction.
+	! # Longer gives a slower calculation, notable values inclue:
+	! # WCA cutofff is 2^(1/6) = 1.12246204830937
+	! # Typical value is 2.5
+	! # For surface tension which matches experiements ~4.5
+	! # [1] float - Cutoff distance (float)
+	! # -----------------------------------------------------------------------
+	call locate(1,'RCUTOFF',.true.)
+	read(1,*) rcutoff
+
+	! #########################################################################
+	! # Number of unit cells in the x,y,z directions.
+	! # For initialunitsize "a" (1 cell size)
+	! #  __________
+	! #	|  o     o |
+	! #	|     o    |  a/2 (distance between molcules)	
+	! #	|  o     o |
+	! #	|__________|
+	! #
+	! #   [1] int - number of FCC units in x
+	! #   [2] int - number of FCC units in y 
+	! #   [3] int - number of FCC units in z   
+	! # -----------------------------------------------------------------------
+	call locate(1,'INITIALNUNITS',.true.)
+	read(1,*) initialnunits(1)		!x dimension split into number of cells
+	read(1,*) initialnunits(2)		!y dimension split into number of cells
+	read(1,*) initialnunits(3)		!z dimension split into number of cells
+
+	! #########################################################################
+	! # Initial temperature to use for the random molecule velocities picked
+	! # from a Maxwell Boltzmann distribution:
+	! # [1] float - Temperature (float)
+	! # -----------------------------------------------------------------------
+	call locate(1,'INPUTTEMPERATURE',.true.)
+	read(1,*) inputtemperature
+
+	! #########################################################################
+	! # Thermostat target temperature (if not specified, uses input temperature)
+	! # Can be specified as multiple arguments if using top/bottom walls
+	! # where first argument is then bottom wall and second top
+	! # [1] float - Temperature (float)
+	! # [2] float - Temperature of top wall (float) 
+	! # -----------------------------------------------------------------------	
+	call locate(1,'THERMOSTATTEMPERATURE',.false.,found_in_input)
 	if (found_in_input) then
-        read(1,*) reset_tags_on_restart
-        !Optional argument to check tags are setup correctly
-        read(1,*,iostat=ios) debug_tags
-		if (ios .ne. 0) debug_tags = .false.
+        nthermo = 0
+        do n = 1,1000
+            read(1,*,iostat=ios) temp(n)
+		    if (ios .ne. 0) then
+                exit
+            else
+                nthermo = nthermo + 1
+            endif
+        enddo
+        if (nthermo .lt. 1) then
+            call error_abort( "Error -- specify at least one value for THERMOSTATTEMPERATURE")
+        endif
+        allocate(thermostattemperature(nthermo))
+        thermostattemperature = temp(1:nthermo)
     else
-        reset_tags_on_restart = 0
+        nthermo = 1
+        allocate(thermostattemperature(nthermo))
+        thermostattemperature = inputtemperature
     endif
 
 
@@ -96,6 +151,15 @@ subroutine setup_read_input
 	! #                   separated by FENE equilibrium distance
 	! # [2] single_fene - A single fene chain
 	! # [2] fene_solution - fene chains in an explicit solvent
+	! # [2] droplet2D - A cylindrical droplet on a surface
+	! # [2] droplet3D - A sherical droplet on a surface
+	! # [2] 2phase - A two phase coexisitence
+	! # [2] 2phase_LJ - A two phase coexisitence using Lennard Jones
+	! # [2] bubble - A bubble in a liquid
+	! # [2] film - A solid with a liquid film and gas region above
+	! # [2] polymer_brush - A solid with polymer chains attached
+	! # [2] 2phase_surfactant_solution - A fluid with SAFT gamma Mie surfactants
+	! # [2] 2phase_surfactant_atsurface - A fluid with SAFT gamma Mie surfactants at surface
 	! # [2] concentric_cylinders - build concentric cylinders from an FCC lattice
 	! #                 and melt them between specular walls
 	! # [2] fill_cylinders - tether concentric cylinders from previous simulation
@@ -106,40 +170,12 @@ subroutine setup_read_input
 	! # -----------------------------------------------------------------------
 	call locate(1,'INITIAL_CONFIG_FLAG',.true.)
 	read(1,*) initial_config_flag
-	if (initial_config_flag .eq. 1) then
-		read(1,*) config_special_case
-	endif
 	if (initial_config_flag .eq. 0) then
-	
-		potential_flag = 0
-		! #########################################################################
-		! # Number density of the particles in the system:
-		! # [1] float - Density (float)
-		! # -----------------------------------------------------------------------
-		call locate(1,'DENSITY',.true.)
-		read(1,*) density
-		! #########################################################################
-		! # Cut-off distance for particle interaction.
-		! # Longer gives a slower calculation, notable values inclue:
-		! # WCA cutofff is 2^(1/6) = 1.12246204830937
-		! # Typical value is 2.5
-		! # For surface tension which matches experiements ~4.5
-		! # [1] float - Cutoff distance (float)
-		! # -----------------------------------------------------------------------
-		call locate(1,'RCUTOFF',.true.)
-		read(1,*) rcutoff
-		! #########################################################################
-		! # Number of unit cells in the x,y,z directions, formatted:
-		! #   [1] int - number of FCC units in x
-		! #   [2] int - number of FCC units in y 
-		! #   [3] int - number of FCC units in z   
-		! # -----------------------------------------------------------------------
-		call locate(1,'INITIALNUNITS',.true.)
-		read(1,*) initialnunits(1)		!x dimension split into number of cells
-		read(1,*) initialnunits(2)		!y dimension split into number of cells
-		read(1,*) initialnunits(3)		!z dimension split into number of cells
+			potential_flag = 0
+	endif
+	if (initial_config_flag .eq. 1)	then
 
-	elseif (initial_config_flag .eq. 1)	then
+		read(1,*) config_special_case
 
 		select case (trim(config_special_case))
 		case('sparse_fene')	
@@ -147,10 +183,24 @@ subroutine setup_read_input
 			potential_flag = 1	
 			rcutoff = 2.d0**(1.d0/6.d0)
 
+			! #########################################################################
+			! # Sparse FENE special case info: designed for cases where the density
+			! # is lower than the density at which the average separation between
+			! # monomers on an FCC lattice is greater than the FENE maximum bond 
+			! # elongation.
+			! #
+			! #	- number of LJ beads for each polymer chain (nmonomers)
+			! #	- spring constant, k_c
+			! #	- maximum spring elongation
+			! #   - domain length in x
+			! #   - domain length in y
+			! #   - domain length in z
+			! #   - nchains
+			! # -----------------------------------------------------------------------
 			call locate(1,'SPARSE_FENE',.true.)
 			read(1,*) nmonomers
 			read(1,*) k_c
-			read(1,*) R_0
+			read(1,*) r_0
 			read(1,*) globaldomain(1)
 			read(1,*) globaldomain(2)
 			read(1,*) globaldomain(3)
@@ -163,10 +213,21 @@ subroutine setup_read_input
 			potential_flag = 1	
 			rcutoff = 2.d0**(1.d0/6.d0)
 
+			! #########################################################################
+			! # Dense FENE special case information
+			! #
+			! #	- number of LJ beads for each polymer chain (nmonomers)
+			! #	- spring constant, k_c
+			! #	- maximum spring elongation
+			! #   - monomer density
+			! #   - FCC (4 monomer) units in x
+			! #   - FCC (4 monomer) units in y
+			! #   - FCC (4 monomer) units in z
+			! # -----------------------------------------------------------------------
 			call locate(1,'DENSE_FENE',.true.)
 			read(1,*) nmonomers
 			read(1,*) k_c
-			read(1,*) R_0
+			read(1,*) r_0
 			read(1,*) density
 			read(1,*) initialnunits(1)
 			read(1,*) initialnunits(2)
@@ -177,18 +238,31 @@ subroutine setup_read_input
             potential_flag = 1
             rcutoff = 2.d0**(1.d0/6.d0)
 
-			call locate(1,'INITIALNUNITS',.true.)
-			read(1,*) initialnunits(1)
-			read(1,*) initialnunits(2)
-			read(1,*) initialnunits(3)	
-
+			! #########################################################################
+			! # FENE_fill special case information
+			! #
+			! #	- number of LJ beads for each polymer chain (nmonomers)
+			! #	- spring constant, k_c
+			! #	- maximum spring elongation
+			! #   - monomer density
+			! #   - target concentration
+			! # -----------------------------------------------------------------------
             call locate(1,'FENE_SOLUTION',.true.)
 			read(1,*) nmonomers
 			read(1,*) k_c
-			read(1,*) R_0
+			read(1,*) r_0
 			read(1,*) density
             read(1,*) targetconc
 
+			! #########################################################################
+			! # Solvent information:
+			! #	- flag
+			! #		> 0 - All bead interactions equal (plus FENE) 
+			! #		> 1 - Solvent of variable quality (Soddemann)
+			! #	- solvent energy parameter eps_pp (polymer-polymer)
+			! #	- solvent energy parameter eps_ps (polymer-solvent)
+			! #	- solvent energy parameter eps_ss (solvent-solvent)
+			! # -----------------------------------------------------------------------
 			call locate(1,'SOLVENT_INFO',.true.)
 			read(1,*) solvent_flag
 			select case(solvent_flag)
@@ -205,8 +279,6 @@ subroutine setup_read_input
 
 			potential_flag = 0
 
-			call locate(1,'DENSITY',.true.)
-			read(1,*) density
 			! #########################################################################
 			! # Number density of the untethered or liquid particles in the system
 			! # Use with solid_liquid config flag
@@ -214,32 +286,26 @@ subroutine setup_read_input
 			! # -----------------------------------------------------------------------
 			call locate(1,'LIQUIDDENSITY',.true.)
 			read(1,*) liquid_density
-			call locate(1,'RCUTOFF',.true.)
-			read(1,*) rcutoff
-			call locate(1,'INITIALNUNITS',.true.)
-			read(1,*) initialnunits(1)		!x dimension split into number of cells
-			read(1,*) initialnunits(2)		!y dimension split into number of cells
-			read(1,*) initialnunits(3)		!z dimension split into number of cells
 
 		case('droplet2D','droplet3D','2phase','2phase_LJ', 'bubble', 'film')
 
-			!call locate(1,'POTENTIAL_FLAG',.true.)
-            !read(1,*) potential_flag
-
             potential_flag = 0
 
-			call locate(1,'DENSITY',.true.)
-			read(1,*) density
+			! #########################################################################
+			! # Number density of the liquid part of the domain obtained by	
+			! # randomly removing particles until target density is obtained:
+			! # [1] float - Density (float)
+			! # -----------------------------------------------------------------------
 			call locate(1,'LIQUIDDENSITY',.true.) 
     	    read(1,*) liquid_density
+
+			! #########################################################################
+			! # Number density of the gas part of the domain obtained by	
+			! # randomly removing particles until target density is obtained:
+			! # [1] float - Density (float)
+			! # -----------------------------------------------------------------------
 			call locate(1,'GASDENSITY',.true.) 
     	    read(1,*) gas_density
-			call locate(1,'RCUTOFF',.true.)
-			read(1,*) rcutoff
-			call locate(1,'INITIALNUNITS',.true.)
-			read(1,*) initialnunits(1)		!x dimension split into number of cells
-			read(1,*) initialnunits(2)		!y dimension split into number of cells
-			read(1,*) initialnunits(3)		!z dimension split into number of cells
 
             if (config_special_case .eq. 'droplet2D') then
 			    call locate(1,'DROPHEIGHT',.false.,found_in_input)
@@ -260,16 +326,24 @@ subroutine setup_read_input
                     Twophase_from_file = .true.
                     read(1,*) FEA_filename
                 endif
-			    call locate(1,'LIQUID_FRACTION',.false.,found_in_input) 
-	            if (found_in_input) then
-                    read(1,*) lg_fract
-                    read(1,*,iostat=ios) lg_direction
-                    if (ios .ne. 0) then
-                        print*, "Default direction not given for LIQUID_FRACTION, assuming x"
-                        lg_direction = 1
-                    endif
-                endif
             endif
+
+			! #########################################################################
+			! # Fraction of the domain filled with liquid (from 0 to 1)
+			! # [1] float - Fraction (float)
+			! # [2] 1 - x direction
+			! # [2] 2 - y direction
+			! # [2] 3 - z direction
+			! # -----------------------------------------------------------------------
+			call locate(1,'LIQUID_FRACTION',.false.,found_in_input) 
+			if (found_in_input) then
+				read(1,*) lg_fract
+				read(1,*,iostat=ios) lg_direction
+				if (ios .ne. 0) then
+					print*, "Default direction not given for LIQUID_FRACTION, assuming x"
+					lg_direction = 1
+				endif
+			endif
 
             if (config_special_case .eq. "bubble") then
                 call locate(1,'BUBBLERADIUS',.true.)
@@ -304,11 +378,6 @@ subroutine setup_read_input
                      //"fill_cylinders needs ENSEMBLE=6 for tag_move_system")
             endif
 
-			call locate(1,'DENSITY',.true.)
-			read(1,*) density
-			call locate(1,'RCUTOFF',.true.)
-			read(1,*) rcutoff
-
 		case('fill_cylinders_fene_solution')
 
 			potential_flag = 1	    
@@ -321,7 +390,7 @@ subroutine setup_read_input
             call locate(1,'FENE_SOLUTION',.true.)
 			read(1,*) nmonomers
 			read(1,*) k_c
-			read(1,*) R_0
+			read(1,*) r_0
 			read(1,*) density
             read(1,*) targetconc
 
@@ -332,8 +401,6 @@ subroutine setup_read_input
                 //"rotate_cylinders needs ENSEMBLE=6 for tag_move_system")
             endif
 
-			!call locate(1,'RCUTOFF',.true.)
-			!read(1,*) rcutoff
 			call locate(1,'POTENTIAL_FLAG',.true.)
             read(1,*) potential_flag
 
@@ -354,7 +421,7 @@ subroutine setup_read_input
             call locate(1,'POLYMER_BRUSH',.true.)
             read(1,*) nmonomers
             read(1,*) k_c
-            read(1,*) R_0
+            read(1,*) r_0
             read(1,*) grafting_density
 
 			call locate(1,'SOLVENT_INFO',.true.)
@@ -369,14 +436,8 @@ subroutine setup_read_input
 				call error_abort('Unrecognised solvent flag!')
 			end select
 
-            call locate(1,'DENSITY',.true.)
-            read(1,*) density
             call locate(1,'LIQUIDDENSITY',.true.)
             read(1,*) liquid_density
-            call locate(1,'INITIALNUNITS',.true.)
-            read(1,*) initialnunits(1)		!x dimension split into number of cells
-            read(1,*) initialnunits(2)		!y dimension split into number of cells
-            read(1,*) initialnunits(3)		!z dimension split into number of cells
 
 		case('2phase_surfactant_solution', '2phase_surfactant_atsurface')
 
@@ -387,11 +448,6 @@ subroutine setup_read_input
 !                print*, "Specifying MIE_POTENTIAL in the input is depreciated"
 !                print*, "Must be specified as a parameter in the module file"
 !                print*, "as this results in a 30% efficiency difference"
-!                read(1,*) Mie_potential_input        
-!                if (Mie_potential_input .ne. Mie_potential) then
-!                    print*, "Parameter for MIE_POTENTIAL is ", Mie_potential
-!                    call error_abort("Error -- Change MIE_POTENTIAL in code and rebuild")
-!                endif
                 read(1,*,iostat=ios) default_moltype
 				if (ios .ne. 0) then
                     print*, "Default moltype not given -- assuming Argon (=1)"
@@ -417,8 +473,6 @@ subroutine setup_read_input
                 call error_abort("Error in setup_read_input -- special case "&
                 //"2phase_surfactant_solution needs ENSEMBLE=6 for tag_move_system")
             endif
-			call locate(1,'RCUTOFF',.true.)
-			read(1,*) rcutoff
 
             call locate(1,'2PHASE_SURFACTANT',.true.)
 			read(1,*) nmonomers
@@ -434,8 +488,6 @@ subroutine setup_read_input
                 //"targetconc must be between 0.0 and 1.0")
             end if
 
-            call locate(1,'DENSITY',.true.)
-            read(1,*) density
             call locate(1,'LIQUIDDENSITY',.true.)
             read(1,*) liquid_density
             if (density .lt. liquid_density) then
@@ -448,11 +500,6 @@ subroutine setup_read_input
                 call error_abort("ERROR in 2PHASE_SURFACTANT input -- "&
                 //"LIQUIDDENSITY must be greater than GASDENSITY")
             end if
-
-            call locate(1,'INITIALNUNITS',.true.)
-            read(1,*) initialnunits(1)		!x dimension split into number of cells
-            read(1,*) initialnunits(2)		!y dimension split into number of cells
-            read(1,*) initialnunits(3)		!z dimension split into number of cells
 
 		    call locate(1,'LIQUID_FRACTION',.false.,found_in_input) 
             if (found_in_input) then
@@ -470,38 +517,13 @@ subroutine setup_read_input
 
 		end select
 
-	elseif (initial_config_flag .eq. 2) then
+	endif
+	if (initial_config_flag .eq. 2) then
 		call error_abort("ERROR in setup_read_input -- Generic input file read in is not developed yet")
 	else
 		call error_abort("ERROR in setup_read_input -- Unrecognised initial_config_flag")
 	endif 
 
-	!Read in initial temperature
-	call locate(1,'INPUTTEMPERATURE',.true.)
-	read(1,*) inputtemperature
-
-	!Read in thermostat temperature
-	call locate(1,'THERMOSTATTEMPERATURE',.false.,found_in_input)
-	if (found_in_input) then
-        nthermo = 0
-        do n = 1,1000
-            read(1,*,iostat=ios) temp(n)
-		    if (ios .ne. 0) then
-                exit
-            else
-                nthermo = nthermo + 1
-            endif
-        enddo
-        if (nthermo .lt. 1) then
-            call error_abort( "Error -- specify at least one value for THERMOSTATTEMPERATURE")
-        endif
-        allocate(thermostattemperature(nthermo))
-        thermostattemperature = temp(1:nthermo)
-    else
-        nthermo = 1
-        allocate(thermostattemperature(nthermo))
-        thermostattemperature = inputtemperature
-    endif
 
 	!Setup velocity initial condition
 	call locate(1,'INITIAL_VELOCITY_FLAG',.false.,found_in_input) 
@@ -518,7 +540,7 @@ subroutine setup_read_input
 		   		read(1,*) COUETTE_t
 		   		read(1,*) COUETTE_Re
 		   		read(1,*) COUETTE_Uwall
-		   		read(1,*) COUETTE_H
+		   		read(1,*) COUETTE_h
 		   		read(1,*) COUETTE_slidewall
 		   		read(1,*) COUETTE_ixyz
 	   		case('constant')
@@ -543,10 +565,12 @@ subroutine setup_read_input
 
 	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
 	read(1,*) force_list
-	if (force_list .ne. 3 .and. ensemble .eq. 4) &
+	if (force_list .ne. 3 .and. ensemble .eq. 4) then
 		call error_abort("Half int neighbour list only is compatible with pwa_terms_pwaNH thermostat")
-	if (force_list .ne. 3 .and. ensemble .eq. 5) & 
+	endif
+	if (force_list .ne. 3 .and. ensemble .eq. 5) then 
 		call error_abort("Half int neighbour list only is compatible with DPD thermostat")
+	endif
 
 	!Input computational co-efficients
 	call locate(1,'NSTEPS',.true.)
@@ -575,10 +599,19 @@ subroutine setup_read_input
     else
     	read(1,*,iostat=ios) delta_rneighbr(3)
         if (ios .ne. 0) then
-            call error_abort("Error -- DELTA_RNEIGHBR should be one value or three for x, y & z")
+            call error_abort("Error -- DELTA_RNEIGHBR should be one value or three for x, y and z")
         endif
     endif
 
+	! #########################################################################
+	! # rebuild CRITERIA flag
+	! # [1] 0 - Use Rapaport delta_rneighbr to calculate rebuild with vmax each step
+	! # [1] 1 - Use fixed frequency specifed on next line
+	! # [1] 2 - Use exact displacement of all molecules to decide rebuild
+	! # [1] 3 - mixed - don't rebuild before frequency specifed on next line then
+	! #			 use delta_rneighbr to calculate rebuild (NOT AVAILABLE YET!!)
+	! # [2] int - fixed_rebuild requency
+	! # -----------------------------------------------------------------------
 	call locate(1,'REBUILD_CRITERIA',.false.,found_in_input) 
 	if (found_in_input) then
 		read(1,*) rebuild_criteria   	!Choice of rebuild criteria
@@ -589,6 +622,12 @@ subroutine setup_read_input
 		rebuild_criteria = 0			!Rebuild uses neighbourcell
 	endif
 
+	! #########################################################################
+	! # Frequency (in seconds) to write rescue snapshot 'final_state' file, e.g. 5min=3600 or 6 hours=21600 (which is the defaul)
+	! # [1] int - Seconds 
+	! # [2] .false. - Save individual "interim_state" snapshots
+	! # [2] .true. - Overwrite "final_state" (default)
+! -----------------------------------------------------------------------
 	call locate(1,'RESCUE_SNAPSHOT_FREQ',.false.,found_in_input) 
 	if (found_in_input) then
 		read(1,*) rescue_snapshot_freq 	!Rescue snapshot frequency in seconds
@@ -677,7 +716,6 @@ subroutine setup_read_input
 
 	endif
 
-
 	!Flags to determine if periodic boundaries are on or shearing Lees Edwards
 	call locate(1,'PERIODIC',.true.)
 	read(1,*) periodic(1)
@@ -688,7 +726,38 @@ subroutine setup_read_input
 
 		bforce_flag(:) = 0
 		bforce_dxyz(:) = 0.0
-	
+
+		! #########################################################################
+		! # Boundary force flag and distances, formatted:
+		! #   bforce_flag(1) (x direction, bottom)           (integer)
+		! #   bforce_flag(2) (x direction, top)              (integer)
+		! #   bforce_flag(3) (y direction, bottom)           (integer)
+		! #   bforce_flag(4) (y direction, top)              (integer)
+		! #   bforce_flag(5) (z direction, bottom)           (integer)
+		! #   bforce_flag(6) (z direction, top)              (integer)
+		! #   bforce_dxyz(1) (x distance, bottom)            (real)
+		! #   bforce_dxyz(2) (x distance, top)               (real)
+		! #   bforce_dxyz(3) (y distance, bottom)            (real)
+		! #   bforce_dxyz(4) (y distance, top)               (real)
+		! #   bforce_dxyz(5) (z distance, bottom)            (real)
+		! #   bforce_dxyz(6) (z distance, top)               (real)
+		! #
+		! # If periodic boundaries in x, y or z directions are turned off, the
+		! # option to apply a boundary force to keep molecules within the domain
+		! # is provided via the bforce flag. Choose from the following in each
+		! # direction:
+		! #
+		! #    0 = off 
+		! #    1 = O'Connell & Thompson     1995  (Phys. Rev. E 52, 5792)
+		! #    2 = Nie, Chen, E & Robbins   2003  (JFM 500 pp. 55-64)
+		! #    3 = Flekkøy, Wagner & Feder  2000  (Europhys. Lett. 52 3, p271)
+		! #    4 = boundary force pdf input file ./bforce.input 
+		! #
+		! # bforce_dxyz defines the distance from each edge of the domain beyond 
+		! # which any particle will no longer feel the effect of the boundary 
+		! # force. Low values correspond to hard walls, while larger values will
+		! # make the boundaries softer.
+		! # -----------------------------------------------------------------------
 		call locate(1,'BFORCE',.false.,found_in_input)
 		if (found_in_input) then
 
@@ -748,66 +817,108 @@ subroutine setup_read_input
 
 		end if
 
+		! #########################################################################
+		! # Open boundary flags, formatted:
+		! #   open_boundary(1) (x direction, bottom)           (integer)
+		! #   open_boundary(2) (x direction, top)              (integer)
+		! #   open_boundary(3) (y direction, bottom)           (integer)
+		! #   open_boundary(4) (y direction, top)              (integer)
+		! #   open_boundary(5) (z direction, bottom)           (integer)
+		! #   open_boundary(6) (z direction, top)              (integer)
+		! #
+		! # If periodic boundaries in x, y or z directions are turned off, the
+		! # option to catch molecules leaving the domain is provided via the 
+		! # open_boundary flag. Choose from the following in each
+		! # direction:
+		! #
+		! #    0 = off 
+		! #    1 = on 
+		! # 
+		! # Molecules due to be sent to MPI_PROC_NULL across the open boundary are 
+		! # caught and counted in the messenger. This number can then be used to
+		! # reinsert the same number of molecules after rebuild.
+		! # -----------------------------------------------------------------------
+		open_boundary(:) = 0
+		call locate(1,'OPEN_BOUNDARY',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) open_boundary(1) 
+			read(1,*) open_boundary(2) 
+			read(1,*) open_boundary(3) 
+			read(1,*) open_boundary(4) 
+			read(1,*) open_boundary(5) 
+			read(1,*) open_boundary(6)
+		end if
+
+
+		error = .false.
+		do ixyz=1,3
+			if (periodic(ixyz).eq.1) then
+				if (open_boundary(2*ixyz - 1).ne.0) then
+					print'(a,i6,a,i6,a)',  'Open boundary ',  2*ixyz - 1, ' is on but periodic Boundary ', ixyz, ' is also stil on '
+					error = .true.
+				endif
+				if (open_boundary(2*ixyz).ne.0) then
+					print'(a,i6,a,i6,a)',  'Open boundary ',  2*ixyz , ' is on but periodic Boundary ', ixyz, ' is also stil on '
+					error = .true.
+				endif
+			endif
+		enddo
+		if (error) call error_abort("ERROR - Periodic Boundaries must be turned off for OPEN_BOUNDARY to be on ")
+
+		call locate(1,'MEASURE_BFORCE_PDF',.false.,found_in_input) 
+		if (found_in_input) then
+			read(1,*) bforce_pdf_measure
+			if (bforce_pdf_measure .ne. 0 .and. any(open_boundary.ne.0)) then
+				call error_abort('Cannot measure the PDF of the boundary '//&
+				'force if any boundaries are open or forced. Aborting.') 
+			end if
+			read(1,*) bforce_pdf_nsubcells
+			read(1,*) bforce_pdf_nbins
+			read(1,*) bforce_pdf_min
+			read(1,*) bforce_pdf_max
+			read(1,*) bforce_pdf_Nave
+		else
+			bforce_pdf_measure = 0 
+		endif
+
 	end if
 
-    open_boundary(:) = 0
-    call locate(1,'OPEN_BOUNDARY',.false.,found_in_input)
-    if (found_in_input) then
-        read(1,*) open_boundary(1) 
-        read(1,*) open_boundary(2) 
-        read(1,*) open_boundary(3) 
-        read(1,*) open_boundary(4) 
-        read(1,*) open_boundary(5) 
-        read(1,*) open_boundary(6)
-    end if
 
-	call locate(1,'MEASURE_BFORCE_PDF',.false.,found_in_input) 
-	if (found_in_input) then
-        read(1,*) bforce_pdf_measure
-        if (bforce_pdf_measure .ne. 0 .and. any(open_boundary.ne.0)) then
-            call error_abort('Cannot measure the PDF of the boundary '//&
-            'force if any boundaries are open or forced. Aborting.') 
-        end if
-        read(1,*) bforce_pdf_nsubcells
-        read(1,*) bforce_pdf_nbins
-        read(1,*) bforce_pdf_min
-        read(1,*) bforce_pdf_max
-        read(1,*) bforce_pdf_Nave
-	else
-        bforce_pdf_measure = 0 
-	endif
 
-    error = .false.
-    do ixyz=1,3
-        if (periodic(ixyz).eq.1) then
-            if (open_boundary(2*ixyz - 1).ne.0) then
-                print'(a,i6,a,i6,a)',  'Open boundary ',  2*ixyz - 1, ' is on but periodic Boundary ', ixyz, ' is also stil on '
-                error = .true.
-            endif
-            if (open_boundary(2*ixyz).ne.0) then
-                print'(a,i6,a,i6,a)',  'Open boundary ',  2*ixyz , ' is on but periodic Boundary ', ixyz, ' is also stil on '
-                error = .true.
-            endif
-        endif
-    enddo
-    if (error) call error_abort("ERROR - Periodic Boundaries must be turned off for OPEN_BOUNDARY to be on ")
-
-	!Apply force to region in space
+	! #########################################################################
+	! # Apply external force to region of space
+	! # 0 - off
+	! # 1 - apply to all molecules, requires
+	! # 		- F_ext direction x=1,y=2,z=3
+	! #		- F_ext magnitude
+	! # 2 - apply only to specified region
+	! # 		- F_ext direction x=1,y=2,z=3
+	! #		- F_ext magnitude
+	! #		- xmin - minimum x coordinate in global system 
+	! #		- xmax - maximum x coordinate in global system 
+	! #		- ymin - minimum y coordinate in global system 
+	! #		- ymax - maximum y coordinate in global system 
+	! #		- zmin - minimum z coordinate in global system 
+	! #		- zmax - maximum z coordinate in global system 
+	! #		NOTE : min/max of globaldomain and specified extent is used
+	! # 			   so simply specifiy large numbers if you want
+	! #			   region to extend to edge of globaldomain
+	! # -----------------------------------------------------------------------
 	call locate(1,'EXTERNAL_FORCE',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) external_force_flag
-		if (external_force_flag .eq. 1) then
+		if (external_force_flag .ge. 1) then
 			read(1,*) F_ext_ixyz
 			read(1,*) F_ext
-		elseif (external_force_flag .eq. 2) then
-			read(1,*) F_ext_ixyz
-			read(1,*) F_ext
-			read(1,*) F_ext_limits(1)
-			read(1,*) F_ext_limits(2)
-			read(1,*) F_ext_limits(3)
-			read(1,*) F_ext_limits(4)
-			read(1,*) F_ext_limits(5)
-			read(1,*) F_ext_limits(6)
+
+			if (external_force_flag .eq. 2) then
+				read(1,*) F_ext_limits(1)
+				read(1,*) F_ext_limits(2)
+				read(1,*) F_ext_limits(3)
+				read(1,*) F_ext_limits(4)
+				read(1,*) F_ext_limits(5)
+				read(1,*) F_ext_limits(6)
+			endif
         else
             external_force_flag = 0
             F_ext_ixyz = 1
@@ -834,11 +945,33 @@ subroutine setup_read_input
 		read(1,*) le_sd
 		read(1,*) le_i0
 		read(1,*) define_shear_as
-		if (define_shear_as.eq.0) read(1,*) le_sv
-		if (define_shear_as.eq.1) read(1,*) le_sr
+		if (define_shear_as.eq.0) then
+			read(1,*) le_sv
+		endif
+		if (define_shear_as.eq.1) then
+			read(1,*) le_sr
+		endif
 		if (define_shear_as.gt.1) call error_abort( 'Poorly defined shear in input file')
 	endif
 
+
+	! #########################################################################
+	! # Ignore tags in restart file and use location to set tags again
+	! # [1] 0 - Off
+	! # [1] 1 - On
+	! # Debug mode write all tags to files thermo_tags, teth_tags__, etc
+	! # [2] 0 - Off
+	! # [2] 1 - On
+	! # -----------------------------------------------------------------------
+	call locate(1,'RESET_TAGS_ON_RESTART',.false.,found_in_input)
+	if (found_in_input) then
+        read(1,*) reset_tags_on_restart
+        !Optional argument to check tags are setup correctly
+        read(1,*,iostat=ios) debug_tags
+		if (ios .ne. 0) debug_tags = .false.
+    else
+        reset_tags_on_restart = 0
+    endif
 
 	!-------------------------------------
 	!Flag to determine molecular tags
@@ -865,238 +998,248 @@ subroutine setup_read_input
 	!Setup regions to remove molecules (used for some boundary forces)
     emptydistbottom = 0.d0; emptydisttop = 0.d0
 
-	! ########################################################################
-	! # Velocity of sliding molecules in wall
-	! # [1] float - x component of velocity of wall molecules
-	! # [2] float - y component of velocity of wall molecules
-	! # [3] float - z component of velocity of wall molecules
-	! # ----------------------------------------------------------------------
-	call locate(1,'WALLSLIDEV',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) wallslidev(1)
-		read(1,*) wallslidev(2)
-		read(1,*) wallslidev(3)
+	if (ensemble .eq. 6) then
+		! ########################################################################
+		! # Velocity of sliding molecules in wall
+		! # [1] float - x component of velocity of wall molecules
+		! # [2] float - y component of velocity of wall molecules
+		! # [3] float - z component of velocity of wall molecules
+		! # ----------------------------------------------------------------------
+		call locate(1,'WALLSLIDEV',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) wallslidev(1)
+			read(1,*) wallslidev(2)
+			read(1,*) wallslidev(3)
+		endif
+
+		! ########################################################################
+		! # Distance from domain bottom to Fix molecules, i.e. force v=0 
+		! # unless sliding
+		! # [1] float - distance from x bottom
+		! # [2] float - distance from y bottom
+		! # [3] float - distance from z bottom
+		! # ----------------------------------------------------------------------
+		call locate(1,'FIXDISTBOTTOM',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) fixdistbottom(1)
+			read(1,*) fixdistbottom(2)
+			read(1,*) fixdistbottom(3)
+		endif
+		! ########################################################################
+		! # Distance from domain top to Fix molecules, i.e. force v=0 
+		! # unless sliding
+		! # [1] float - distance from x top
+		! # [2] float - distance from y top
+		! # [3] float - distance from z top
+		call locate(1,'FIXDISTTOP',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) fixdisttop(1)
+			read(1,*) fixdisttop(2)
+			read(1,*) fixdisttop(3)
+		endif
+		! ########################################################################
+		! # Distance from domain bottom to apply sliding velocity to molecules 
+		! # where applied velocity v=WALLSLIDEV	
+		! # [1] float - distance from x bottom
+		! # [2] float - distance from y bottom
+		! # [3] float - distance from z bottom
+		! # ----------------------------------------------------------------------
+		call locate(1,'SLIDEDISTBOTTOM',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) slidedistbottom(1)
+			read(1,*) slidedistbottom(2)
+			read(1,*) slidedistbottom(3)
+		endif
+		! ########################################################################
+		! # Distance from domain top to apply sliding velocity to molecules 
+		! # where applied velocity v=WALLSLIDEV	
+		! # [1] float - distance from x top
+		! # [2] float - distance from y top
+		! # [3] float - distance from z top
+		! # ----------------------------------------------------------------------
+		call locate(1,'SLIDEDISTTOP',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) slidedisttop(1)
+			read(1,*) slidedisttop(2)
+			read(1,*) slidedisttop(3)
+		endif
+		! ########################################################################
+		! # Distance from domain bottom to tethered molecules using spring like
+		! # restoring forces
+		! # [1] float - distance from x top
+		! # [2] float - distance from y top
+		! # [3] float - distance from z top
+		! # ----------------------------------------------------------------------
+		call locate(1,'TETHEREDDISTBOTTOM',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) tethereddistbottom(1)
+			read(1,*) tethereddistbottom(2)
+			read(1,*) tethereddistbottom(3)
+		endif
+		! ########################################################################
+		! # Distance from domain top to tethered molecules using spring like
+		! # restoring forces
+		! # [1] float - distance from x top
+		! # [2] float - distance from y top
+		! # [3] float - distance from z top
+		! # ----------------------------------------------------------------------
+		call locate(1,'TETHEREDDISTTOP',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) tethereddisttop(1)
+			read(1,*) tethereddisttop(2)
+			read(1,*) tethereddisttop(3)
+		endif
+			
+		if (max(maxval(tethereddistbottom),maxval(tethereddisttop)).gt.0.d0) then
+			tether_flag = 1
+		else
+			tether_flag = 0
+		end if
+
+		! #######################################################################
+		! # Specifiy cooefficients of potential equation 
+		! # phi= - k2*rio^2 - k4*rio^4 - k6*rio^6 in format
+		! #  [1] float - k2
+		! #  [2] float - k4
+		! #  [3] float - k6
+		! #
+		! # Possible known combinations include:
+		! #
+		! # a)	Petravich and Harrowell (2006) J. Chem. Phys.124, 014103. 
+		! # 		with constants  ( k2 = 0, k4 = 5,000, k6 = 5,000,000)
+		! # b)	B. D. Todd, Peter J. Daivis, and Denis J. Evans (1995) 
+		! #		Phys. Rev. E. 52, 5 with constants  (k2 = 28.575, k4 = 0, k6 = 0)
+		! # c)  S. Y. Liem, D. Brown, and J. H. R. Clarke (1992) 
+		! #		Phys. Rev. A. 45, 6 with constants  (k2 = 36.0,   k4 = 0, k6 = 0)
+		! # Default Force constants (k2 = 0, k4 = 5,000, k6 = 5,000,000)  
+		! # from Petravich and Harrowell (2006) J. Chem. Phys.124, 014103.
+		! # ---------------------------------------------------------------------
+		call locate(1,'TETHERCOEFFICIENTS',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) teth_k2
+			read(1,*) teth_k4
+			read(1,*) teth_k6
+		else
+			!Define default strength of tethering potential
+			! phi = - k2*rio^2 - k4*rio^4 - k6*rio^6
+			!Default Force constants (k2 = 0, k4 = 5,000, k6 = 5,000,000)  
+			!from Petravich and Harrowell (2006) J. Chem. Phys.124, 014103.
+			teth_k2=0.d0
+			teth_k4=5000.d0
+			teth_k6=5000000.d0
+		endif
+
+		! ########################################################################
+		! # Apply wall texture - note must be used with tag move system
+		! # and replaces all tethered wall specifications with a texture
+		! # Different options have different meaning for parameters, for
+		! # example 
+		! # post, notch and roughness/fractal use texture_intensity
+		! # to set depth of features
+		! # Converging diverging nozzle:
+		! # texture_intensity - size of throat
+		! # Opt1 - fraction of domain for outlet region
+		! # Opt2 - fraction of domain for diverging nozzle
+		! # Opt3 - Set outlet region to still have wall
+		! # [1] 1 - posts
+		! # [1] 2 - random spikes using sines/cosines
+		! # [1] 3 - converging - diverging channel
+		! # [1] 4 - fractal roughness
+		! # [1] 5 - triangular notch
+		! # [2] float - texture intensity
+		! # [3] 0 - Thermostat applied to distance THERMSTATTOP and THERMSTATBOTTOM
+		! # [3] 1 - Thermostat whole wall following texture
+		! # [3] 2 - Slide whole wall including texture with WALLSLIDEV
+		! # [4] float - wall texture parameter 1
+		! # [5] float - wall texture parameter 2
+		! # [6] float - wall texture parameter 3
+		! # ----------------------------------------------------------------------
+		call locate(1,'WALL_TEXTURE',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) texture_type
+			read(1,*,iostat=ios) texture_intensity
+			if (ios .ne. 0) then
+				texture_intensity = 0.5d0
+			endif
+			read(1,*,iostat=ios) texture_therm
+			if (ios .ne. 0) then
+				texture_therm = 0
+			endif
+			read(1,*,iostat=ios) tex_opt1
+			if (ios .ne. 0) then
+				tex_opt1 = -666.d0
+			endif
+			read(1,*,iostat=ios) tex_opt2
+			if (ios .ne. 0) then
+				tex_opt2 = -666.d0
+			endif
+			read(1,*,iostat=ios) tex_opt3
+			if (ios .ne. 0) then
+				tex_opt3 = -666.d0
+			endif
+		else
+			texture_type = 0
+		endif
+		! ########################################################################
+		! # Distance from domain bottom to apply thermostat 
+		! # [1] float - distance from x top
+		! # [2] float - distance from y top
+		! # [3] float - distance from z top
+		! # ----------------------------------------------------------------------
+		call locate(1,'THERMSTATBOTTOM',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) thermstatbottom(1)
+			read(1,*) thermstatbottom(2)
+			read(1,*) thermstatbottom(3)
+		endif
+		! ########################################################################
+		! # Distance from domain top to apply thermostat 
+		! # [1] float - distance from x top
+		! # [2] float - distance from y top
+		! # [3] float - distance from z top
+		! # ----------------------------------------------------------------------
+		call locate(1,'THERMSTATTOP',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) thermstattop(1)
+			read(1,*) thermstattop(2)
+			read(1,*) thermstattop(3)
+		endif
+		! ########################################################################
+		! # Distance from domain top to remove particles
+		! # leaving a buffer region which prevents molecules escaping if tethered
+		! # or to strip out outer wall molecules to save computer time
+		! # [1] float - distance from x top
+		! # [2] float - distance from y top
+		! # [3] float - distance from z top
+		! # ----------------------------------------------------------------------
+		call locate(1,'EMPTYDISTTOP',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) emptydisttop(1)
+			read(1,*) emptydisttop(2)
+			read(1,*) emptydisttop(3)
+		endif
+		! ########################################################################
+		! # Distance from domain bottom to remove particles
+		! # leaving a buffer region which prevents molecules escaping if tethered
+		! # or to strip out outer wall molecules to save computer time
+		! # [1] float - distance from x top
+		! # [2] float - distance from y top
+		! # [3] float - distance from z top
+		! # ----------------------------------------------------------------------
+		call locate(1,'EMPTYDISTBOTTOM',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) emptydistbottom(1)
+			read(1,*) emptydistbottom(2)
+			read(1,*) emptydistbottom(3)
+		endif
 	endif
 
-	! ########################################################################
-	! # Distance from domain bottom to Fix molecules, i.e. force v=0 
-	! # unless sliding
-	! # [1] float - distance from x bottom
-	! # [2] float - distance from y bottom
-	! # [3] float - distance from z bottom
-	! # ----------------------------------------------------------------------
-	call locate(1,'FIXDISTBOTTOM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) fixdistbottom(1)
-		read(1,*) fixdistbottom(2)
-		read(1,*) fixdistbottom(3)
-	endif
-	! ########################################################################
-	! # Distance from domain top to Fix molecules, i.e. force v=0 
-	! # unless sliding
-	! # [1] float - distance from x top
-	! # [2] float - distance from y top
-	! # [3] float - distance from z top
-	call locate(1,'FIXDISTTOP',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) fixdisttop(1)
-		read(1,*) fixdisttop(2)
-		read(1,*) fixdisttop(3)
-	endif
-	! ########################################################################
-	! # Distance from domain bottom to apply sliding velocity to molecules 
-	! # where applied velocity v=WALLSLIDEV	
-	! # [1] float - distance from x bottom
-	! # [2] float - distance from y bottom
-	! # [3] float - distance from z bottom
-	! # ----------------------------------------------------------------------
-	call locate(1,'SLIDEDISTBOTTOM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) slidedistbottom(1)
-		read(1,*) slidedistbottom(2)
-		read(1,*) slidedistbottom(3)
-	endif
-	! ########################################################################
-	! # Distance from domain top to apply sliding velocity to molecules 
-	! # where applied velocity v=WALLSLIDEV	
-	! # [1] float - distance from x top
-	! # [2] float - distance from y top
-	! # [3] float - distance from z top
-	! # ----------------------------------------------------------------------
-	call locate(1,'SLIDEDISTTOP',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) slidedisttop(1)
-		read(1,*) slidedisttop(2)
-		read(1,*) slidedisttop(3)
-	endif
-	! ########################################################################
-	! # Distance from domain bottom to tethered molecules using spring like
-	! # restoring forces
-	! # [1] float - distance from x top
-	! # [2] float - distance from y top
-	! # [3] float - distance from z top
-	! # ----------------------------------------------------------------------
-	call locate(1,'TETHEREDDISTBOTTOM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) tethereddistbottom(1)
-		read(1,*) tethereddistbottom(2)
-		read(1,*) tethereddistbottom(3)
-	endif
-	! ########################################################################
-	! # Distance from domain top to tethered molecules using spring like
-	! # restoring forces
-	! # [1] float - distance from x top
-	! # [2] float - distance from y top
-	! # [3] float - distance from z top
-	! # ----------------------------------------------------------------------
-	call locate(1,'TETHEREDDISTTOP',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) tethereddisttop(1)
-		read(1,*) tethereddisttop(2)
-		read(1,*) tethereddisttop(3)
-	endif
-	if (max(maxval(tethereddistbottom),maxval(tethereddisttop)).gt.0.d0) then
-		tether_flag = 1
-	else
-		tether_flag = 0
-	end if
 
-	! #######################################################################
-	! # Specifiy cooefficients of potential equation 
-	! # phi= - k2*rio^2 - k4*rio^4 - k6*rio^6 in format
-	! #  [1] float - k2
-	! #  [2] float - k4
-	! #  [3] float - k6
-	! #
-	! # Possible known combinations include:
-	! #
-	! # 	a)	Default from Petravich and Harrowell (2006) J. Chem. Phys.124, 014103. 
-	! # 		with constants  ( k2 = 0, k4 = 5,000, k6 = 5,000,000)
-	! # 	b)	B. D. Todd, Peter J. Daivis, and Denis J. Evans (1995) 
-	! #		Phys. Rev. E. 52, 5 with constants  (k2 = 28.575, k4 = 0, k6 = 0)
-	! #   c)  S. Y. Liem, D. Brown, and J. H. R. Clarke (1992) 
-	! #		Phys. Rev. A. 45, 6 with constants  (k2 = 36.0,   k4 = 0, k6 = 0)
-	! # Default Force constants (k2 = 0, k4 = 5,000, k6 = 5,000,000)  
-	! # from Petravich and Harrowell (2006) J. Chem. Phys.124, 014103.
-	! # ---------------------------------------------------------------------
-	call locate(1,'TETHERCOEFFICIENTS',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) teth_k2
-		read(1,*) teth_k4
-		read(1,*) teth_k6
-	else
-		!Define default strength of tethering potential
-		! phi = - k2*rio^2 - k4*rio^4 - k6*rio^6
-		!Default Force constants (k2 = 0, k4 = 5,000, k6 = 5,000,000)  
-		!from Petravich and Harrowell (2006) J. Chem. Phys.124, 014103.
-		teth_k2=0.d0
-		teth_k4=5000.d0
-		teth_k6=5000000.d0
-	endif
 
 	! ########################################################################
-	! # Apply wall texture - note must be used with tag move system
-	! # and replaces all tethered wall specifications with a texture
-	! # Different options have different meaning for parameters, for
-	! # example 
-	! # post, notch and roughness/fractal use texture_intensity
-	! # to set depth of features
-	! # Converging diverging nozzle:
-	! # texture_intensity - size of throat
-	! # Opt1 - fraction of domain for outlet region
-	! # Opt2 - fraction of domain for diverging nozzle
-	! # Opt3 - Set outlet region to still have wall
-	! # [1] 1 - posts
-	! # [1] 2 - random spikes using sines/cosines
-	! # [1] 3 - converging - diverging channel
-	! # [1] 4 - fractal roughness
-	! # [1] 5 - triangular notch
-	! # [2] float - texture intensity
-	! # [3] 0 - Thermostat applied to distance THERMSTATTOP and THERMSTATBOTTOM
-	! # [3] 1 - Thermostat whole wall following texture
-	! # [3] 2 - Slide whole wall including texture with WALLSLIDEV
-	! # [4] float - wall texture parameter 1
-	! # [5] float - wall texture parameter 2
-	! # [6] float - wall texture parameter 3
-	! # ----------------------------------------------------------------------
-	call locate(1,'WALL_TEXTURE',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) texture_type
-		read(1,*,iostat=ios) texture_intensity
-		if (ios .ne. 0) then
-			texture_intensity = 0.5d0
-		endif
-		read(1,*,iostat=ios) texture_therm
-		if (ios .ne. 0) then
-			texture_therm = 0
-		endif
-		read(1,*,iostat=ios) tex_opt1
-		if (ios .ne. 0) then
-			tex_opt1 = -666.d0
-		endif
-		read(1,*,iostat=ios) tex_opt2
-		if (ios .ne. 0) then
-			tex_opt2 = -666.d0
-		endif
-		read(1,*,iostat=ios) tex_opt3
-		if (ios .ne. 0) then
-			tex_opt3 = -666.d0
-		endif
-	else
-		texture_type = 0
-	endif
+	! ## NEWPAGE - Outputs
 	! ########################################################################
-	! # Distance from domain bottom to apply thermostat 
-	! # [1] float - distance from x top
-	! # [2] float - distance from y top
-	! # [3] float - distance from z top
-	! # ----------------------------------------------------------------------
-	call locate(1,'THERMSTATBOTTOM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) thermstatbottom(1)
-		read(1,*) thermstatbottom(2)
-		read(1,*) thermstatbottom(3)
-	endif
-	! ########################################################################
-	! # Distance from domain top to apply thermostat 
-	! # [1] float - distance from x top
-	! # [2] float - distance from y top
-	! # [3] float - distance from z top
-	! # ----------------------------------------------------------------------
-	call locate(1,'THERMSTATTOP',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) thermstattop(1)
-		read(1,*) thermstattop(2)
-		read(1,*) thermstattop(3)
-	endif
-	! ########################################################################
-	! # Distance from domain top to remove particles
-	! # leaving a buffer region which prevents molecules escaping if tethered
-	! # or to strip out outer wall molecules to save computer time
-	! # [1] float - distance from x top
-	! # [2] float - distance from y top
-	! # [3] float - distance from z top
-	! # ----------------------------------------------------------------------
-	call locate(1,'EMPTYDISTTOP',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) emptydisttop(1)
-		read(1,*) emptydisttop(2)
-		read(1,*) emptydisttop(3)
-	endif
-	! ########################################################################
-	! # Distance from domain bottom to remove particles
-	! # leaving a buffer region which prevents molecules escaping if tethered
-	! # or to strip out outer wall molecules to save computer time
-	! # [1] float - distance from x top
-	! # [2] float - distance from y top
-	! # [3] float - distance from z top
-	! # ----------------------------------------------------------------------
-	call locate(1,'EMPTYDISTBOTTOM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) emptydistbottom(1)
-		read(1,*) emptydistbottom(2)
-		read(1,*) emptydistbottom(3)
-	endif
+
 
 	! ########################################################################
 	! # Turn on cluster analysis to build clusters from molecules
@@ -1290,6 +1433,7 @@ subroutine setup_read_input
 
 	call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) read(1,*) macro_outflag
+
 	call locate(1,'SLRC_FLAG',.false.,found_in_input)
 	if (found_in_input) read(1,*) sLRC_flag
 	!Test for WCA potential and switch LRC off
@@ -1302,7 +1446,9 @@ subroutine setup_read_input
 	call locate(1,'MASS_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) mass_outflag
-		if (mass_outflag .ne. 0) read(1,*) Nmass_ave
+		if (mass_outflag .ne. 0) then
+			read(1,*) Nmass_ave
+		endif
 		if (mass_outflag .eq. 5) then
 			call locate(1,'CPOL_BINS',.true.)
 			read(1,*) gcpol_bins(1)	
@@ -1316,7 +1462,9 @@ subroutine setup_read_input
     endif
 	if (found_in_input) then
 		read(1,*) momentum_outflag
-		if (momentum_outflag .ne. 0) read(1,*) Nvel_ave
+		if (momentum_outflag .ne. 0) then
+			read(1,*) Nvel_ave
+		endif
 		if (momentum_outflag .eq. 5) then
 			call locate(1,'CPOL_BINS',.true.)
 			read(1,*) gcpol_bins(1)	
@@ -1416,8 +1564,19 @@ subroutine setup_read_input
 	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) viscosity_outflag
-		if ( viscosity_outflag .ne. 0)	read(1,*) Nvisc_ave
+		if ( viscosity_outflag .ne. 0) then
+			read(1,*) Nvisc_ave
+		endif
 	endif
+	! #########################################################################
+	! # Control Volume Conservation Averaging
+	! #	CV Conservation averaging (0=off 1=on) - take mass, momentum or 
+	! #	energy flux measure every step to ensureflux will be equal to change 
+	! #	in snapshots. Note, this increases computational cost somewhat
+	! #   Debug mode .true. or .false. can be used to enforce in code CV 
+	! #	conservation checking
+	! #
+	! # -----------------------------------------------------------------------
 	call locate(1,'CV_CONSERVE',.false.,found_in_input)
 	cv_conserve = 0
 	if (found_in_input) then
@@ -1451,17 +1610,52 @@ subroutine setup_read_input
         pass_vhalo = 0
 	endif
 
+	! #########################################################################
+	! # Output flag for mass flux control volume analysis
+	! # Will save mass snapshots msnap and surface fluxes mflux.
+	! # [1] 0 - Off
+	! # [1] 1 - On (3D grid using local control volumes)
+	! # [2] int - No. of samples for mass flux & interval for CV mass snapshot
+	! #
+	! # -----------------------------------------------------------------------
 	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) mflux_outflag
-		if (mflux_outflag .ne. 0)	read(1,*) Nmflux_ave
+		if (mflux_outflag .ne. 0) then
+			read(1,*) Nmflux_ave
+		endif
 	endif
+	! #########################################################################
+	! # Output flag for momentum flux over a surface for control volume analysis
+	! # Will save momentum snapshots vsnap and surface fluxes vflux as well as	
+	! # force interactions crossing the surface of the control volume  
+	! # [1] 0 - Off
+	! # [1] 1 - Method of planes in x (depreciated)
+	! # [1] 2 - Method of planes in y (depreciated)
+	! # [1] 3 - Method of planes in z (depreciated)
+	! # [1] 4 - 3D grid using local control volumes
+	! # [2] int - No. of samples for momentum flux & interval for snapshot
+	! # -----------------------------------------------------------------------
 	call locate(1,'VFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) vflux_outflag
-		if (vflux_outflag .ne. 0)	read(1,*) Nvflux_ave
+		if (vflux_outflag .ne. 0) then
+			read(1,*) Nvflux_ave
+		endif
 		if (mflux_outflag .eq. 0) Nmflux_ave = Nvflux_ave !Mass set to same as velocity
 	endif
+	! #########################################################################
+	! # Output flag for energy flux/power & CV energy snapshots over 
+	! # a surface for control volume analysis
+	! # Will save energy snapshots esnap and surface fluxes eflux as well as	
+	! # force time velocity interactions crossing the surface of the control volume  
+	! # [1] 0 - Off
+	! # [1] 1 - Method of planes in x (depreciated)
+	! # [1] 2 - Method of planes in y (depreciated)
+	! # [1] 3 - Method of planes in z (depreciated)
+	! # [1] 4 - 3D grid using local control volumes
+	! # [2] int - No. of samples for energy flux & interval for snapshot
+	! # -----------------------------------------------------------------------
 	call locate(1,'EFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) eflux_outflag
@@ -1555,6 +1749,45 @@ subroutine setup_read_input
         split_pol_sol_stats = 0
     end if
 
+	! #########################################################################
+	! #
+	! # Apply a CV based force with a number of options
+	! # Apply force, either:
+	! #   NON-COUPLED 
+	! #      -1 - Debug, apply nothing
+	! #	    0 - Zero force (MD values taken off and no force applied)
+	! #	    1 - Sinusoidal force (MD values taken off)
+	! #	    2 - vortex
+	! #	    3 - vortex and elongation
+	! #       4 - vortex generator
+	! #	    5 - Couette Analytical solution from function_lib
+	! #   COUPLED
+	! #      -1 - Debug, apply nothing
+	! #       0 - Zero force
+	! #       1 - Coupled CFD
+	! # Weighting Function
+	! #	0 - No weighting -- apply evenly. 
+	! #	1 - Weighting based on continuum stress only
+	! #	2 - Weighting based on MD and continuum stress
+	! # Start time of CV constraint
+	! #	200 - default value
+	! # Range of application
+	! #	- xmin - minimum x coordinate in global system 
+	! #	- xmax - maximum x coordinate in global system 
+	! #	- ymin - minimum y coordinate in global system 
+	! #	- ymax - maximum y coordinate in global system 
+	! #	- zmin - minimum z coordinate in global system 
+	! #	- zmax - maximum z coordinate in global system 
+	! # Correction to velocity value
+	! #	0 - Off. 
+	! #	1 - On
+	! # Number of steps to apply correction for
+	! #   Nsteps - default value
+	! # Direction to apply correction in
+	! #   .true. or .false. - x
+	! #   .true. or .false. - y
+	! #   .true. or .false. - z
+	! # -----------------------------------------------------------------------
 	call locate(1,'CV_FORCES',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) CVforce_flag
