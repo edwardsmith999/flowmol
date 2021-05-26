@@ -2127,6 +2127,9 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
         lg = 2
     elseif (lg_direction .eq. 2) then
         lg = 1
+	else
+		print*, "lg_direction = ", lg_direction, "lg_fract=", lg_fract, "gastype=", gastype
+		call error_abort("lg_direction specified by second argument to LIQUID_FRACTION must be 1 or 2")
     endif
 
     !Inner loop in y (useful for setting connectivity)

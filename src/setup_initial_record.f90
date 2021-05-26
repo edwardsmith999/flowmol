@@ -83,8 +83,8 @@ subroutine setup_initial_record
     call setup_assign_get_bins_fn() !Check if bins/cluster setup
 
     !Evaluate system properties on all processes
-    call simulation_compute_forces
-    call evaluate_macroscopic_properties
+    call simulation_compute_forces()
+    call evaluate_macroscopic_properties()
 
     if (potential_flag.eq.1) then
         select case(etevtcf_outflag)
@@ -116,10 +116,8 @@ subroutine setup_initial_record
         call parallel_io_psf()
     endif
 
-
-
     !Calculate Control Volume starting state
-    call initial_control_volume
+    call initial_control_volume()
 
     if (irank .eq. iroot) then
 
