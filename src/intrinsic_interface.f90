@@ -1826,7 +1826,7 @@ subroutine get_initial_pivots(points, ISR, pivots)
     ! Defines the initial pivots as a set of 9 particles, where
     ! each particle is in a distinct sector formed by dividing
     ! the macroscopic plane into 3x3 regions.
-    integer :: Npivots, maxpivots, i, ind
+    integer :: Npivots, maxpivots, i, ind, ratio
     integer, dimension(2) :: nxy, bins
     integer, dimension(:,:), allocatable :: sectors
 
@@ -1837,7 +1837,12 @@ subroutine get_initial_pivots(points, ISR, pivots)
     !Define bins
     bins = 3
     !Take into account non-equal domains
-    bins(2) = int(bins(1)*ISR%box(ISR%ixyz)/ISR%box(ISR%jxyz))
+	ratio = int(bins(1)*ISR%box(ISR%ixyz)/ISR%box(ISR%jxyz))
+	if (ratio .gt. 0) then
+		bins(2) = ratio
+	else
+		bins(2) = 1
+	endif
     allocate(sectors(bins(1), bins(2)))
     sectors = 0
     Npivots = bins(1)*bins(2)
