@@ -176,6 +176,7 @@ subroutine setup_read_input
 	if (initial_config_flag .eq. 1)	then
 
 		read(1,*) config_special_case
+        print*, "initial config special case ", trim(config_special_case)
 
 		select case (trim(config_special_case))
 		case('sparse_fene')	
@@ -512,16 +513,13 @@ subroutine setup_read_input
             endif
 
 		case default
-
+            print*, "Config special case string", trim(config_special_case)
 			call error_abort("ERROR in setup_read_input -- Unrecognised special case string")
-
 		end select
 
 	endif
 	if (initial_config_flag .eq. 2) then
 		call error_abort("ERROR in setup_read_input -- Generic input file read in is not developed yet")
-	else
-		call error_abort("ERROR in setup_read_input -- Unrecognised initial_config_flag")
 	endif 
 
 
