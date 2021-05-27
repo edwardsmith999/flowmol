@@ -27,10 +27,10 @@ from SetupInputs import SetupInputs
 
 # Code to read input file
 import sys
-sys.path.append("/home/es205/codes/SimWrapPy/")
+sys.path.append("/home/es205/codes/python/SimWrapPy/")
 import simwraplib as swl
 
-sys.path.insert(0, "/home/es205/codes/pyDataView/")
+sys.path.insert(0, "/home/es205/codes/python/pyDataView/")
 import postproclib as ppl
 import postproclib.visualiser as pplv
 
@@ -85,8 +85,8 @@ class CanvasPanel(wx.Panel):
             return
         N = int(header.globalnp)
         r = np.fromfile(self.resultsdir + "/initial_dump_r",  dtype=np.float).reshape(N,3)
-        #Limit plots to be fast
-        if (N > 2000):
+        #Limit plotted points to be fast
+        if self.fastplot and N > 2000:
             skip = int(N/1000.)
         else:
             skip = 1
@@ -230,25 +230,30 @@ class CanvasPanel(wx.Panel):
             x31 = np.ones_like(y3)*(ox-Lx/2)
             x32 = np.ones_like(y3)*(ox+Lx/2)
 
+            a = 0.5
+            rs = 1
+            cs = 1
+            lw = 1
+            c = 'k'
             self.grid = []
             # outside surface
             self.grid.append(self.axes.plot_wireframe(x1+self.intrnsic_surf(y11/Ly, z1/Lz), 
-                              y11, z1, color='k', rstride=1, cstride=1, alpha=0.6))
+                              y11, z1, color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
             # inside surface
             self.grid.append(self.axes.plot_wireframe(x1+self.intrnsic_surf(y12/Ly, z1/Lz), 
-                              y12, z1, color='k', rstride=1, cstride=1, alpha=0.6))
+                              y12, z1, color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
             # bottom surface
             self.grid.append(self.axes.plot_wireframe(x2+self.intrnsic_surf(y2/Ly, z21/Lz), 
-                              y2, z21, color='k', rstride=1, cstride=1, alpha=0.6))
+                              y2, z21, color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
             # upper surface
             self.grid.append(self.axes.plot_wireframe(x2+self.intrnsic_surf(y2/Ly, z22/Lz), 
-                              y2, z22, color='k', rstride=1, cstride=1, alpha=0.6))
+                              y2, z22, color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
             # left surface
             self.grid.append(self.axes.plot_wireframe(x31+self.intrnsic_surf(y3/Ly, z3/Lz), 
-                              y3, z3, color='k', rstride=1, cstride=1, alpha=0.6))
+                              y3, z3, color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
             # right surface
             self.grid.append(self.axes.plot_wireframe(x32+self.intrnsic_surf(y3/Ly, z3/Lz), 
-                              y3, z3, color='k', rstride=1, cstride=1, alpha=0.6))
+                              y3, z3, color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
 
             self.canvas.draw()
 
@@ -321,7 +326,7 @@ class MyFrame(wx.Frame):
 
         #Optional parameters
         self.showhide_conditional = self.Editcondition.IsChecked()
-
+        self.plotpanel.fastplot = self.Editfastplot.IsChecked()
 
         #Close handle
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -345,9 +350,11 @@ class MyFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnQuit, quit)
 
         EditMenu = wx.Menu()
-        self.Editcondition = EditMenu.AppendCheckItem(wx.ITEM_CHECK, 'Conditional On')
+        self.Editcondition = EditMenu.AppendCheckItem(wx.ITEM_CHECK, 'Hide Unused')
+        self.Editfastplot = EditMenu.AppendCheckItem(wx.ITEM_CHECK, 'Fast Plot')
         menubar.Append(EditMenu, '&Edit')
         self.Bind(wx.EVT_MENU, self.OnConditional, self.Editcondition)
+        self.Bind(wx.EVT_MENU, self.OnFastplot, self.Editfastplot)
 
         HelpMenu = wx.Menu()
         about = HelpMenu.Append(wx.ID_ABOUT, '&About\tCtrl+A')
@@ -1230,6 +1237,10 @@ class MyFrame(wx.Frame):
                     break 
                 #print(i, hp, pgit.AtEnd())
                 self.propgrid.HideProperty(hp, hide=False)
+
+    def OnFastplot(self, event):
+        self.plotpanel.fastplot = self.Editfastplot.IsChecked()
+        self.plotpanel.draw(self.plotype)
 
     def onRadioBox(self, e): 
         #print(self.radio_box_1.GetStringSelection(),' is clicked from Radio Box')
