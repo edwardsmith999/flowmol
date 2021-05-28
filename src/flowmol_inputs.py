@@ -184,6 +184,47 @@ class CanvasPanel(wx.Panel):
 
     def draw_grid(self, draw):
 
+        if (self.ThreeD):
+            self.draw_grid3d(draw)
+        else:
+            self.draw_grid2d(draw)
+
+    def draw_grid2d(self, draw):
+
+        try:
+            header = ppl.MDHeaderData(self.resultsdir)
+        except FileNotFoundError:
+            return
+
+        if draw:
+            nx = int(header.gnbins1)
+            ny = int(header.gnbins2)
+
+            Lx = float(header.globaldomain1)
+            Ly = float(header.globaldomain2)
+
+            x = np.linspace(-Lx/2.,Lx/2., nx+1)
+            y = np.linspace(-Ly/2, Ly/2., ny+1)
+
+            segs1 = np.stack((x,y), axis=2)
+            segs2 = segs1.transpose(1,0,2)
+
+            self.grid = []
+            self.grid.append(self.axes.add_collection(LineCollection(segs1)))
+            self.grid.append(self.axes.add_collection(LineCollection(segs2)))
+            self.canvas.draw()
+
+        else:
+            try:
+                for g in self.grid:
+                    g.remove()
+                del self.grid
+                self.canvas.draw()
+            except AttributeError:
+                pass
+
+    def draw_grid3d(self, draw):
+
         if draw:
             try:
                 header = ppl.MDHeaderData(self.resultsdir)
