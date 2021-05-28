@@ -43,7 +43,7 @@ class CanvasPanel(wx.Panel):
         self.tmpdir = tmpdir
         self.ft = True
         self.resultsdir = self.tmpdir + "/results/"
-        self.ThreeD = True
+        self.ThreeD = False
         if (self.ThreeD):
             self.axes = self.figure.add_subplot(111, projection='3d', proj_type = 'ortho')
         else:
@@ -206,13 +206,24 @@ class CanvasPanel(wx.Panel):
             x = np.linspace(-Lx/2.,Lx/2., nx+1)
             y = np.linspace(-Ly/2, Ly/2., ny+1)
 
-            segs1 = np.stack((x,y), axis=2)
+            X, Y = np.meshgrid(x, z)
+
+            segs1 = np.stack((X,Y), axis=2)
             segs2 = segs1.transpose(1,0,2)
 
             self.grid = []
             self.grid.append(self.axes.add_collection(LineCollection(segs1)))
             self.grid.append(self.axes.add_collection(LineCollection(segs2)))
             self.canvas.draw()
+
+            #Faster option for uniform grid
+            # segs1 = np.stack((x[:,[0,-1]],y[:,[0,-1]]), axis=2)
+            # segs2 = np.stack((x[[0,-1],:].T,y[[0,-1],:].T), axis=2)
+
+            # self.grid = []
+            # self.grid.append(self.axes.add_collection(
+                # LineCollection(np.concatenate((segs1, segs2)))))
+            # self.canvas.draw()
 
         else:
             try:
