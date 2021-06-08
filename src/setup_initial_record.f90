@@ -27,8 +27,9 @@ subroutine setup_initial_record
     implicit none
 
     integer                 :: i,n,missing_file_tolerance=5, intervalno, recno
-    integer, parameter      :: LongInt = selected_int_kind (8)
-    integer(kind=LongInt)   :: est_filesize,output_steps
+    integer, parameter      :: LongInt = selected_int_kind (16)
+    integer, parameter      :: dpsize = 8
+    integer(kind=LongInt)   :: est_filesize, output_steps
     logical                 :: file_exist
     character               :: ixyz_char
     character(8)            :: the_date
@@ -313,8 +314,8 @@ subroutine setup_initial_record
             print'(a,3i8)', ' Domain split into mass Averaging Bins in x,y and z:', gnbins
             print'(a,3f10.5)', ' Each of size:', & 
             globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
-            output_steps = ceiling((Nsteps-initialstep)/dble(tplot*Nmass_ave))
-            est_filesize = 4*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
+            output_steps = ceiling((Nsteps)/dble(tplot*Nmass_ave))
+            est_filesize = dpsize*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
             print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
                              ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
         case(5)
@@ -351,8 +352,8 @@ subroutine setup_initial_record
             print'(a,3i8)', ' Domain split into momentum Averaging Bins in x,y and z:', gnbins
             print'(a,3f10.5)', ' Each of size:', & 
             globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
-            output_steps = ceiling((Nsteps-initialstep)/dble(tplot*Nvel_ave))
-            est_filesize = 3*8*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
+            output_steps = ceiling((Nsteps)/dble(tplot*Nvel_ave))
+            est_filesize = 3*dpsize*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
             print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
                              ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
         case(5)
@@ -395,8 +396,8 @@ subroutine setup_initial_record
                 print'(a,3f10.5)', ' Each of size:', & 
                 globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
             endif
-            output_steps = ceiling((Nsteps-initialstep)/dble(tplot*NTemp_ave))
-            est_filesize = 8*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
+            output_steps = ceiling((Nsteps)/dble(tplot*NTemp_ave))
+            est_filesize = dpsize*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
             print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
                              ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
         case(5)
@@ -424,7 +425,7 @@ subroutine setup_initial_record
                 print'(a,3i8)', ' Domain split into Pressure Volume Averaging Bins in x,y and z:', gnbins
                 print'(a,3f10.5)', ' Each of size:', & 
                 globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
-                est_filesize = 9*8*ceiling((Nsteps-initialstep)/dble(tplot*Nvel_ave))*gnbins(1)*gnbins(2)*gnbins(3)
+                est_filesize = 9*dpsize*ceiling((Nsteps-initialstep)/dble(tplot*Nvel_ave))*gnbins(1)*gnbins(2)*gnbins(3)
                 print'(a,i14,a)', ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
             else
                 print'(3(a,i8),a)', ' Seperate Kinetic/Configurational Pressure tensor Volume Averaged recorded every', & 
@@ -471,8 +472,8 @@ subroutine setup_initial_record
             print'(a,3i8)', ' Domain split into bins in x,y and z:', gnbins
             print'(a,3f10.5)', ' Each of size:', & 
             globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
-            output_steps = ceiling((Nsteps-initialstep)/dble(Nmflux_ave))
-            est_filesize = 18*4*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
+            output_steps = ceiling((Nsteps)/dble(Nmflux_ave))
+            est_filesize = 18*dpsize*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
             print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
                              ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
         case default
@@ -508,8 +509,8 @@ subroutine setup_initial_record
             print'(a,3i8)', ' Domain split into bins in x,y and z:', gnbins
             print'(a,3f10.5)', ' Each of size:', & 
             globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
-            output_steps = ceiling((Nsteps-initialstep)/dble(Nvflux_ave))
-            est_filesize = 18*8*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
+            output_steps = ceiling((Nsteps)/dble(Nvflux_ave))
+            est_filesize = 18*dpsize*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
             print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
                              ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
         case default
@@ -569,8 +570,8 @@ subroutine setup_initial_record
             print'(a,3i8)', ' Domain split into bins in x,y and z:', gnbins
             print'(a,3f10.5)', ' Each of size:', & 
             globaldomain(1)/gnbins(1), globaldomain(2)/gnbins(2),globaldomain(3)/gnbins(3)
-            output_steps = ceiling((Nsteps-initialstep)/dble(Nsurfm_ave))
-            est_filesize = 6*8*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
+            output_steps = ceiling((Nsteps)/dble(Nsurfm_ave))
+            est_filesize = 6*dpsize*output_steps*gnbins(1)*gnbins(2)*gnbins(3)
             print'(a,i14,a,i14,a)', ' Number of records ', output_steps,  & 
                              ' Estimated File Size:', ceiling(est_filesize/dble(1024**2)), ' MB '
         case default
