@@ -64,6 +64,7 @@ module intrinsic_module
 		    procedure :: update_surface => update_real_surface
 		    procedure :: get_surface => get_real_surface
 		    procedure :: get_surface_derivative => get_real_surface_derivative
+		    procedure :: get_metric_tensor => get_real_metric_tensor
 		    procedure :: get_zero_mode => get_zero_mode
             procedure :: get_bin => get_bin_from_surface
 			procedure :: get_tangent_bins => get_tangent_bins
@@ -75,6 +76,7 @@ module intrinsic_module
 			procedure :: get_crossings => get_crossings
 			procedure :: get_flat_crossings => get_flat_crossings
 		    procedure :: intrinsic_area => intrinsic_area
+            procedure :: apply_metric_tensor_transform => apply_metric_tensor_transform
 
     end type intrinsic_surface_real
 	
@@ -84,6 +86,7 @@ module intrinsic_module
 			!Over ride existing routines
 		    procedure :: get_surface => get_bilinear_surface
 		    procedure :: get_surface_derivative => get_bilinear_surface_derivative
+		    procedure :: get_metric_tensor => get_bilinear_metric_tensor
 			procedure :: fit_intrinsic_surface => fit_intrinsic_surface_bilinear
 			procedure :: get_crossings => get_crossings_bilinear
 
@@ -91,7 +94,7 @@ module intrinsic_module
     		procedure :: update_sampled_surface => update_sampled_surface
 			procedure :: get_surface_bilinear => get_surface_bilinear
 			procedure :: paramterise_bilinear_surface => paramterise_bilinear_surface
-			procedure :: get_surface_derivative_bilinear => get_surface_derivative_bilinear
+			procedure :: get_surface_derivative_from_bilinear => get_surface_derivative_from_bilinear
 			procedure :: indices_to_points => indices_to_points
 
 	end type intrinsic_surface_bilinear
@@ -567,6 +570,33 @@ subroutine get_real_surface_derivative(self, points, dSdr, qu)
 end subroutine get_real_surface_derivative
 
 
+subroutine get_real_metric_tensor(self, points, g)
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(out), dimension(:,:,:), allocatable :: g
+
+	integer :: i
+    double precision, dimension(:,:), allocatable :: p, ds 
+
+	allocate(g(size(points,1),2,2))
+	allocate(p(1,3))
+	do i =1,size(points,1)
+		p(1,:) = points(i,:)
+		call self%get_surface_derivative(p, ds)
+        g(i,1,1) = 1 + ds(1,1)**2
+        g(i,1,2) = ds(1,1)*ds(1,2)
+        g(i,2,1) = ds(1,2)*ds(1,1)
+        g(i,2,2) = 1 + ds(1,2)**2
+
+	enddo
+
+end subroutine get_real_metric_tensor
+
+
+
 
 
 subroutine get_bilinear_surface(self, points, elevation, include_zeromode, qu)
@@ -637,12 +667,186 @@ subroutine get_bilinear_surface_derivative(self, points, dSdr, qu)
 		bins = self%get_tangent_bins(points(i,:))
 		j = bins(1); k = bins(2)
 		p(1,:) = points(i,:)
-		call self%get_surface_derivative_bilinear(P, self%Abilinear(:,:,j,k), ds)
+		call self%get_surface_derivative_from_bilinear(P, self%Abilinear(:,:,j,k), ds)
 		dSdr(i,:) = ds(1,:)
 	enddo
 
 end subroutine get_bilinear_surface_derivative
 
+
+subroutine get_bilinear_metric_tensor(self, points, g)
+    implicit none
+
+	class(intrinsic_surface_bilinear) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(out), dimension(:,:,:), allocatable :: g
+
+	integer :: i, j, k, n, bins(2)
+    double precision, dimension(:,:), allocatable :: p, ds 
+
+	allocate(g(size(points,1),2,2))
+	allocate(p(1,3))
+	do i =1,size(points,1)
+		p(1,:) = points(i,:)
+		call self%get_surface_derivative(p, ds)
+        g(i,1,1) = 1 + ds(1,1)**2
+        g(i,1,2) = ds(1,1)*ds(1,2)
+        g(i,2,1) = ds(1,2)*ds(1,1)
+        g(i,2,2) = 1 + ds(1,2)**2
+
+        !g(i,1,1) = 1 !+ ds(1,1)**2
+        !g(i,1,2) = 0.d0 !ds(1,1)*ds(1,2)
+        !g(i,2,1) = 0.d0 !ds(1,2)*ds(1,1)
+        !g(i,2,2) = 1 !+ ds(1,2)**2
+	enddo
+
+end subroutine get_bilinear_metric_tensor
+
+!Apply mapping here based on Riemann metric
+subroutine apply_metric_tensor_transform(self, A)
+    use interfaces, only : error_abort
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    real(kind(0.d0)),dimension(:,:,:,:,:),allocatable,intent(inout) :: A
+
+	integer :: i, j, k, t1, t2
+    real(kind(0.d0)) :: T11, T12, T21, T22
+    real(kind(0.d0)),dimension(:,:), allocatable :: points, T
+    real(kind(0.d0)),dimension(:,:,:), allocatable :: g
+
+    if (self%normal .ne. 1) call error_abort("Error apply_metric_tensor_transform - only works for normal in x")
+    t1 = self%ixyz; t2 = self%jxyz
+
+!    if (size(A,3) .ne. 2 .or. size(A,4) .ne. 2) then
+!        call error_abort("Error apply_metric_tensor_transform - last indices 2 by 2")
+    if (size(A,2) .ne. self%nbins(t1) .or. size(A,3) .ne. self%nbins(t2)) then
+        print*, "A2=",size(A,2), "nbins t1=", self%nbins(t1), & 
+                "A3=",size(A,3), "nbins t2=", self%nbins(t2)
+        call error_abort("Error apply_metric_tensor_transform - array A must be same size as bilinear surface")
+    endif
+    allocate(T(size(A,4),size(A,5)))
+    allocate(points(1,2))
+
+    do j = 1, self%nbins(t1)
+    do k = 1, self%nbins(t2)
+
+        !Get bin centrepoint and use metric at this point
+        points(1,1) = (j-0.5d0)*self%binsize(t1)-0.5d0*self%box(t1)
+        points(1,2) = (k-0.5d0)*self%binsize(t2)-0.5d0*self%box(t2)
+
+        call self%get_metric_tensor(points, g)
+
+        do i =1, size(A,1)
+    
+            !I think this is general with permutes of i,j,k
+            if (self%normal .ne. 1) then
+                T = A(i,j,k,:,:)
+            else if (self%normal .ne. 2) then
+                T = A(j,k,i,:,:)
+            else 
+                T = A(k,i,j,:,:)
+            endif
+
+            !Get two tangent components and multiply by metric tensir
+            T11 = T(t1,t1)
+            T12 = T(t2,t1)
+            T21 = T(t1,t2)
+            T22 = T(t2,t2)
+
+            T(t1,t1) = T11*g(1,1,1) + T12*g(1,1,2)
+            T(t2,t1) = T11*g(1,1,2) + T12*g(1,2,2)
+            T(t1,t2) = T21*g(1,1,1) + T22*g(1,2,1)
+            T(t2,t2) = T21*g(1,2,1) + T22*g(1,2,2)
+
+            !Store back in array
+            if (self%normal .ne. 1) then
+                A(i,j,k,:,:) = T
+            else if (self%normal .ne. 2) then
+                A(j,k,i,:,:) = T
+            else
+                A(k,i,j,:,:) = T   
+            endif
+
+        enddo
+!
+!        T11 = A(j,k,1,1)
+!        T12 = A(j,k,2,1)
+!        T21 = A(j,k,1,2)
+!        T22 = A(j,k,2,2)
+
+!        A(j,k,1,1) = T11*g(1,1) + T12*g(1,2)
+!        A(j,k,2,1) = T11*g(1,2) + T12*g(2,2)
+!        A(j,k,1,2) = T21*g(1,1) + T22*g(2,1)
+!        A(j,k,2,2) = T21*g(2,1) + T22*g(2,2)         
+
+    enddo
+    enddo
+
+end subroutine apply_metric_tensor_transform
+
+!subroutine apply_riemann_transform(A, ISR)
+!    use module_record, only : riemann_transform, nhb, nbins
+!    implicit none
+
+!	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable :: buf
+
+!    !Apply mapping here based on Riemann metric
+!    allocate(buf(nbins(1), nbins(2), nbins(3), size(A,4), size(A,5)))
+!    buf = A(1+nhb(1):nbins(1)+nhb(1), & 
+!            1+nhb(2):nbins(2)+nhb(2), &
+!            1+nhb(3):nbins(3)+nhb(3),:,:)
+!    call ISR%apply_metric_tensor_transform(buf)
+!    A(1+nhb(1):nbins(1)+nhb(1), & 
+!      1+nhb(2):nbins(2)+nhb(2), &
+!      1+nhb(3):nbins(3)+nhb(3),:,:) = buf
+
+
+!end subroutine apply_riemann_transform
+
+
+    !Apply mapping here based on Riemann metric
+    !if (riemann_transform .eq. 1) then
+    !     call ISR_mdt%apply_metric_tensor_transform(momentum_flux_))!(1+nhb(1):nbins(1)+nhb(1), & 
+                                                                   !1+nhb(2):nbins(2)+nhb(2), &
+                                                                   !1+nhb(3):nbins(3)+nhb(3),:,:))
+    !endif
+
+
+!    subroutine metric_tensor_transform(self, A)
+
+!	    real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(inout) :: A
+
+!        !THIS ISR_mdt%get_metric FUNCTION WILL LOOK SOMETHING LIKE
+!        t1 = self%ixyz; t2 = self%jxyz
+!        do j = 1, nbins(t1)
+!        do k = 1, nbins(t2)
+
+!            points(1,1) = float(j-0.5)*binsize(t1)-0.5d0*self%box(t1)
+!            points(1,2) = float(k-0.5)*binsize(t2)-0.5d0*self%box(t2)
+
+!            call ISR_mdt%get_metric_tensor(points, g)
+
+!            !These are stress in the surface, assuming x is normal
+!            if (t1 .eq. 2 .and. t2 .eq. 3) then
+
+!                !do i=1,nbins(1)
+!                !momentum_flux_(i,j,k,2:3,2:3) = matmul(momentum_flux_(i,j,k,2:3,2:3), g(1,:,:))
+
+!                T11 = A(j,k,2,2)
+!                T12 = A(j,k,3,2)
+!                T21 = A(j,k,2,3)
+!                T22 = A(j,k,3,3)
+
+!                A(j,k,2,2) = T11*g(1,1) + T12*g(1,2)
+!                A(j,k,3,2) = T11*g(1,2) + T12*g(2,2)
+!                A(j,k,2,3) = T21*g(1,1) + T22*g(2,1)
+!                A(j,k,3,3) = T21*g(2,1) + T22*g(2,2)         
+
+!            endif
+!    end subroutine metric_tensor_transform
 
 
 subroutine get_zero_mode(self, zeromode)
@@ -2308,7 +2512,7 @@ end subroutine get_surface_bilinear
 
 
 !Get surface position from positions for a known bin
-subroutine get_surface_derivative_bilinear(self, points, A, dSdr)
+subroutine get_surface_derivative_from_bilinear(self, points, A, dSdr)
     implicit none
 
 	class(intrinsic_surface_bilinear), intent(in) :: self	! declare an instance
@@ -2326,7 +2530,8 @@ subroutine get_surface_derivative_bilinear(self, points, A, dSdr)
 		dSdr(n,2) =  A(1,2)+ A(2,2)*points(n,self%ixyz)
 	enddo
 
-end subroutine get_surface_derivative_bilinear
+end subroutine get_surface_derivative_from_bilinear
+
 
 ! subroutine modes_surface_to_bilinear_surface(ISR, nbins, Abilinear)
     ! implicit none

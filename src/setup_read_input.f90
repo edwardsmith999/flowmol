@@ -1739,6 +1739,12 @@ subroutine setup_read_input
 		read(1,*) ssf_nmax 
 	endif
 
+	call locate(1,'RIEMANN_TRANSFORM',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) Riemann_transform
+	endif
+
+
     split_pol_sol_stats = 0
     call locate(1,'SPLIT_POL_SOL_STATS',.false.,found_in_input)
     if (found_in_input) then

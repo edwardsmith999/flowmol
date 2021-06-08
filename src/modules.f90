@@ -191,6 +191,8 @@ module computational_constants_MD
     real(kind(0.d0)) :: II_eps      ! Weight for surface energy minimising constraint
     real(kind(0.d0)) :: II_ns       ! Target density of surface Npivots/Area
 
+    integer :: Riemann_transform    !Apply Riemann tranform to stress tensor based on intrinsic surface
+
 
     logical,dimension(3)    :: CVforce_applied_dir  !Which directions to apply force
 
