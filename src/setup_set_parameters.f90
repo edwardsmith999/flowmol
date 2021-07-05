@@ -654,11 +654,24 @@ subroutine setup_mie_potential
     ! SAFT gamma Mie values ₀₁₂₃₄₅₆₇₈₉	
     !(from Theodorakis, Muller, Craster & Matar (2014))
     !3 == Water "W" 2{H₂O} molecules per bead
+	!Note sigma and epsilon should be function of the system temperature 
+	! according to	Olga Lobanova, Carlos Avendaño, Thomas Lafitte, 
+	! Erich A. Müller & George Jackson (2015) SAFT-γ force field for the 
+	!simulation of molecular fluids: 4. A single-site coarse-grained model of 
+	! water applicable over a wide temperature range Mol. Physics. Pages 1228-1249 
+	! in the SAFT gamma Mie water model, called CGW1-ift 
+	! where
+	! sigma_lookup(3,3)/Angstrom = -6.455e-9 * T**3 + 9.1e-6 * T**2 - 4.291e-3 * T + 3.543
+	! epsilon_lookup(3,3)/K = -4.806e-4 * T**2 + 0.6107*T + 165.9
+	!Where sigma = 3.7467 Angstrom
+	! and epsilon/kB = 400 K
+	! and a cutoff of 20 Angstrom is recommended (5.34 sigma)
     !moltype_names(3) = '         2H₂O          '
     moltype_names(3)    = 'W'!' 2H2O '
     mass_lookup(3)      = 0.8179d0
-    epsilon_lookup(3,3) = 0.8129d0
-    sigma_lookup(3,3)   = 0.8584d0
+	!T = thermostattemperature
+    epsilon_lookup(3,3) = 0.8129d0 !(-4.806e-4 * T**2 + 0.6107*T + 165.9)/400
+    sigma_lookup(3,3)   = 0.8584d0 !(-6.455e-9 * T**3 + 9.1e-6 * T**2 - 4.291e-3 * T + 3.543)/3.7467
     lambdar_lookup(3,3) = 8.d0
     lambdaa_lookup(3,3) = 6.d0
 
