@@ -138,11 +138,17 @@ class SetupInputs():
                 else:
                     condition = condition.split(")")[0]
 
+                if (condition == "found_in_input"):
+                    continue
                 #print("Conditional = ", condition)
                 nestif = 1
                 for i in range(1, maxsteps):
-                    line = self.listout[l+i]
-                    print(condition, nestif,  line)
+                    try:
+                        line = self.listout[l+i]
+                    except IndexError:
+                        print("End of file with conditional ", condition, " not found, passing")
+                        pass
+                    #print(condition, nestif,  line)
                     #Then look for a read statement
                     if (line.find('read(') != -1):
                         convariable.append(re.split('\*\\)|ios\\)',
@@ -233,7 +239,7 @@ class SetupInputs():
             logical = self.fortran_logical(string, varcheck, varDict)
         return logical
 
-    def fortran_logical(self, string, varcheck=None, varDict=None):
+    def fortran_logical(self, string, varcheck=None, varDict=None, debug=False):
 
         import operator
 
@@ -268,7 +274,8 @@ class SetupInputs():
                 logical = logicalop(int(varcheck), int(con))
             except ValueError:
                 logical = logicalop(varcheck, con)
-            print("fortran logical", var.strip(), logicalop, con, varcheck,  logical)
+            if debug:
+                print("fortran logical", var.strip(), logicalop, con, varcheck,  logical)
         elif (varDict != None):
             #Compare either integers or strings
             try:
@@ -276,7 +283,8 @@ class SetupInputs():
             except ValueError:
                 logical = logicalop(str(varDict[var.strip()]).strip().lower(), 
                                     con.strip().lower())
-            print("fortran logical", var.strip(), con, varDict[var.strip()], logical)
+            if debug:
+                print("fortran logical", var.strip(), con, varDict[var.strip()], logical)
         else:
             raise IOError("varcheck or varDict needs to be supplied")
 
