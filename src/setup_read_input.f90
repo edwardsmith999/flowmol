@@ -40,6 +40,17 @@ subroutine setup_read_input
 	! Open input file
 	open(1,file=input_file)
 
+	! ########################################################################
+	! ## NEWPAGE - SYSTEM SETUP
+	! ########################################################################
+	call locate(1,'NEWPAGE_SYSTEM_SETUP',.false.,found_in_input)
+	if (found_in_input) then
+		!read(1,*) newpage
+		print*, "The keyword OUTPUT does nothing, "
+		print*, "it is used to denote start of output section flowmol_inputs" 
+	endif
+
+
 	! #########################################################################
 	! # Ensemble selector
 	! # [1] 0 - NVE
@@ -113,8 +124,12 @@ subroutine setup_read_input
 	! # -----------------------------------------------------------------------	
 	call locate(1,'THERMOSTATTEMPERATURE',.false.,found_in_input)
 	if (found_in_input) then
-        nthermo = 0
-        do n = 1,1000
+        nthermo = 1
+		read(1,*,iostat=ios) temp(1)
+		if (ios .ne. 0) then
+            call error_abort( "Error -- specify at least one value for THERMOSTATTEMPERATURE")
+		endif
+        do n = 2,1000
             read(1,*,iostat=ios) temp(n)
 		    if (ios .ne. 0) then
                 exit
@@ -171,7 +186,7 @@ subroutine setup_read_input
 	call locate(1,'INITIAL_CONFIG_FLAG',.true.)
 	read(1,*) initial_config_flag
 	if (initial_config_flag .eq. 0) then
-			potential_flag = 0
+		potential_flag = 0
 	endif
 	if (initial_config_flag .eq. 1)	then
 
@@ -190,13 +205,13 @@ subroutine setup_read_input
 			! # monomers on an FCC lattice is greater than the FENE maximum bond 
 			! # elongation.
 			! #
-			! #	- number of LJ beads for each polymer chain (nmonomers)
-			! #	- spring constant, k_c
-			! #	- maximum spring elongation
-			! #   - domain length in x
-			! #   - domain length in y
-			! #   - domain length in z
-			! #   - nchains
+			! #	[1] int - number of LJ beads for each polymer chain (nmonomers)
+			! #	[2] float - spring constant, k_c
+			! #	[3] float - maximum spring elongation
+			! # [4] float - domain length in x
+			! # [5] float - domain length in y
+			! # [6] float - domain length in z
+			! # [7] int  - nchains
 			! # -----------------------------------------------------------------------
 			call locate(1,'SPARSE_FENE',.true.)
 			read(1,*) nmonomers
@@ -217,13 +232,13 @@ subroutine setup_read_input
 			! #########################################################################
 			! # Dense FENE special case information
 			! #
-			! #	- number of LJ beads for each polymer chain (nmonomers)
-			! #	- spring constant, k_c
-			! #	- maximum spring elongation
-			! #   - monomer density
-			! #   - FCC (4 monomer) units in x
-			! #   - FCC (4 monomer) units in y
-			! #   - FCC (4 monomer) units in z
+			! #	[1] int - number of LJ beads for each polymer chain (nmonomers)
+			! #	[2] float - spring constant, k_c
+			! #	[3] float - maximum spring elongation
+			! # [4] float - monomer density
+			! # [5] int - FCC (4 monomer) units in x
+			! # [6] int - FCC (4 monomer) units in y
+			! # [7] int - FCC (4 monomer) units in z
 			! # -----------------------------------------------------------------------
 			call locate(1,'DENSE_FENE',.true.)
 			read(1,*) nmonomers
@@ -242,11 +257,11 @@ subroutine setup_read_input
 			! #########################################################################
 			! # FENE_fill special case information
 			! #
-			! #	- number of LJ beads for each polymer chain (nmonomers)
-			! #	- spring constant, k_c
-			! #	- maximum spring elongation
-			! #   - monomer density
-			! #   - target concentration
+			! #	[1] int - number of LJ beads for each polymer chain (nmonomers)
+			! #	[2] float - spring constant, k_c
+			! #	[3] float - maximum spring elongation
+			! # [4] float - monomer density
+			! # [5] float - target concentration
 			! # -----------------------------------------------------------------------
             call locate(1,'FENE_SOLUTION',.true.)
 			read(1,*) nmonomers
@@ -257,12 +272,11 @@ subroutine setup_read_input
 
 			! #########################################################################
 			! # Solvent information:
-			! #	- flag
-			! #		> 0 - All bead interactions equal (plus FENE) 
-			! #		> 1 - Solvent of variable quality (Soddemann)
-			! #	- solvent energy parameter eps_pp (polymer-polymer)
-			! #	- solvent energy parameter eps_ps (polymer-solvent)
-			! #	- solvent energy parameter eps_ss (solvent-solvent)
+			! #	[1] 0 - All bead interactions equal (plus FENE)
+			! #	[1]	1 - Solvent of variable quality (Soddemann)
+			! #	[2] float - solvent energy parameter eps_pp (polymer-polymer)
+			! #	[3] float - solvent energy parameter eps_ps (polymer-solvent)
+			! #	[4] float - solvent energy parameter eps_ss (solvent-solvent)
 			! # -----------------------------------------------------------------------
 			call locate(1,'SOLVENT_INFO',.true.)
 			read(1,*) solvent_flag
@@ -322,6 +336,10 @@ subroutine setup_read_input
             if (config_special_case .eq. '2phase' .or. &
                 config_special_case .eq. '2phase_LJ' .or. &
                 config_special_case .eq. 'film') then
+				! #########################################################################
+				! # Name of output from FEA code 
+				! # [1] str - Name of input file in correct format (see flowmol sourcecode)
+				! # -----------------------------------------------------------------------
 			    call locate(1,'FEA_FILENAME',.false.,found_in_input) 
 	            if (found_in_input) then
                     Twophase_from_file = .true.
@@ -347,6 +365,13 @@ subroutine setup_read_input
 			endif
 
             if (config_special_case .eq. "bubble") then
+				! #########################################################################
+				! # Location and radius of bubble
+				! # [1] float - Radius of bubble
+				! # [2] float - centre in x direction
+				! # [3] float - centre in y direction
+				! # [4] float - centre in z direction
+				! # -----------------------------------------------------------------------
                 call locate(1,'BUBBLERADIUS',.true.)
                 read(1,*) rbubble
                 read(1,*) rcentre(1)
@@ -388,6 +413,15 @@ subroutine setup_read_input
             endif
 			rcutoff = 2.d0**(1.d0/6.d0)
 
+			!#########################################################################
+			!# FENE_fill special case information
+			! #
+			! #	[1] int - number of LJ beads for each polymer chain (nmonomers)
+			! #	[2] float - spring constant, k_c
+			! #	[3] float - maximum spring elongation
+			! # [4] float - monomer density
+			! # [5] float - target concentration
+			!# -----------------------------------------------------------------------
             call locate(1,'FENE_SOLUTION',.true.)
 			read(1,*) nmonomers
 			read(1,*) k_c
@@ -419,11 +453,20 @@ subroutine setup_read_input
             endif
             rcutoff = 2.d0**(1.d0/6.d0)
 
+			! #########################################################################
+			! # Polymer brush special case
+			! # 
+			! #  [1] int - N Number of LJ beads for each chain
+			! #  [2] float - k Spring constant
+			! #  [3] float - R_0 Maximum bond elongation
+			! #  [4] float - Grafting density
+			! # -----------------------------------------------------------------------
             call locate(1,'POLYMER_BRUSH',.true.)
             read(1,*) nmonomers
             read(1,*) k_c
             read(1,*) r_0
             read(1,*) grafting_density
+
 
 			call locate(1,'SOLVENT_INFO',.true.)
 			read(1,*) solvent_flag
@@ -479,10 +522,10 @@ subroutine setup_read_input
 			read(1,*) nmonomers
             read(1,*) targetconc
             read(1,*) angular_potential
-            if (config_special_case .eq. '2phase_surfactant_atsurface') then
-                read(1,*,iostat=ios) surface_surfactant_layer
-				if (ios .ne. 0) surface_surfactant_layer = 4.d0
-            endif
+            !if (config_special_case .eq. '2phase_surfactant_atsurface') then
+			read(1,*,iostat=ios) surface_surfactant_layer
+			if (ios .ne. 0) surface_surfactant_layer = 4.d0
+            !endif
 
             if (targetconc .gt. 1.d0) then
                 call error_abort("ERROR in 2PHASE_SURFACTANT input -- "&
@@ -523,7 +566,6 @@ subroutine setup_read_input
 	endif 
 
 
-	!Setup velocity initial condition
 	call locate(1,'INITIAL_VELOCITY_FLAG',.false.,found_in_input) 
 	if (found_in_input) then
 		read(1,*) initial_velocity_flag 
@@ -558,9 +600,33 @@ subroutine setup_read_input
 		initial_velocity_flag = 0
 	endif
 
+	! ########################################################################
+	! ## NEWPAGE - COMPUTATIONAL PARAMETERS
+	! ########################################################################
+	call locate(1,'NEWPAGE_COMPUTATIONAL_PARAMETERS',.false.,found_in_input)
+	if (found_in_input) then
+		!read(1,*) newpage
+		print*, "The keyword OUTPUT does nothing, "
+		print*, "it is used to denote start of output section flowmol_inputs" 
+	endif
+
+
+	! #########################################################################
+	! # Integration algorithm
+	! # [1] 0 - Leap-frog Verlet
+	! # [1] 1 - Velocity Verlet
+	! # [1] 2 - Other
+	! # -----------------------------------------------------------------------
 	call locate(1,'INTEGRATION_ALGORITHM',.true.)
 	read(1,*) integration_algorithm
 
+	! #########################################################################
+	! # Force list used
+	! # [1] 0 - All Pairs
+	! # [1] 1 - Cell List
+	! # [1] 2 - Neighbour list with all interactions
+	! # [1] 3 - Neighbour list using 3rd law optimisation (half interactions)
+	! # -----------------------------------------------------------------------
 	call locate(1,'FORCE_LIST',.true.)	!LJ or FENE potential
 	read(1,*) force_list
 	if (force_list .ne. 3 .and. ensemble .eq. 4) then
@@ -570,24 +636,50 @@ subroutine setup_read_input
 		call error_abort("Half int neighbour list only is compatible with DPD thermostat")
 	endif
 
-	!Input computational co-efficients
+
+	! #########################################################################
+	! # Total number of timesteps:
+	! # [1] int - Number of steps
+	! # -----------------------------------------------------------------------
 	call locate(1,'NSTEPS',.true.)
 	read(1,*) Nsteps 		!Number of computational steps
 
+	! #########################################################################
+	! # Timestep:
+	! # [1] float - timestep delta t (usually 0.005)
+	! # -----------------------------------------------------------------------
 	call locate(1,'DELTA_T',.true.)
 	read(1,*) delta_t 		!Size of time step
 
+	! #########################################################################
+	! # Frequency to collect statistics in number of timesteps:
+	! # [1] int - Frequency at which to record results
+	! # -----------------------------------------------------------------------
 	call locate(1,'TPLOT',.true.)
-	read(1,*) tplot 		!Frequency at which to record results
+	read(1,*) tplot 
 
+	! #########################################################################
+	! # Number of steps before collecting statistics (doesn't appear to be used)
+	! # 
+	! # [1] int - Number of initialisation steps for simulation
+	! # -----------------------------------------------------------------------
 	call locate(1,'INITIALISE_STEPS',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,*) initialise_steps 	!Number of initialisation steps for simulation
+		read(1,*) initialise_steps 
 	else
 		initialise_steps = 0
 	endif
 
-    !Extra distance used for neighbour cell
+	! #########################################################################
+	! # Extra distance to add to rcutoff to use in neighbourlist
+	! # building, bigger gets more interactions but requires rebuild
+	! # to occur less often. Can also be used to tweak cellsizes which
+	! # in term define binsizes for averaging. A single value
+	! # is used for the radius, while 3 values are used in each x,y and z-direction:
+	! # [1] float - extra distance (r or x)
+	! # [2] float - extra distance (y)
+	! # [3] float - extra distance (z)
+	! # -----------------------------------------------------------------------	
 	call locate(1,'DELTA_RNEIGHBR',.true.) 
 	read(1,*) delta_rneighbr(1)
 	read(1,*,iostat=ios) delta_rneighbr(2)
@@ -621,11 +713,12 @@ subroutine setup_read_input
 	endif
 
 	! #########################################################################
-	! # Frequency (in seconds) to write rescue snapshot 'final_state' file, e.g. 5min=3600 or 6 hours=21600 (which is the defaul)
+	! # Frequency (in seconds) to write rescue snapshot 'final_state' file, 
+	! # e.g. 5min=3600 or 6 hours=21600 (which is the defaul)
 	! # [1] int - Seconds 
 	! # [2] .false. - Save individual "interim_state" snapshots
 	! # [2] .true. - Overwrite "final_state" (default)
-! -----------------------------------------------------------------------
+	! # -----------------------------------------------------------------------
 	call locate(1,'RESCUE_SNAPSHOT_FREQ',.false.,found_in_input) 
 	if (found_in_input) then
 		read(1,*) rescue_snapshot_freq 	!Rescue snapshot frequency in seconds
@@ -636,6 +729,16 @@ subroutine setup_read_input
         overwrite_rescue_snapshot = .true.
 	endif
 
+	! #########################################################################
+	! # Sort molecules using a Riemann spacing filling curve which 
+	! # take reorders molecular position, velocities, etc to maximise
+	! # memory locality and increase cache hits. Shows some improvement
+	! # 
+	! # [1] 0 - Off
+	! # [1] 1 - On
+	! # [2] int - Frequency to sort in number of timesteps
+	! # [3] int - Size of block used for molecules
+	! # -----------------------------------------------------------------------
 	call locate(1,'SORT_FLAG',.false.,found_in_input) 
 	if (found_in_input) then
 		read(1,*) sort_flag
@@ -647,6 +750,12 @@ subroutine setup_read_input
 		sortblocksize = 0
 	endif
 
+	! #########################################################################
+	! # Global numbering system, creates another array to keep track of the
+	! # numbering of the molecules
+	! # [1] 0 - Off
+	! # [1] 1 - On
+	! # -----------------------------------------------------------------------
 	call locate(1,'GLOBAL_NUMBERING',.false.,found_in_input) 
 	if (found_in_input) then
 		read(1,*) global_numbering  	!Include global molecular numbering
@@ -660,6 +769,15 @@ subroutine setup_read_input
     else
         global_numbering = 0
     endif
+
+
+	! #########################################################################
+	! # Random number generator seed system, needs to be two numbers 
+	! # and defaults to 1 and 2 if not specified. Set both to the same number
+	! # to trigger a random seed based on the current date and time.
+	! # [1] int - Seed number 1
+	! # [2] int - Seed number 2
+	! # -----------------------------------------------------------------------
 	call locate(1,'SEED',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) seed(1) 	!Random number seed value 1
@@ -669,7 +787,16 @@ subroutine setup_read_input
 		seed(2) = 2		!Fixed default seed for repeatability
 	endif
 
-    !Specifiy more general potential than LJ
+	! #########################################################################
+	! # Specifiy more general potential than LJ, including powers 
+	! # 12 and 6 with lambda_a and lambda_r to allow tuning to more 
+	! # general molecular models with mol_type keeping track of the 
+	! # parameter which chooses a pre-defined molecule type and
+	! # allows varying wetting potential/wall interaction eij
+	! # [1] 0 - Lennard Jones Potential
+	! # [1] 1 - Mie Potential
+	! # [2] int - Default value of Mie molecule type
+	! #-----------------------------------------------------------------------
 	call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
 	if (found_in_input) then
         read(1,*) Mie_potential
@@ -713,6 +840,18 @@ subroutine setup_read_input
 		print*, 'npx = ', npx, 'npy = ', npy, 'npz = ', npz
 
 	endif
+
+
+	! ########################################################################
+	! ## NEWPAGE - BOUNDARY CONDITIONS
+	! ########################################################################
+	call locate(1,'NEWPAGE_BOUNDARY_CONDITIONS',.false.,found_in_input)
+	if (found_in_input) then
+		!read(1,*) newpage
+		print*, "The keyword OUTPUT does nothing, "
+		print*, "it is used to denote start of output section flowmol_inputs" 
+	endif
+
 
 	!Flags to determine if periodic boundaries are on or shearing Lees Edwards
 	call locate(1,'PERIODIC',.true.)
@@ -924,6 +1063,85 @@ subroutine setup_read_input
 		endif
 	else
 		external_force_flag = 0
+	endif
+
+
+	! #########################################################################
+	! #
+	! # Apply a CV based force with a number of options
+	! # Apply force, either:
+	! #   NON-COUPLED 
+	! #      -1 - Debug, apply nothing
+	! #	    0 - Zero force (MD values taken off and no force applied)
+	! #	    1 - Sinusoidal force (MD values taken off)
+	! #	    2 - vortex
+	! #	    3 - vortex and elongation
+	! #       4 - vortex generator
+	! #	    5 - Couette Analytical solution from function_lib
+	! #   COUPLED
+	! #      -1 - Debug, apply nothing
+	! #       0 - Zero force
+	! #       1 - Coupled CFD
+	! # Weighting Function
+	! #	0 - No weighting -- apply evenly. 
+	! #	1 - Weighting based on continuum stress only
+	! #	2 - Weighting based on MD and continuum stress
+	! # Start time of CV constraint
+	! #	200 - default value
+	! # Range of application
+	! #	- xmin - minimum x coordinate in global system 
+	! #	- xmax - maximum x coordinate in global system 
+	! #	- ymin - minimum y coordinate in global system 
+	! #	- ymax - maximum y coordinate in global system 
+	! #	- zmin - minimum z coordinate in global system 
+	! #	- zmax - maximum z coordinate in global system 
+	! # Correction to velocity value
+	! #	0 - Off. 
+	! #	1 - On
+	! # Number of steps to apply correction for
+	! #   Nsteps - default value
+	! # Direction to apply correction in
+	! #   .true. or .false. - x
+	! #   .true. or .false. - y
+	! #   .true. or .false. - z
+	! # -----------------------------------------------------------------------
+	call locate(1,'CV_FORCES',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) CVforce_flag
+		if (CVforce_flag .ne. VOID) then
+			if (CV_debug .eq. 0) call error_abort("Input ERROR -- CV_FORCES true so CV_CONSERVE should be set to 1 and debugging set to > 1")
+			if (vflux_outflag .ne. 4) call error_abort("Input ERROR -- CV_FORCES .true. but VFLUX_OUTFLAG not set to 4 (CV averages)")
+		endif
+		read(1,*,iostat=ios) CVweighting_flag
+		if (ios .ne. 0) CVweighting_flag = 0
+		read(1,*,iostat=ios) CVforce_starttime
+		if (ios .ne. 0) CVforce_starttime = 200
+        if (CVforce_starttime .le. 0) call error_abort("Error in read inputs -- CVforce starttime must be greater than 0")
+		read(1,*,iostat=ios) F_CV_limits(1)
+		if (ios .ne. 0) F_CV_limits(1) = VOID
+		read(1,*,iostat=ios) F_CV_limits(2)
+		if (ios .ne. 0) F_CV_limits(2) = VOID
+		read(1,*,iostat=ios) F_CV_limits(3)
+		if (ios .ne. 0) F_CV_limits(3) = VOID
+		read(1,*,iostat=ios) F_CV_limits(4)
+		if (ios .ne. 0) F_CV_limits(4) = VOID
+		read(1,*,iostat=ios) F_CV_limits(5)
+		if (ios .ne. 0) F_CV_limits(5) = VOID
+		read(1,*,iostat=ios) F_CV_limits(6)
+		if (ios .ne. 0) F_CV_limits(6) = VOID
+		read(1,*,iostat=ios) CVforce_correct
+		if (ios .ne. 0) CVforce_correct = 0
+        if (CVforce_correct .eq. 1) then
+    		read(1,*,iostat=ios) CVforce_correct_nsteps
+	    	if (ios .ne. 0) CVforce_correct_nsteps = NSTEPS
+        endif
+
+        do ixyz = 1,3
+    		read(1,*,iostat=ios) CVforce_applied_dir(ixyz)
+            if (ios .ne. 0) CVforce_applied_dir(ixyz) = .true.
+        enddo
+
+        !print*, CVforce_flag, CVweighting_flag, CVforce_correct,  CVforce_starttime
 	endif
 
 	!Define specular wall location (if any)
@@ -1139,6 +1357,7 @@ subroutine setup_read_input
 		! # Opt1 - fraction of domain for outlet region
 		! # Opt2 - fraction of domain for diverging nozzle
 		! # Opt3 - Set outlet region to still have wall
+		! # [1] 0 - Off
 		! # [1] 1 - posts
 		! # [1] 2 - random spikes using sines/cosines
 		! # [1] 3 - converging - diverging channel
@@ -1230,110 +1449,43 @@ subroutine setup_read_input
 			read(1,*) emptydistbottom(2)
 			read(1,*) emptydistbottom(3)
 		endif
+
+		! ########################################################################
+		! # Apply heating in a local region
+		! # [1] float - start of heated region in x
+		! # [2] float - end of heated region in x
+		! # [3] float - start of heated region in y
+		! # [4] float - end of heated region in y
+		! # [5] float - start of heated region in z
+		! # [6] float - end of heated region in z
+		! # ----------------------------------------------------------------------
+		call locate(1,'LOCAL_HEAT',.false.,found_in_input)
+		if (found_in_input) then
+			read(1,*) local_heat_region(1)
+			read(1,*) local_heat_region(2)
+			read(1,*) local_heat_region(3)
+			read(1,*) local_heat_region(4)
+			read(1,*) local_heat_region(5)
+			read(1,*) local_heat_region(6)
+		else
+			local_heat_region = -666.d0
+		endif
+
 	endif
-
-
 
 	! ########################################################################
 	! ## NEWPAGE - Outputs
 	! ########################################################################
-
-
-	! ########################################################################
-	! # Turn on cluster analysis to build clusters from molecules
-	! # a linked list of all molecules within a cutoff distance of each other
-	! # [1] 0 - Cluster Analysis Off 
-	! # [1] 1 - Cluster Analysis On - allows intrinsic interface
-	! # [1] 2 - Cluster Analysis On - for average mass bin interface (OBSOLETE)
-	! # [2] float - Cutoff length for cluster search
-	! # [3] int - Minimum number of neighbours for inclusion in cluster
-	! # [4] 1 - Write interface as an xyz file (for VMD) with all molecuels in cluster.xyz 
-	! # [4] 2 - Write interface as an obj file (for Blender, etc)
-	! # [4] 3 - Write interface as surface.grid, a simple ascii grid of center locations 
-	! # [4] 4 - Write modes to ascii file 
-	! # [5] int - Resolution to write interface (Number of points in each direction)
-	! # ----------------------------------------------------------------------
-	call locate(1,'CLUSTER_ANALYSIS',.false.,found_in_input)
+	call locate(1,'NEWPAGE_OUTPUTS',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,*) cluster_analysis_outflag
-        if (cluster_analysis_outflag .ne. 0) then
-            if (nproc .ne. 1) then
-                call error_abort("Cluster Analysis only works with one processor")
-            end if
-		    read(1,*,iostat=ios) CA_rd   ! Cutoff length for cluster search
-            if (ios .ne. 0) CA_rd = 1.5
-		    read(1,*,iostat=ios) CA_min_nghbr   ! Minimum number of neighbours
-            if (ios .ne. 0) CA_min_nghbr = 0  ! Set to zero (i.e. default no minimum)
-		    read(1,*,iostat=ios) CA_generate_xyz   ! Output xyz files for vmd
-            if (ios .ne. 0) CA_generate_xyz = 0  ! Set to zero (i.e. default no output)
-            if (CA_generate_xyz .ne. 0) then
-    		    read(1,*,iostat=ios) CA_generate_xyz_res   ! Resolution for output xyz files 
-                if (ios .ne. 0) CA_generate_xyz_res = 0  
-            endif
-            ! If interface cutoff is less that interaction rcutoff
-            ! then we can use the neighbourlist to get molecules in 
-            ! interface region (N.B. need to use all interations)
-            if (CA_rd .gt. (rcutoff + minval(delta_rneighbr))) then
-                call error_abort("Error in build cluster -- rd must be less than neighbourlist cutoff")
-            endif
-
-            if ((force_list .lt. 1) .or. (force_list .gt. 2)) then
-                call error_abort("Error in build_from_cellandneighbour_lists -- full "//&
-                                 "neightbour list should be used with interface tracking."//&
-                                 " Set FORCE_LIST to 2 in input file.")
-            end if
-        endif
-    else
-        cluster_analysis_outflag = 0
+		!read(1,*) newpage
+		print*, "The keyword OUTPUT does nothing, "
+		print*, "it is used to denote start of output section flowmol_inputs" 
 	endif
 
-    !print*, "CLUSTER_ANALYSIS inputs", CA_rd, CA_min_nghbr
-
-    !#########################################################################
-    !# Fit an intrinsic surface to the outside of the cluster
-    !#   flag   1 - Intrinsic sine/cosine  2 - sine/cosine with bilinear approx  
-    !#       - normal     Surface normal direction
-    !#       - alpha      Smallest wavelength
-    !#       - tau        Search radius around surface
-    !#       - omega      Weight for surface energy minimising constraint
-    !#       - ns         Target density of surface Npivots/Area
-    !#   flag       3  - Linear and cubic surfaces
-    !#       - No flags yet
-    !# -----------------------------------------------------------------------
-	call locate(1,'INTRINSIC_INTERFACE',.false.,found_in_input)
-	if (found_in_input) then
-        if (cluster_analysis_outflag .eq. 0) then
-            call error_abort("Cluster Analysis must be on to use intrinsic interface")
-        endif
-		read(1,*) intrinsic_interface_outflag
-        if (intrinsic_interface_outflag .ne. 0) then
-    		read(1,*,iostat=ios) II_normal   ! Surface normal direction
-            if (ios .ne. 0) II_normal = 3
-            read(1,*,iostat=ios) II_alpha    ! Smallest wavelength
-            if (ios .ne. 0) II_alpha = 0.5d0
-            read(1,*,iostat=ios) II_tau      ! Search radius around surface
-            if (ios .ne. 0) II_tau = 1.d0
-            read(1,*,iostat=ios) II_eps    ! Weight for surface energy minimising constraint
-            if (ios .ne. 0) II_eps = 0.00000001d0
-            read(1,*,iostat=ios) II_ns       ! Target density of surface Npivots/Area
-            if (ios .ne. 0) II_ns = 0.8d0
-            read(1,*,iostat=ios) II_topbot       !Top =1 or bottom=2
-            if (ios .ne. 0) II_topbot = 1
-        endif
-    else
-        intrinsic_interface_outflag = 0
-	endif
 
     !print*, "INTRINSIC_INTERFACE inputs", intrinsic_interface_outflag, II_normal, II_alpha, II_tau, II_eps, II_ns      
 
-	call locate(1,'LOCAL_HEAT',.false.,found_in_input)
-	if (found_in_input) then
-        do n =1,6
-            read(1,*) local_heat_region(n)
-        enddo
-    else
-        local_heat_region = -666.d0
-    endif
 
 	!Flag to determine if output is switched on
 	call locate(1,'VMD_OUTFLAG',.false.,found_in_input)
@@ -1403,7 +1555,13 @@ subroutine setup_read_input
         call error_abort('SEPERATE_OUTFILES error, sepArate is misspelt')
     endif
     
-      
+	! #########################################################################
+	! # Save output files as a single file or seperate file at each timestep
+	! # [1] .false. - Output a single file per output
+	! # [1] .true. - Output a value per timestep and per output type 
+	! # [2] .false. - On restart, use numbering starting from current record (initialstep)
+	! # [2] .true. - Delete all previous files and create file numbes
+	! # -----------------------------------------------------------------------
 	call locate(1,'SEPARATE_OUTFILES',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) separate_outfiles
@@ -1413,6 +1571,18 @@ subroutine setup_read_input
         endif
 	endif
 
+	! #########################################################################
+	! # Define the number of output bins in terms of the compuational cells
+	! # This constraint is useful for efficiency (cell lists) and consistency
+	! # while not being particularly restrictive (bins must be integer no in
+	! # each process and so must cells). The bin cell ratio in the x,y,z 
+	! # directions is specified in real format with e.g. 2.0 is 2 bins per
+	! # cell or 0.5 is 2 cells per bin. Care must be taken that cells is an
+	! # even number if splitting.
+	! # [1] float - x ratio of bins per cell
+	! # [2] float - y ratio of bins per cell
+	! # [3] float - z ratio of bins per cell
+	! # -----------------------------------------------------------------------
 	call locate(1,'BIN2CELLRATIO',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) binspercell(1)
@@ -1429,9 +1599,24 @@ subroutine setup_read_input
 		binspercell = 1.d0
 	endif
 
+	! #########################################################################
+	! # Output flag for macroscopic properties:
+	! # [1] 0 - off
+	! # [1] 1 - high precision > stdout
+	! # [1] 2 - high precision > stdout + results/macroscopic_properties
+	! # [1] 3 - concise        > stdout
+	! # [1] 4 - concise        > stdout + results/macroscopic_properties
+	! # -----------------------------------------------------------------------
 	call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) read(1,*) macro_outflag
 
+	! #########################################################################
+	! # Add correction to energy and virial pressure in macro output based
+	! # standard long range correction (see an MD textbook e.g. Rapaport or 
+	! # Allen and Tildesley)
+	! # [1] 0 - Off
+	! # [1] 1 - On
+	! # -----------------------------------------------------------------------
 	call locate(1,'SLRC_FLAG',.false.,found_in_input)
 	if (found_in_input) read(1,*) sLRC_flag
 	!Test for WCA potential and switch LRC off
@@ -1441,6 +1626,13 @@ subroutine setup_read_input
 			sLRC_flag = 0
 		endif
 	endif
+
+	! #########################################################################
+	! # Output flag for mass record:
+	! # [1] 0 - off 
+	! # [1] 4 - 3D grid of bins
+	! # [2] int - No. of samples for mass average
+	! # -----------------------------------------------------------------------
 	call locate(1,'MASS_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) mass_outflag
@@ -1454,10 +1646,15 @@ subroutine setup_read_input
 			read(1,*) gcpol_bins(3)	
 		end if
 	endif
-	call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
-    if (.not. found_in_input) then	
-    	call locate(1,'MOMENTUM_OUTFLAG',.false.,found_in_input)
-    endif
+
+
+	! #########################################################################
+	! # Output flag for momentum record:
+	! # [1] 0 - off 
+	! # [1] 4 - 3D grid of bins
+	! # [2] int - No. of samples for momentum average
+	! # -----------------------------------------------------------------------
+	call locate(1,'MOMENTUM_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) momentum_outflag
 		if (momentum_outflag .ne. 0) then
@@ -1470,6 +1667,14 @@ subroutine setup_read_input
 			read(1,*) gcpol_bins(3)	
 		end if
 	endif
+	! #########################################################################
+	! # Output flag for temperature record:
+	! # [1] 0 - off 
+	! # [1] 4 - 3D grid of bins
+	! # [2] int - No. of samples for temperature average
+	! # [3] 0 - Peculiar velocity off
+	! # [3] 1 - Peculiar velocity on
+	! # -----------------------------------------------------------------------
 	call locate(1,'TEMPERATURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) temperature_outflag
@@ -1479,6 +1684,12 @@ subroutine setup_read_input
 			if (ios .ne. 0) peculiar_flag = 0 !default to zero if value not found
 		endif
 	endif
+	! #########################################################################
+	! # Output flag for energy record:
+	! # [1] 0 - off 
+	! # [1] 4 - 3D grid of bins
+	! # [2] int - No. of samples for energy average
+	! # -----------------------------------------------------------------------
 	call locate(1,'ENERGY_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) energy_outflag
@@ -1486,6 +1697,12 @@ subroutine setup_read_input
 			read(1,*) Nenergy_ave
 		endif
 	endif
+	! #########################################################################
+	! # Output flag for bin centre of mass record:
+	! # [1] 0 - off 
+	! # [1] 4 - 3D grid of bins
+	! # [2] int - No. of samples for centre of mass average
+	! # -----------------------------------------------------------------------
 	call locate(1,'CENTRE_OF_MASS_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) centre_of_mass_outflag
@@ -1747,83 +1964,92 @@ subroutine setup_read_input
         split_pol_sol_stats = 0
     end if
 
-	! #########################################################################
-	! #
-	! # Apply a CV based force with a number of options
-	! # Apply force, either:
-	! #   NON-COUPLED 
-	! #      -1 - Debug, apply nothing
-	! #	    0 - Zero force (MD values taken off and no force applied)
-	! #	    1 - Sinusoidal force (MD values taken off)
-	! #	    2 - vortex
-	! #	    3 - vortex and elongation
-	! #       4 - vortex generator
-	! #	    5 - Couette Analytical solution from function_lib
-	! #   COUPLED
-	! #      -1 - Debug, apply nothing
-	! #       0 - Zero force
-	! #       1 - Coupled CFD
-	! # Weighting Function
-	! #	0 - No weighting -- apply evenly. 
-	! #	1 - Weighting based on continuum stress only
-	! #	2 - Weighting based on MD and continuum stress
-	! # Start time of CV constraint
-	! #	200 - default value
-	! # Range of application
-	! #	- xmin - minimum x coordinate in global system 
-	! #	- xmax - maximum x coordinate in global system 
-	! #	- ymin - minimum y coordinate in global system 
-	! #	- ymax - maximum y coordinate in global system 
-	! #	- zmin - minimum z coordinate in global system 
-	! #	- zmax - maximum z coordinate in global system 
-	! # Correction to velocity value
-	! #	0 - Off. 
-	! #	1 - On
-	! # Number of steps to apply correction for
-	! #   Nsteps - default value
-	! # Direction to apply correction in
-	! #   .true. or .false. - x
-	! #   .true. or .false. - y
-	! #   .true. or .false. - z
-	! # -----------------------------------------------------------------------
-	call locate(1,'CV_FORCES',.false.,found_in_input)
+
+	! ########################################################################
+	! # Turn on cluster analysis to build clusters from molecules
+	! # a linked list of all molecules within a cutoff distance of each other
+	! # [1] 0 - Cluster Analysis Off 
+	! # [1] 1 - Cluster Analysis On - allows intrinsic interface
+	! # [1] 2 - Cluster Analysis On - for average mass bin interface (OBSOLETE)
+	! # [2] float - Cutoff length for cluster search
+	! # [3] int - Minimum number of neighbours for inclusion in cluster
+	! # [4] 1 - Write interface as an xyz file (for VMD) with all molecuels in cluster.xyz 
+	! # [4] 2 - Write interface as an obj file (for Blender, etc)
+	! # [4] 3 - Write interface as surface.grid, a simple ascii grid of center locations 
+	! # [4] 4 - Write modes to ascii file 
+	! # [5] int - Resolution to write interface (Number of points in each direction)
+	! # ----------------------------------------------------------------------
+	call locate(1,'CLUSTER_ANALYSIS',.false.,found_in_input)
 	if (found_in_input) then
-		read(1,*) CVforce_flag
-		if (CVforce_flag .ne. VOID) then
-			if (CV_debug .eq. 0) call error_abort("Input ERROR -- CV_FORCES true so CV_CONSERVE should be set to 1 and debugging set to > 1")
-			if (vflux_outflag .ne. 4) call error_abort("Input ERROR -- CV_FORCES .true. but VFLUX_OUTFLAG not set to 4 (CV averages)")
-		endif
-		read(1,*,iostat=ios) CVweighting_flag
-		if (ios .ne. 0) CVweighting_flag = 0
-		read(1,*,iostat=ios) CVforce_starttime
-		if (ios .ne. 0) CVforce_starttime = 200
-        if (CVforce_starttime .le. 0) call error_abort("Error in read inputs -- CVforce starttime must be greater than 0")
-		read(1,*,iostat=ios) F_CV_limits(1)
-		if (ios .ne. 0) F_CV_limits(1) = VOID
-		read(1,*,iostat=ios) F_CV_limits(2)
-		if (ios .ne. 0) F_CV_limits(2) = VOID
-		read(1,*,iostat=ios) F_CV_limits(3)
-		if (ios .ne. 0) F_CV_limits(3) = VOID
-		read(1,*,iostat=ios) F_CV_limits(4)
-		if (ios .ne. 0) F_CV_limits(4) = VOID
-		read(1,*,iostat=ios) F_CV_limits(5)
-		if (ios .ne. 0) F_CV_limits(5) = VOID
-		read(1,*,iostat=ios) F_CV_limits(6)
-		if (ios .ne. 0) F_CV_limits(6) = VOID
-		read(1,*,iostat=ios) CVforce_correct
-		if (ios .ne. 0) CVforce_correct = 0
-        if (CVforce_correct .eq. 1) then
-    		read(1,*,iostat=ios) CVforce_correct_nsteps
-	    	if (ios .ne. 0) CVforce_correct_nsteps = NSTEPS
+		read(1,*) cluster_analysis_outflag
+        if (cluster_analysis_outflag .ne. 0) then
+            if (nproc .ne. 1) then
+                call error_abort("Cluster Analysis only works with one processor")
+            end if
+		    read(1,*,iostat=ios) CA_rd   ! Cutoff length for cluster search
+            if (ios .ne. 0) CA_rd = 1.5
+		    read(1,*,iostat=ios) CA_min_nghbr   ! Minimum number of neighbours
+            if (ios .ne. 0) CA_min_nghbr = 0  ! Set to zero (i.e. default no minimum)
+		    read(1,*,iostat=ios) CA_generate_xyz   ! Output xyz files for vmd
+            if (ios .ne. 0) CA_generate_xyz = 0  ! Set to zero (i.e. default no output)
+            if (CA_generate_xyz .ne. 0) then
+    		    read(1,*,iostat=ios) CA_generate_xyz_res   ! Resolution for output xyz files 
+                if (ios .ne. 0) CA_generate_xyz_res = 0  
+            endif
+            ! If interface cutoff is less that interaction rcutoff
+            ! then we can use the neighbourlist to get molecules in 
+            ! interface region (N.B. need to use all interations)
+            if (CA_rd .gt. (rcutoff + minval(delta_rneighbr))) then
+                call error_abort("Error in build cluster -- rd must be less than neighbourlist cutoff")
+            endif
+
+            if ((force_list .lt. 1) .or. (force_list .gt. 2)) then
+                call error_abort("Error in build_from_cellandneighbour_lists -- full "//&
+                                 "neightbour list should be used with interface tracking."//&
+                                 " Set FORCE_LIST to 2 in input file.")
+            end if
         endif
-
-        do ixyz = 1,3
-    		read(1,*,iostat=ios) CVforce_applied_dir(ixyz)
-            if (ios .ne. 0) CVforce_applied_dir(ixyz) = .true.
-        enddo
-
-        !print*, CVforce_flag, CVweighting_flag, CVforce_correct,  CVforce_starttime
+    else
+        cluster_analysis_outflag = 0
 	endif
+
+    !print*, "CLUSTER_ANALYSIS inputs", CA_rd, CA_min_nghbr
+
+    !#########################################################################
+    !# Fit an intrinsic surface to the outside of the cluster
+    !#   flag   1 - Intrinsic sine/cosine  2 - sine/cosine with bilinear approx  
+    !#       - normal     Surface normal direction
+    !#       - alpha      Smallest wavelength
+    !#       - tau        Search radius around surface
+    !#       - omega      Weight for surface energy minimising constraint
+    !#       - ns         Target density of surface Npivots/Area
+    !#   flag       3  - Linear and cubic surfaces
+    !#       - No flags yet
+    !# -----------------------------------------------------------------------
+	call locate(1,'INTRINSIC_INTERFACE',.false.,found_in_input)
+	if (found_in_input) then
+        if (cluster_analysis_outflag .eq. 0) then
+            call error_abort("Cluster Analysis must be on to use intrinsic interface")
+        endif
+		read(1,*) intrinsic_interface_outflag
+        if (intrinsic_interface_outflag .ne. 0) then
+    		read(1,*,iostat=ios) II_normal   ! Surface normal direction
+            if (ios .ne. 0) II_normal = 3
+            read(1,*,iostat=ios) II_alpha    ! Smallest wavelength
+            if (ios .ne. 0) II_alpha = 0.5d0
+            read(1,*,iostat=ios) II_tau      ! Search radius around surface
+            if (ios .ne. 0) II_tau = 1.d0
+            read(1,*,iostat=ios) II_eps    ! Weight for surface energy minimising constraint
+            if (ios .ne. 0) II_eps = 0.00000001d0
+            read(1,*,iostat=ios) II_ns       ! Target density of surface Npivots/Area
+            if (ios .ne. 0) II_ns = 0.8d0
+            read(1,*,iostat=ios) II_topbot       !Top =1 or bottom=2
+            if (ios .ne. 0) II_topbot = 1
+        endif
+    else
+        intrinsic_interface_outflag = 0
+	endif
+
 
 	close(1,status='keep')      !Close input file
 
