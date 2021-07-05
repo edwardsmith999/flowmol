@@ -22,20 +22,21 @@ matplotlib.use('WXAgg')
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.figure import Figure
+from matplotlib.collections import LineCollection
 
 from SetupInputs import SetupInputs
 
 # Code to read input file
 import sys
-sys.path.append("/home/es205/codes/python/SimWrapPy/")
+sys.path.append("/home/es205/codes/SimWrapPy/")
 import simwraplib as swl
 
-sys.path.insert(0, "/home/es205/codes/python/pyDataView/")
+sys.path.insert(0, "/home/es205/codes/pyDataView/")
 import postproclib as ppl
 import postproclib.visualiser as pplv
 
 class CanvasPanel(wx.Panel):
-    def __init__(self, parent, tmpdir="temp"):
+    def __init__(self, parent, ThreeD=True, tmpdir="temp"):
         wx.Panel.__init__(self, parent)
         self.parent = parent
         self.figure = Figure()
@@ -43,7 +44,7 @@ class CanvasPanel(wx.Panel):
         self.tmpdir = tmpdir
         self.ft = True
         self.resultsdir = self.tmpdir + "/results/"
-        self.ThreeD = False
+        self.ThreeD = ThreeD
         if (self.ThreeD):
             self.axes = self.figure.add_subplot(111, projection='3d', proj_type = 'ortho')
         else:
@@ -65,9 +66,10 @@ class CanvasPanel(wx.Panel):
     def draw(self, plottype):
 
         if not self.ft:
-            #Store current angle and delete axis
-            azim = self.axes.azim
-            elev = self.axes.elev
+            if (self.ThreeD):
+                #Store current angle and delete axis
+                azim = self.axes.azim
+                elev = self.axes.elev
             self.axes.cla()
             self.draw_grid(self.gridcheck.IsChecked())
             #self.parent.gridcheck.SetValue(False)
@@ -77,6 +79,8 @@ class CanvasPanel(wx.Panel):
                 self.cb.remove()
                 del self.cb
             except AttributeError:
+                pass
+            except KeyError:
                 pass
 
         try:
@@ -169,18 +173,15 @@ class CanvasPanel(wx.Panel):
 
 
     def intrnsic_surf(self, y, z):
-        if self.intrinsic:
-            #return np.sin(2.*np.pi*y)+np.cos(2.*np.pi*z)
-            elevation = 0.0
-            for i in range(self.u.shape[0]):
-                j = int(self.indx[i])-1
-                #print(i, j, self.u[i], self.v[i], self.modes[j], elevation)
-                elevation += (  self.modes[j]
-                             * self.wave_function(y, self.u[i])
-                             * self.wave_function(z, self.v[i]))
-            return elevation
-        else:
-            return 0.
+        #return np.sin(2.*np.pi*y)+np.cos(2.*np.pi*z)
+        elevation = 0.0
+        for i in range(self.u.shape[0]):
+            j = int(self.indx[i])-1
+            #print(i, j, self.u[i], self.v[i], self.modes[j], elevation)
+            elevation += (  self.modes[j]
+                         * self.wave_function(y, self.u[i])
+                         * self.wave_function(z, self.v[i]))
+        return elevation
 
     def draw_grid(self, draw):
 
@@ -206,24 +207,44 @@ class CanvasPanel(wx.Panel):
             x = np.linspace(-Lx/2.,Lx/2., nx+1)
             y = np.linspace(-Ly/2, Ly/2., ny+1)
 
-            X, Y = np.meshgrid(x, z)
+            X, Y = np.meshgrid(x, y)
 
-            segs1 = np.stack((X,Y), axis=2)
-            segs2 = segs1.transpose(1,0,2)
+            try:
+                initialstep = int(header.initialstep)
+                data = np.genfromtxt(self.resultsdir + "/surfacemodes.{:07d}".format(initialstep))
+                self.u = data[:,0]
+                self.v = data[:,1]
+                self.indx = data[:,2]
+                self.modes = data[:,3]
+                self.intrinsic = True
+            except (FileNotFoundError, ValueError, OSError) as e:
+                self.modes=None
+                self.intrinsic = False
 
             self.grid = []
-            self.grid.append(self.axes.add_collection(LineCollection(segs1)))
-            self.grid.append(self.axes.add_collection(LineCollection(segs2)))
+            if self.intrinsic:
+
+                #Add intrinsic surface
+                Lz = float(header.globaldomain3)
+                Z = np.ones_like(X)*(Lz/2)
+                X = X + self.intrnsic_surf(Y/Ly, Z/Lz)
+
+                segs1 = np.stack((X,Y), axis=2)
+                segs2 = segs1.transpose(1,0,2)
+                self.grid.append(self.axes.add_collection(
+                    LineCollection(segs1, color="k")))
+                self.grid.append(self.axes.add_collection(
+                    LineCollection(segs2, color="k")))
+
+            else:
+       
+                #Faster option for uniform grid
+                segs1 = np.stack((X[:,[0,-1]],Y[:,[0,-1]]), axis=2)
+                segs2 = np.stack((X[[0,-1],:].T,Y[[0,-1],:].T), axis=2)
+                self.grid.append(self.axes.add_collection(
+                    LineCollection(np.concatenate((segs1, segs2)), color="k")))
+
             self.canvas.draw()
-
-            #Faster option for uniform grid
-            # segs1 = np.stack((x[:,[0,-1]],y[:,[0,-1]]), axis=2)
-            # segs2 = np.stack((x[[0,-1],:].T,y[[0,-1],:].T), axis=2)
-
-            # self.grid = []
-            # self.grid.append(self.axes.add_collection(
-                # LineCollection(np.concatenate((segs1, segs2)))))
-            # self.canvas.draw()
 
         else:
             try:
@@ -242,9 +263,6 @@ class CanvasPanel(wx.Panel):
             except FileNotFoundError:
                 return
 
-
-            initialstep = int(header.initialstep)
-
             nx = int(header.gnbins1)
             ny = int(header.gnbins2)
             nz = int(header.gnbins3)
@@ -254,6 +272,7 @@ class CanvasPanel(wx.Panel):
             Lz = float(header.globaldomain3)
 
             try:
+                initialstep = int(header.initialstep)
                 data = np.genfromtxt(self.resultsdir + "/surfacemodes.{:07d}".format(initialstep))
                 self.u = data[:,0]
                 self.v = data[:,1]
@@ -282,6 +301,17 @@ class CanvasPanel(wx.Panel):
             x31 = np.ones_like(y3)*(ox-Lx/2)
             x32 = np.ones_like(y3)*(ox+Lx/2)
 
+            if self.intrinsic:
+                x11 = x1 + self.intrnsic_surf(y11/Ly, z1/Lz)
+                x12 = x1 + self.intrnsic_surf(y12/Ly, z1/Lz)
+                x21 = x2 + self.intrnsic_surf(y2/Ly, z21/Lz)
+                x22 = x2 + self.intrnsic_surf(y2/Ly, z22/Lz)
+                x31 = x31 + self.intrnsic_surf(y3/Ly, z3/Lz)
+                x32 = x32 + self.intrnsic_surf(y3/Ly, z3/Lz)
+            else:
+                x11 = x12 = x1
+                x21 = x22 = x2
+
             a = 0.5
             rs = 1
             cs = 1
@@ -289,23 +319,23 @@ class CanvasPanel(wx.Panel):
             c = 'k'
             self.grid = []
             # outside surface
-            self.grid.append(self.axes.plot_wireframe(x1+self.intrnsic_surf(y11/Ly, z1/Lz), 
-                              y11, z1, color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
+            self.grid.append(self.axes.plot_wireframe(x11, y11, z1, 
+                             color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
             # inside surface
-            self.grid.append(self.axes.plot_wireframe(x1+self.intrnsic_surf(y12/Ly, z1/Lz), 
-                              y12, z1, color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
+            self.grid.append(self.axes.plot_wireframe(x12, y12, z1, 
+                             color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
             # bottom surface
-            self.grid.append(self.axes.plot_wireframe(x2+self.intrnsic_surf(y2/Ly, z21/Lz), 
-                              y2, z21, color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
+            self.grid.append(self.axes.plot_wireframe(x21, y2, z21, 
+                             color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
             # upper surface
-            self.grid.append(self.axes.plot_wireframe(x2+self.intrnsic_surf(y2/Ly, z22/Lz), 
-                              y2, z22, color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
+            self.grid.append(self.axes.plot_wireframe(x22, y2, z22, 
+                             color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
             # left surface
-            self.grid.append(self.axes.plot_wireframe(x31+self.intrnsic_surf(y3/Ly, z3/Lz), 
-                              y3, z3, color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
+            self.grid.append(self.axes.plot_wireframe(x31, y3, z3, 
+                             color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
             # right surface
-            self.grid.append(self.axes.plot_wireframe(x32+self.intrnsic_surf(y3/Ly, z3/Lz), 
-                              y3, z3, color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
+            self.grid.append(self.axes.plot_wireframe(x32, y3, z3, 
+                             color=c, rstride=rs, cstride=cs, linewidth=lw, alpha=a))
 
             self.canvas.draw()
 
@@ -333,6 +363,7 @@ class MyFrame(wx.Frame):
 
         #Top menu
         self.InitUI()
+
         #Setup notebook pages
         self.notebook_1 = wx.Notebook(self, wx.ID_ANY)
         self.notebook_1_pane_1 = wx.Panel(self.notebook_1, wx.ID_ANY)
@@ -358,7 +389,7 @@ class MyFrame(wx.Frame):
         self.Layout()
 
         #Add pyDataView to second tab
-        self.notebook_1_pane_2 = pplv.MainPanel(self.notebook_1, "./", 
+        self.notebook_1_pane_2 = pplv.MainPanel(self.notebook_1, "../runs/results/", 
                                                 catch_noresults=False)
         self.notebook_1.AddPage(self.notebook_1_pane_2, "Results")
 
@@ -379,6 +410,7 @@ class MyFrame(wx.Frame):
         #Optional parameters
         self.showhide_conditional = self.Editcondition.IsChecked()
         self.plotpanel.fastplot = self.Editfastplot.IsChecked()
+        self.plotpanel.ThreeD = self.EditthreeD.IsChecked()
 
         #Close handle
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -402,11 +434,28 @@ class MyFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnQuit, quit)
 
         EditMenu = wx.Menu()
-        self.Editcondition = EditMenu.AppendCheckItem(wx.ITEM_CHECK, 'Hide Unused')
-        self.Editfastplot = EditMenu.AppendCheckItem(wx.ITEM_CHECK, 'Fast Plot')
+        self.Editcondition = EditMenu.AppendCheckItem(wx.NewId(), 'Hide Unused')
+        self.Editfastplot = EditMenu.AppendCheckItem(wx.NewId(), 'Fast Plot')
+        self.EditthreeD = EditMenu.AppendCheckItem(wx.NewId(), '3D plots')
+
+        maxcpu =  os.cpu_count()
+        submenu = wx.Menu()
+        for i in range(1,maxcpu+1):
+            submenu.AppendRadioItem(1000+i, str(i))
+        self.Editncpus = EditMenu.Append(wx.NewId(), 'No. CPU', submenu)
+        self.ncpus = 1
+
         menubar.Append(EditMenu, '&Edit')
+
         self.Bind(wx.EVT_MENU, self.OnConditional, self.Editcondition)
         self.Bind(wx.EVT_MENU, self.OnFastplot, self.Editfastplot)
+        self.Bind(wx.EVT_MENU, self.OnThreeD, self.EditthreeD)
+        for i in range(1,maxcpu+1):
+            self.Bind(wx.EVT_MENU, self.Onncpus, id=1000+i)
+
+        self.Editcondition.Check()
+        self.Editfastplot.Check()
+        self.EditthreeD.Check()
 
         HelpMenu = wx.Menu()
         about = HelpMenu.Append(wx.ID_ABOUT, '&About\tCtrl+A')
@@ -460,7 +509,7 @@ class MyFrame(wx.Frame):
 
         #Setup adjustable window between properties and help
         self.window_help_props = wx.SplitterWindow(self.window_left, wx.ID_ANY)
-        self.window_help_props.SetMinSize((-1, 600))
+        self.window_help_props.SetMinSize((-1, 1000))
         self.window_help_props.SetMinimumPaneSize(20)
         grid_sizer_1.Add(self.window_help_props, 0, wx.EXPAND, 0)
 
@@ -479,7 +528,9 @@ class MyFrame(wx.Frame):
         self.window_props = wx.Panel(self.window_help_props, wx.ID_ANY)
         sizer_props = wx.BoxSizer(wx.HORIZONTAL)
         self.propgrid = wxpg.PropertyGridManager(self.window_props, wx.ID_ANY,
-                                                 style=wxpg.PG_BOLD_MODIFIED|wxpg.PG_SPLITTER_AUTO_CENTER)
+                                                 style=wxpg.PG_BOLD_MODIFIED |
+                                                 wxpg.PG_SPLITTER_AUTO_CENTER |
+                                                 wxpg.PG_TOOLBAR)
         sizer_props.Add(self.propgrid, 1, wx.EXPAND, 0)
         self.propgrid.Bind(wxpg.EVT_PG_CHANGED, self.change_propgrid)
         #self.propgrid.Bind(wxpg.EVT_PG_CHANGING, self.on_select_child_of_category)
@@ -504,7 +555,7 @@ class MyFrame(wx.Frame):
         self.window_right = wx.Panel(self.window_LR, wx.ID_ANY)
         sizer_Matplot_panel = wx.BoxSizer(wx.VERTICAL)
 
-        self.plotpanel = CanvasPanel(self.window_right)
+        self.plotpanel = CanvasPanel(self.window_right, self.EditthreeD.IsChecked())
         self.tmpdir = self.plotpanel.tmpdir
         sizer_Matplot_panel.Add(self.plotpanel, 1, wx.EXPAND, 0)
 
@@ -685,11 +736,20 @@ class MyFrame(wx.Frame):
 
         pg = self.propgrid
         pg.Clear()
-        pg.AddPage("Page1")
+        #page = pg.AddPage("General")
+        self.EnumMappings = {}
 
         #Setup all possible options as catagories
         #included = []
         for Ik in self.InputsDict.keys():
+
+            if "NEWPAGE" in Ik:
+                name = Ik.replace("NEWPAGE_","").replace("_"," ").title()
+                print(Ik, name)
+                bmp = wx.Image(name.replace(" ","_") + ".png").ConvertToBitmap()
+                page = pg.AddPage(name, bmp=bmp)
+
+                continue
 
             #Look for value in Dict
             try:
@@ -698,7 +758,7 @@ class MyFrame(wx.Frame):
             except KeyError:
                 print("InputDict entries should contain vars entries")
                 return
-            pg.Append( wxpg.PropertyCategory(Ik))
+            page.Append( wxpg.PropertyCategory(Ik))
 
             for kcheck, var in vars.items():
 
@@ -713,17 +773,18 @@ class MyFrame(wx.Frame):
                 try:
                     #Should be in form of nested dictonaries
                     if isinstance(var, dict):
-                        print(kcheck, var["numbers"])
+                        #print(kcheck, var["numbers"])
                         #A list of numbers corresponding to flags
+                        #print(var["numbers"])
                         if isinstance(var["numbers"][0], int):
-                            pg.Append( wxpg.EnumProperty(kcheck, k, var["names"], 
+                            page.Append( wxpg.EnumProperty(kcheck, k, var["names"], 
                                            var["numbers"], int(var["set"])) )
                         #Integers such as number of unit cells
                         elif ("int" in var["numbers"][0]):
-                            pg.Append( wxpg.IntProperty(kcheck, k, value=int(var["set"])) )
+                            page.Append( wxpg.IntProperty(kcheck, k, value=int(var["set"])) )
                         #Floats such as density of system
                         elif ("float" in var["numbers"][0]):
-                            pg.Append( wxpg.FloatProperty(kcheck, k, value=float(var["set"])) )
+                            page.Append( wxpg.FloatProperty(kcheck, k, value=float(var["set"])) )
                         #Or a case with string based keywords 
                         #(so store a mapping to use enum list) 
                         elif isinstance(var["numbers"][0], str):
@@ -732,7 +793,9 @@ class MyFrame(wx.Frame):
                             if var["set"]:
                                 for i, s in enumerate(var["numbers"]):
                                     found = False
-                                    if var["set"] in s:
+                                    cleanvar = var["set"].replace("'","").replace('"','').replace(" ","")
+
+                                    if cleanvar in s:
                                         var["set"] = i
                                         found=True
                                         break
@@ -747,26 +810,32 @@ class MyFrame(wx.Frame):
                             propobj = wxpg.EnumProperty(kcheck, k, var["numbers"], 
                                        mapping, int(var["set"]))
                             propobj.mapping = mapping
-                            pg.Append(propobj)
+                            self.EnumMappings[k] = [mapping, var["numbers"]]
+                            page.Append(propobj)
+                            #print("Adding mapping for ", propobj, var["numbers"], mapping, kcheck)
                         else:
                             raise KeyError("Dictonary format not known")
                         #print(n)
                     elif ".true." in var:
-                        pg.Append( wxpg.BoolProperty(kcheck, k, value=True) )
+                        page.Append( wxpg.BoolProperty(kcheck, k, value=True) )
                     elif ".false." in var:
-                        pg.Append( wxpg.BoolProperty(kcheck, k, value=False) )
+                        page.Append( wxpg.BoolProperty(kcheck, k, value=False) )
                     elif "." in var:
-                        pg.Append( wxpg.FloatProperty(kcheck, k, value=float(var)) )
+                        page.Append( wxpg.FloatProperty(kcheck, k, value=float(var)) )
                     else: 
-                        pg.Append( wxpg.IntProperty(kcheck, k, value=int(var)) )
+                        page.Append( wxpg.IntProperty(kcheck, k, value=int(var)) )
                 except ValueError:
-                    pg.Append( wxpg.StringProperty(kcheck, k, value=str(var)) )
+                    page.Append( wxpg.StringProperty(kcheck, k, value=str(var)) )
                     print("Cannot determine type of ", Ik, k, var , "adding as string") 
                 except wx._core.wxAssertionError:
                     print("Trying to re add existing", Ik, k, var)
+                except IndexError:
+                    print("Possible missing argument definition in setup_read_input help string")
+                    raise
 
+
+        self.update_all_conditionals()
         pg.CollapseAll()
-
 
     def on_click(self, event):
 
@@ -866,10 +935,13 @@ class MyFrame(wx.Frame):
                 #If this was a list of strings, we stored a mapping attribute
                 #so we can use this to determine if we use string
                 try:
-                    PropObj.mapping
+                    #print(propName, self.EnumMappings[propName])
+                    mapping, names = self.EnumMappings[propName]
+                    #PropObj.mapping
                     changes[i] = PropObj.ValueToString(val)
-                except AttributeError:
+                except KeyError:
                     changes[i] = val
+                    #print("No mapping", PropObj.ValueToString(val))
                     #raise
                 #print("change_propgrid vars", i, k, val)
 
@@ -878,6 +950,7 @@ class MyFrame(wx.Frame):
         print("Changes = ", key, changes, self.ChangeDict)
 
         if self.showhide_conditional:
+            #print("conditional", key, prop, val)
             self.Apply_conditional(key, prop, val)
 
         # #Get conditional arguments and hide property grid as apropriate
@@ -943,7 +1016,19 @@ class MyFrame(wx.Frame):
         return
 
 
-    def Apply_conditional(self, key, prop, val):
+    def update_all_conditionals(self):
+
+        for Ik in self.InputsDict.keys():
+            for kcheck, var in self.InputsDict[Ik]["vars"].items():
+                try:
+                    val = self.InputsDict[Ik]["vars"][kcheck]["set"]
+                    self.Apply_conditional(Ik, kcheck, val)
+                except wx._core.wxAssertionError:
+                    pass
+                except TypeError:
+                    pass
+
+    def Apply_conditional(self, key, prop, val, debug=False):
 
         #Get conditional arguments and hide property grid as apropriate
         conditions = self.FlowmolInputs.get_conditional(prop)
@@ -962,24 +1047,28 @@ class MyFrame(wx.Frame):
         # [[condition1, condition2, ... ], [dependent1, dependent2, ...]]
         for i, c in enumerate(conditions[0]):
             hideprops = conditions[1][i]
-            check = self.FlowmolInputs.fortran_ifstatement(c, varcheck=setval) 
-            print("Conditions=", key, prop, c, setval, check, hideprops)
+            check = self.FlowmolInputs.fortran_ifstatement(c, varcheck=setval)
+            if debug:
+                print("Conditions=", key, prop, c, setval, check, hideprops)
             currentkey = key
             if (check):
                 for hp in hideprops:
                     if (hp.isupper()):
-                        print("showing ", hp)
+                        if debug:
+                            print("showing ", hp)
                         self.propgrid.HideProperty(hp, hide=False)
                         self.autolist.append(hp)
                         currentkey = hp
                     else:
-                        print("showing ", currentkey+" "+hp)
+                        if debug:
+                            print("showing ", currentkey+" "+hp)
                         self.propgrid.HideProperty(currentkey + " " + hp, hide=False)
                 out = self.searchctrl.AutoComplete(self.autolist)
             else:
                 for hp in hideprops:
                     if (hp.isupper()):
-                        print("hiding ", hp)
+                        if debug:
+                            print("hiding ", hp)
                         self.propgrid.HideProperty(hp, hide=True)
                         currentkey = hp
                         #To avoid removing already removed keys
@@ -988,38 +1077,71 @@ class MyFrame(wx.Frame):
                         except ValueError:
                             pass
                     else:
-                        print("hiding ", currentkey+" "+hp)
+                        if debug:
+                            print("hiding ", currentkey+" "+hp)
                         self.propgrid.HideProperty(currentkey + " " + hp, hide=True)
 
                 out = self.searchctrl.AutoComplete(self.autolist)
+
+
+    def get_files(self):
+
+        inputfile = self.inputfilename
+        if self.srcdir in inputfile:
+            pathtoinput = inputfile.replace(self.srcdir,'')
+            inputfile = inputfile.split("/")[-1]
+            basedir = self.inputfilename.replace(inputfile,"")
+
+        restartfile = self.restartfilename
+        if restartfile and self.srcdir in restartfile:
+            restartfile = restartfile.split("/")[-1]
+            checkbasedir = self.restartfilename.replace(restartfile,"")
+            assert(checkbasedir == basedir)
+
+        return basedir, pathtoinput, inputfile, restartfile
 
     def run_btn(self, event): 
 
         #btn = event.GetEventObject().GetLabel() 
 
         # otherwise ask the user what new file to open
-        with wx.FileDialog(self, "Choose output directory",
-                            defaultDir='./',
-                            style=wx.FD_OPEN) as folderDiag:
+        with wx.DirDialog(self, "Choose output directory",
+                          defaultPath="../runs/",
+                            style=wx.DD_DIR_MUST_EXIST) as folderDiag:
 
             if folderDiag.ShowModal() == wx.ID_CANCEL:
                 return     # the user changed their mind
 
             rundir = folderDiag.GetPath()
-            #print("Label of button = ", btn, rundir)
+            print("Label of button = ", rundir)
 
-        run = swl.MDRun(self.srcdir, self.srcdir, rundir,
+        #Load all filepaths
+        basedir, pathtoinput, inputfile, restartfile = self.get_files()
+
+        try:
+            src = self.srcdir
+            input = self.inputfilename
+            changes = self.ChangeDict
+        except AttributeError:
+            wx.LogError("Select input file and run Setup before Run")
+            return
+
+        self.run = swl.MDRun(src, basedir, rundir,
                   "parallel_md.exe", 
-                  self.inputfilename.split("/")[-1], "setup.out",
-                  inputchanges=changes[0], finishargs = {},
+                  inputfile, "setup.out",
+                  inputchanges=changes, finishargs = {},
+                  restartfile = restartfile,
                   dryrun=False)
 
+        self.run.setup()
+        self.run.execute(print_output=False, out_to_file=False, blocking=False)
+        self.Bind(wx.EVT_IDLE, self.OnIdle)
 
         # Run the study
-        runlist = [run]
-        threadlist =[runlist]
-        with wx.BusyInfo("Working, please wait", self):
-            study = swl.Study(threadlist, ncpus)
+        #runlist = [run]
+        #threadlist =[runlist]
+        #with wx.BusyInfo("Working, please wait", self):
+        #    study = swl.Study(threadlist, self.ncpus)
 
     def run_setup(self, event): 
 
@@ -1031,7 +1153,10 @@ class MyFrame(wx.Frame):
 
         #Check input file has been loaded
         try:
-            print("Running setup run", self.inputfilename)
+            if self.inputfilename:
+                print("Running setup run", self.inputfilename)
+            else:
+                raise AttributeError("inputfilename is None")
         except AttributeError:
             msgbx = wx.MessageDialog(self, "Setup run with no input file specified",
                                     style=wx.OK|wx.ICON_ERROR)
@@ -1063,18 +1188,20 @@ class MyFrame(wx.Frame):
 
         #Use current source code location
         #srcdir = "/home/es205/codes/flowmol/src/"
-        inputfile = self.inputfilename
-        if self.srcdir in inputfile:
-            pathtoinput = inputfile.replace(self.srcdir,'')
-            inputfile = inputfile.split("/")[-1]
-            basedir = self.inputfilename.replace(inputfile,"")
+        # inputfile = self.inputfilename
+        # if self.srcdir in inputfile:
+            # pathtoinput = inputfile.replace(self.srcdir,'')
+            # inputfile = inputfile.split("/")[-1]
+            # basedir = self.inputfilename.replace(inputfile,"")
 
-        restartfile = self.restartfilename
-        if restartfile and self.srcdir in restartfile:
-            pathtorestart = restartfile.replace(self.srcdir,'')
-            restartfile = restartfile.split("/")[-1]
-            checkbasedir = self.restartfilename.replace(restartfile,"")
-            assert(checkbasedir == basedir)
+        # restartfile = self.restartfilename
+        # if restartfile and self.srcdir in restartfile:
+            # #pathtorestart = restartfile.replace(self.srcdir,'')
+            # restartfile = restartfile.split("/")[-1]
+            # checkbasedir = self.restartfilename.replace(restartfile,"")
+            # assert(checkbasedir == basedir)
+
+        basedir, pathtoinput, inputfile, restartfile = self.get_files()
 
         print("Restart file =", self.restartfilename, " inputfile = ",  self.inputfilename)
 
@@ -1275,10 +1402,11 @@ class MyFrame(wx.Frame):
 
     def OnConditional(self, event):
         self.showhide_conditional = self.Editcondition.IsChecked()
+        print("self.showhide_conditional", self.showhide_conditional)
         if (not self.showhide_conditional):
             #This whole code should be as simple as 
             #for hp in self.propgrid.GetIterator()
-            #but I assume wxPython hasn't got his
+            #but I assume wxPython hasn't got this
             pgit = self.propgrid.GetIterator()
             maxprops = 10000
             for i in range(maxprops):
@@ -1289,10 +1417,27 @@ class MyFrame(wx.Frame):
                     break 
                 #print(i, hp, pgit.AtEnd())
                 self.propgrid.HideProperty(hp, hide=False)
+        else:
+            self.update_all_conditionals()
 
     def OnFastplot(self, event):
         self.plotpanel.fastplot = self.Editfastplot.IsChecked()
         self.plotpanel.draw(self.plotype)
+
+    def OnThreeD(self, event):
+        self.plotpanel.ThreeD = self.EditthreeD.IsChecked()
+        if (self.plotpanel.ThreeD):
+            self.plotpanel.figure.clf()
+            self.plotpanel.axes = self.plotpanel.figure.add_subplot(111, projection='3d', proj_type = 'ortho')
+        else:
+            self.plotpanel.figure.clf()
+            self.plotpanel.axes = self.plotpanel.figure.add_subplot(111)
+        self.plotpanel.draw(self.plotype)
+
+    def Onncpus(self, event):
+        self.ncpus = event.GetId()-1000
+        print(event.GetId(), self.ncpus)
+
 
     def onRadioBox(self, e): 
         #print(self.radio_box_1.GetStringSelection(),' is clicked from Radio Box')
