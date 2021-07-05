@@ -2328,6 +2328,53 @@ subroutine get_surface_derivative_bilinear(self, points, A, dSdr)
 
 end subroutine get_surface_derivative_bilinear
 
+
+
+!Get surface area estimate by summing all bilinear patches
+function intrinsic_area_bilinear(self) result(Area)
+    implicit none
+
+	class(intrinsic_surface_bilinear), intent(in) :: self
+
+	integer :: i, j, k
+    double precision	 :: Area
+
+	i = 1
+	Area = 0.d0
+    do j = 1,self%nbins(self%ixyz)
+    do k = 1,self%nbins(self%jxyz)
+		Area = Area + self%get_bilinear_patch_area(i, j, k)
+	enddo	
+	enddo
+
+end subroutine intrinsic_area_bilinear
+
+
+!Get surface area
+function get_bilinear_patch_area(self, i, j, k) result(Area)
+    implicit none
+
+	class(intrinsic_surface_bilinear), intent(in) :: self
+
+    double precision	 :: Area
+
+	integer :: i, j, k
+    double precision, dimension(4), allocatable :: f
+    double precision, dimension(4,3), allocatable :: p
+
+	p = self%indices_to_points(i, j, k)
+	!Integral of bilinear patch is [x*y*xi(x/2, y/2)] for all 4 corners
+	!where xi(x,y) is the surface value
+	call self%get_surface_bilinear(0.5d0*p, self%Abilinear(:,:,j,k), f)
+	!1=Bottom left, 2=Bottom right, 3=Top left, 4=Top right
+	x = p(:,t1); y = p(:,t2)
+	Area = 	x(1)*y(1)*f(1) - x(2)*y(1)*f(2) &
+		  - x(1)*y(2)*f(3) + x(2)*y(2)*f(4)
+
+	
+end subroutine get_bilinear_patch_area
+
+
 ! subroutine modes_surface_to_bilinear_surface(ISR, nbins, Abilinear)
     ! implicit none
 
