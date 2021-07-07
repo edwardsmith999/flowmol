@@ -6,7 +6,7 @@ import shutil
 
 import wx
 import wx.propgrid as wxpg
-import wx.html as html
+import wx.aui
 from wx.adv import BitmapComboBox
 import wx.lib.dialogs
 
@@ -88,13 +88,13 @@ class CanvasPanel(wx.Panel):
         except FileNotFoundError:
             return
         N = int(header.globalnp)
-        r = np.fromfile(self.resultsdir + "/initial_dump_r",  dtype=np.float).reshape(N,3)
+        rt = np.fromfile(self.resultsdir + "/initial_dump_r",  dtype=np.float).reshape(N,3)
         #Limit plotted points to be fast
         if self.fastplot and N > 2000:
             skip = int(N/1000.)
         else:
             skip = 1
-        r = r[::skip,:]
+        r = rt[::skip,:]
         try:
             if plottype == "tags":
                 tag = np.fromfile(self.resultsdir + "/initial_dump_tag",  dtype=np.int32)
@@ -116,7 +116,8 @@ class CanvasPanel(wx.Panel):
             elif plottype == "moltype":
                 moltype = np.fromfile(self.resultsdir + "/initial_dump_moltype",  dtype=np.int32)
                 if (self.ThreeD):
-                    scatter = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=moltype[::skip], cmap=cm.RdYlBu_r)
+                    scatter = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=moltype[::skip], 
+                                                s=5*np.abs(moltype[::skip]-2.8), cmap=cm.RdYlBu_r)
                 else:
                     scatter = self.axes.scatter(r[:,0], r[:,1], c=moltype[::skip], cmap=cm.RdYlBu_r)
 
@@ -128,6 +129,40 @@ class CanvasPanel(wx.Panel):
                 legend = self.axes.legend(*elems)
                 self.axes.add_artist(legend)
 
+                #If we restart index and globalno won't coincide
+                globalno = np.fromfile(self.resultsdir + "/initial_dump_globalno",  dtype=np.int32)
+                sortind = globalno.argsort()
+
+                #Plot chains
+                try:
+                    m = np.genfromtxt(self.resultsdir +"/monomers_00000001")
+                    indx = m[sortind,0]-1
+                    chainID = m[sortind,1]
+                    subchainID = m[sortind,2]
+                    rs = rt[sortind,:]
+                    moltypes = moltype[sortind]
+                    ployindx = indx[chainID!=0].astype("int")
+                    rchains = rs[ployindx]
+                    nmon = int(header.nmonomers)
+                    #This prevents connections over the whole domain
+                    rcutoff = 5 #0.5*min(float(header.globaldomain1),
+                                #      float(header.globaldomain2),
+                                #      float(header.globaldomain3)) 
+                    for i in ployindx[::nmon]:
+                        #if (i - globalno[i]-1 > 1e-7):
+                        #    print("Molecules no ordered by indices, cannot draw chains")
+                        #    break
+                        print("chain no = ", chainID[i], i, globalno[i]-1, moltypes[i:i+nmon], subchainID[i:i+nmon])
+                        #self.axes.plot(rt[i:i+nmon,0], rt[i:i+nmon,1], rt[i:i+nmon,2], '-', lw=2.)
+                        maxmoltype = moltypes.max()
+                        for n in range(i,i+nmon-2):
+                            r12 = rt[n,:]-rt[n+1,:]
+                            if (np.linalg.norm(r12) < rcutoff):
+                                self.axes.plot(rt[n:n+2,0], rt[n:n+2,1], rt[n:n+2,2], '-',
+                                               c=cm.RdYlBu_r(moltypes[n]/maxmoltype), lw=2.)
+
+                except IOError:
+                    raise
             elif plottype == "v":
                 v = np.fromfile(self.resultsdir + "/initial_dump_v",  dtype=np.float).reshape(N,3)
                 vmag = np.sqrt(v[::skip,0]**2 + v[::skip,1]**2 + v[::skip,2]**2)
@@ -365,9 +400,20 @@ class MyFrame(wx.Frame):
         self.InitUI()
 
         #Setup notebook pages
-        self.notebook_1 = wx.Notebook(self, wx.ID_ANY)
+        self.notebook_1 = wx.aui.AuiNotebook(self, wx.ID_ANY, style=wx.aui.AUI_NB_TOP | 
+                                             wx.aui.AUI_NB_TAB_SPLIT)
         self.notebook_1_pane_1 = wx.Panel(self.notebook_1, wx.ID_ANY)
         self.notebook_1.AddPage(self.notebook_1_pane_1, "Setup")
+
+        #Add runs tab
+        self.notebook_1_pane_2 = wx.Panel(self.notebook_1, wx.ID_ANY)
+        self.notebook_1.AddPage(self.notebook_1_pane_2, "Runs")
+
+
+        # notify AUI which frame to use
+        self.notebook_1_pane_2._mgr = wx.aui.AuiManager()
+        self.notebook_1_pane_2._mgr.SetManagedWindow(self.notebook_1_pane_2)
+        self.notebook_1_pane_2._mgr.Bind(wx.aui.EVT_AUI_PANE_CLOSE, self.panelclose)
 
         #Top sizer
         sizer_top = wx.BoxSizer(wx.HORIZONTAL)
@@ -389,9 +435,9 @@ class MyFrame(wx.Frame):
         self.Layout()
 
         #Add pyDataView to second tab
-        self.notebook_1_pane_2 = pplv.MainPanel(self.notebook_1, "../runs/results/", 
+        self.notebook_1_pane_3 = pplv.MainPanel(self.notebook_1, "../runs/results/", 
                                                 catch_noresults=False)
-        self.notebook_1.AddPage(self.notebook_1_pane_2, "Results")
+        self.notebook_1.AddPage(self.notebook_1_pane_3, "Results")
 
         if inputfilename:
             self.inputfilename = os.path.abspath(inputfilename) 
@@ -1086,17 +1132,28 @@ class MyFrame(wx.Frame):
 
     def get_files(self):
 
-        inputfile = self.inputfilename
-        if self.srcdir in inputfile:
-            pathtoinput = inputfile.replace(self.srcdir,'')
-            inputfile = inputfile.split("/")[-1]
-            basedir = self.inputfilename.replace(inputfile,"")
+        try:
+            inputfile = self.inputfilename
+            if self.srcdir in inputfile:
+                pathtoinput = inputfile.replace(self.srcdir,'')
+                inputfile = inputfile.split("/")[-1]
+                basedir = self.inputfilename.replace(inputfile,"")
 
-        restartfile = self.restartfilename
-        if restartfile and self.srcdir in restartfile:
-            restartfile = restartfile.split("/")[-1]
-            checkbasedir = self.restartfilename.replace(restartfile,"")
-            assert(checkbasedir == basedir)
+            restartfile = self.restartfilename
+            if restartfile and (self.srcdir in restartfile or
+                                basedir in restartfile):
+                restartfile = restartfile.split("/")[-1]
+                checkbasedir = self.restartfilename.replace(restartfile,"")
+                print("Location of restart file=", checkbasedir, " is not the same as basedir=", 
+                       basedir, " copy restart file to basedir")
+                assert(checkbasedir == basedir)
+        except AttributeError as e:
+            #m = getattr(e, 'message', repr(e))
+            msgbx = wx.MessageDialog(self, "Specify input file and run setup",# + m,
+                                    style=wx.OK|wx.ICON_ERROR)
+            msgbx.ShowModal()
+            msgbx.Destroy()
+            return
 
         return basedir, pathtoinput, inputfile, restartfile
 
@@ -1126,6 +1183,7 @@ class MyFrame(wx.Frame):
             wx.LogError("Select input file and run Setup before Run")
             return
 
+        self.rundir = rundir
         self.run = swl.MDRun(src, basedir, rundir,
                   "parallel_md.exe", 
                   inputfile, "setup.out",
@@ -1137,11 +1195,26 @@ class MyFrame(wx.Frame):
         self.run.execute(print_output=False, out_to_file=False, blocking=False)
         self.Bind(wx.EVT_IDLE, self.OnIdle)
 
+        self.auipane = wx.aui.AuiPaneInfo().Center().Caption(rundir)
+        self.auipane.figure = Figure()
+        self.auipane.axis = self.auipane.figure.add_subplot(111)
+        self.auipane.canvas = FigureCanvas(self.notebook_1_pane_2, -1, self.auipane.figure)
+        self.plotupdate = 0
+
+        self.auipane.run = self.run
+        self.notebook_1_pane_2._mgr.AddPane(self.auipane.canvas, self.auipane)
+        self.notebook_1_pane_2._mgr.Update()
+        self.notebook_1.SetSelection(1)
+
         # Run the study
         #runlist = [run]
         #threadlist =[runlist]
         #with wx.BusyInfo("Working, please wait", self):
         #    study = swl.Study(threadlist, self.ncpus)
+
+    def panelclose(self, event):
+        print("Panel close", event)
+        #self.Naui -= 1
 
     def run_setup(self, event): 
 
@@ -1186,21 +1259,6 @@ class MyFrame(wx.Frame):
         os.mkdir(self.tmpdir)
         os.mkdir(self.tmpdir+"/results")
 
-        #Use current source code location
-        #srcdir = "/home/es205/codes/flowmol/src/"
-        # inputfile = self.inputfilename
-        # if self.srcdir in inputfile:
-            # pathtoinput = inputfile.replace(self.srcdir,'')
-            # inputfile = inputfile.split("/")[-1]
-            # basedir = self.inputfilename.replace(inputfile,"")
-
-        # restartfile = self.restartfilename
-        # if restartfile and self.srcdir in restartfile:
-            # #pathtorestart = restartfile.replace(self.srcdir,'')
-            # restartfile = restartfile.split("/")[-1]
-            # checkbasedir = self.restartfilename.replace(restartfile,"")
-            # assert(checkbasedir == basedir)
-
         basedir, pathtoinput, inputfile, restartfile = self.get_files()
 
         print("Restart file =", self.restartfilename, " inputfile = ",  self.inputfilename)
@@ -1217,52 +1275,6 @@ class MyFrame(wx.Frame):
         self.Bind(wx.EVT_IDLE, self.OnIdle)
 
 
-        #self.progress = wx.ProgressDialog("Running Setup", "please wait", 
-        #                                   parent=self, 
-        #                                   style=wx.PD_AUTO_HIDE|wx.PD_CAN_ABORT)
-
-        # #Line by line step through
-        # i = 0
-        # for stdout_line in iter(run.proc.stdout.readline, ""):
-            # lastline = stdout_line.replace("\n","")
-            # errormsg = run.proc.stderr.read()
-            # #time.sleep(0.1)
-            # contnue, skp = self.progress.Update(i, lastline)
-            # if contnue is False:
-                # print("Cancel Pressed")
-                # self.progress.Destroy()
-                # self.proc.stdout.close()
-                # run.proc.kill()
-                # break
-
-            # print(lastline, run.proc.returncode, run.proc.stderr.read())
-            # if "Time taken" in lastline:
-                # self.progress.Destroy()
-                # run.proc.kill()
-                # break
-
-        # # except run.CalledProcessError:
-
-            # if (run.proc.returncode or errormsg != ""):
-                # #print remaining stdout
-                # stdout = run.proc.stdout.read()
-                # print(stdout)
-                # self.progress.Destroy()
-                # run.proc.kill()
-                # #Clean stderr
-                # print("stderr = ", errormsg)
-                # errormsg_box = errormsg.split("\n")[0]
-                # msgbx = wx.MessageDialog(self, errormsg_box 
-                                         # +"\n Look at terminal for more error information",
-                                         # style=wx.OK|wx.ICON_ERROR)
-                # msgbx.ShowModal()
-                # msgbx.Destroy()
-                # return
-
-        # #Redraw the figure with latest setup
-        # self.plotpanel.draw(self.plotype)
-
-
     def OnIdle(self, event):
 
         run = self.run
@@ -1271,11 +1283,30 @@ class MyFrame(wx.Frame):
         if (stdout != ""):
             print(stdout)
         self.helptxt.SetValue(stdout)
+
+        #Plot to aui panel if it exists
+        try:
+            if (self.run is self.auipane.run):
+                data = np.genfromtxt(self.rundir + "/results/macroscopic_properties", 
+                                      names=True, delimiter=";")
+                self.auipane.axis.cla()
+                self.auipane.axis.plot(data["iter"], data["KE"], label="Kinetic Energy")
+                self.auipane.axis.plot(data["iter"], data["PE"], label="Potential Energy")
+                self.auipane.axis.plot(data["iter"], data["TE"], label="Total Energy")
+                self.auipane.axis.legend()
+                self.auipane.canvas.draw()
+                self.plotupdate = 0
+            else:
+                print(self.plotupdate, self.run, self.auipane.run )
+                self.plotupdate += 1
+        except AttributeError:
+            pass
+
         #self.gauge.SetValue(0)
         if (run.proc.returncode or errormsg != ""):
             run.proc.kill()
             #Clean stderr
-            print("stderr = ", errormsg, "stdout =", stdout)
+            print("stderr = ", errormsg)#, "stdout =", stdout)
             errormsg_box = errormsg.split("\n")[0]
             msgbx = wx.MessageDialog(self, errormsg_box 
                                      +"\n Look at terminal for more error information",
@@ -1283,6 +1314,10 @@ class MyFrame(wx.Frame):
             msgbx.ShowModal()
             msgbx.Destroy()
             self.Unbind(wx.EVT_IDLE)
+            #try:
+            #    self.notebook_1_pane_2._mgr.ClosePane(self.auipane)
+            #except AttributeError:
+            #    pass
             return
 
         if "Time taken" in stdout:
