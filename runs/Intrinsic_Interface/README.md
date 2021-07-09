@@ -8,9 +8,9 @@ https://arxiv.org/abs/2107.00499
 
 and more generally, to study a full pressure profile for the intrinsic interface.
 
-The latest version of the Flowmol code will likely work, but the paper outputs were obtained from git commit
-c4a52d434053d676c0281449b0fce7112116fd54
-
+The latest version of the Flowmol code will likely work, but the paper outputs were obtained from the release version associated with the following DOI:
+https://doi.org/10.5281/zenodo.4639546 or 
+https://github.com/edwardsmith999/flowmol/commit/434fa33993375c53e8aa4981a5c87a18ac094b21
 To run the code, download a copy (on linux)
 
 `git clone https://github.com/edwardsmith999/flowmol`
