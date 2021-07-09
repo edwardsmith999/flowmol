@@ -527,6 +527,8 @@ subroutine setup_read_input
 			if (ios .ne. 0) surface_surfactant_layer = 4.d0
             !endif
 
+			!print*, "2phase conc =", targetconc
+
             if (targetconc .gt. 1.d0) then
                 call error_abort("ERROR in 2PHASE_SURFACTANT input -- "&
                 //"targetconc must be between 0.0 and 1.0")
