@@ -1311,9 +1311,12 @@ end subroutine build_psf
 ! A subroutine to dump initial setup to allow plotting
 subroutine initial_setup_dump()
 	use physical_constants_MD, only : np
-	use computational_constants_MD, only : tag_move, mie_potential, ensemble, prefix_dir
-	use arrays_MD, only : r, v, tag, moltype
+	use computational_constants_MD, only : tag_move, mie_potential, & 
+										global_numbering, ensemble, & 
+										potential_flag, prefix_dir 
+	use arrays_MD, only : r, v, tag, moltype, glob_no
     use librarymod, only : get_new_fileunit
+	use polymer_info_MD, only : monomer
 	implicit none
 
 	integer :: m, unitno, length
@@ -1369,6 +1372,18 @@ subroutine initial_setup_dump()
 		intbuf(:,1) = moltype(1:np)
 		inquire(iolength=length) intbuf
 		open(unit=unitno, file=trim(prefix_dir)//'results/initial_dump_moltype', & 
+			status='replace',form='unformatted',access='direct',recl=length)
+		write(unitno,rec=m) intbuf
+		close(unitno)
+    	deallocate(intbuf)
+	endif
+
+    if (global_numbering .ne. 0 .or. potential_flag .ne. 0) then
+		allocate(intbuf(np,1))
+		if (global_numbering .ne. 0) intbuf(:,1) = glob_no(1:np)
+		if (potential_flag .ne. 0) intbuf(:,1) = monomer(1:np)%glob_no
+		inquire(iolength=length) intbuf
+		open(unit=unitno, file=trim(prefix_dir)//'results/initial_dump_globalno', & 
 			status='replace',form='unformatted',access='direct',recl=length)
 		write(unitno,rec=m) intbuf
 		close(unitno)
