@@ -12,7 +12,7 @@ The latest version of the Flowmol code will likely work, but the paper outputs w
 c4a52d434053d676c0281449b0fce7112116fd54
 
 To run the code, download a copy (on linux)
-$ git clone https://github.com/edwardsmith999/flowmol
+Markup : `bash` git clone https://github.com/edwardsmith999/flowmol
 
 navigate to the source directory
 $ cd flowmol/src
