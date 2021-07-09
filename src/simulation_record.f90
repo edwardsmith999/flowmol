@@ -4713,18 +4713,17 @@ subroutine cumulative_mass_flux_opt()
     if (cluster_analysis_outflag .eq. 1 .and.  & 
         any(intrinsic_interface_outflag .eq. (/1,2/))) then
         use_bilinear = .true.
+		allocate(surface_flux(size(mass_surface_flux,1),    size(mass_surface_flux,2), & 
+							  size(mass_surface_flux,3), 1, size(mass_surface_flux,4)))
+		surface_flux(:,:,:,1,:) = mass_surface_flux(:,:,:,:)
     else
         use_bilinear = .false.
     endif
 
     allocate(quantity(1))
-    allocate(fluxes(size(mass_flux,1), size(mass_flux,2), & 
+    allocate(fluxes(size(mass_flux,1),    size(mass_flux,2), & 
                     size(mass_flux,3), 1, size(mass_flux,4)))
     fluxes(:,:,:,1,:) = mass_flux(:,:,:,:)
-
-    allocate(surface_flux(size(mass_flux,1),    size(mass_flux,2), & 
-                          size(mass_flux,3), 1, size(mass_flux,4)))
-    surface_flux(:,:,:,1,:) = mass_surface_flux(:,:,:,:)
 
 	do n = 1,np
 		ri1(:) = r(:,n) 							!Molecule i at time t
@@ -4738,7 +4737,7 @@ subroutine cumulative_mass_flux_opt()
 		endif
     enddo
     mass_flux(:,:,:,:) = fluxes(:,:,:,1,:)
-    mass_surface_flux(:,:,:,:) = surface_flux(:,:,:,1,:)
+    if (use_bilinear) mass_surface_flux(:,:,:,:) = surface_flux(:,:,:,1,:)
 
 end subroutine cumulative_mass_flux_opt
 
