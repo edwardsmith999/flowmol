@@ -91,7 +91,7 @@ module linked_list
 	!Information for pointer to neighbour list
 	type, extends(neighbrinfo) :: clusterinfo
         integer :: Nclust
-        integer :: maxclusts=10000
+        integer :: maxclusts=100000
         integer, dimension(:),allocatable :: inclust, clusterngbrs
 	end type clusterinfo
 	
@@ -1065,48 +1065,48 @@ subroutine calculate_cell_interactions(cellin, icell, jcell, kcell, k)
 	jcellshift = (/ 0, 1, 1, 1, 0, 0, 1, 1, 1, 0,-1,-1,-1/)
 	kcellshift = (/ 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1/)
 
-		!Retrieve cell np and set old to first molecule in list
-		cellnp = cellin%cellnp(icell,jcell,kcell)
-		oldi => cellin%head(icell,jcell,kcell)%point !Set old to first molecule in list
-		adjacentcellnp = cellin%cellnp(icell+icellshift(k),jcell+jcellshift(k),kcell+kcellshift(k))
-		oldjhead => cellin%head(icell+icellshift(k),jcell+jcellshift(k),kcell+kcellshift(k))%point
+	!Retrieve cell np and set old to first molecule in list
+	cellnp = cellin%cellnp(icell,jcell,kcell)
+	oldi => cellin%head(icell,jcell,kcell)%point !Set old to first molecule in list
+	adjacentcellnp = cellin%cellnp(icell+icellshift(k),jcell+jcellshift(k),kcell+kcellshift(k))
+	oldjhead => cellin%head(icell+icellshift(k),jcell+jcellshift(k),kcell+kcellshift(k))%point
 
-		!Count number of interactions per cell
-		!intcount(icell, jcell, kcell) = intcount(icell, jcell, kcell) + 1
-		!intcount(icell+icellshift(k),jcell+jcellshift(k),kcell+kcellshift(k)) = & 
-		!intcount(icell+icellshift(k),jcell+jcellshift(k),kcell+kcellshift(k)) + 1
+	!Count number of interactions per cell
+	!intcount(icell, jcell, kcell) = intcount(icell, jcell, kcell) + 1
+	!intcount(icell+icellshift(k),jcell+jcellshift(k),kcell+kcellshift(k)) = & 
+	!intcount(icell+icellshift(k),jcell+jcellshift(k),kcell+kcellshift(k)) + 1
 
-		!write(100,'(6(i8,a))'), icell,';',jcell,';',kcell,';', &
-		!icell+icellshift(k),';',jcell+jcellshift(k),';',kcell+kcellshift(k),';'
+	!write(100,'(6(i8,a))'), icell,';',jcell,';',kcell,';', &
+	!icell+icellshift(k),';',jcell+jcellshift(k),';',kcell+kcellshift(k),';'
 
-		!Check interaction with neighbouring cells
-		do i = 1,cellnp                 	!Step through each particle in list 
-			molnoi = oldi%molno 			!Number of molecule
-			ri = r(:,molnoi)        		!Retrieve ri
+	!Check interaction with neighbouring cells
+	do i = 1,cellnp                 	!Step through each particle in list 
+		molnoi = oldi%molno 			!Number of molecule
+		ri = r(:,molnoi)        		!Retrieve ri
 
-			oldj => oldjhead				!Reset j to head of linked list
+		oldj => oldjhead				!Reset j to head of linked list
 
-			do j = 1,adjacentcellnp         !Step through all j for each i
+		do j = 1,adjacentcellnp         !Step through all j for each i
 
-				molnoj = oldj%molno 		!Number of molecule
-				rj = r(:,molnoj)         	!Retrieve rj
-				currentj => oldj
-				oldj => currentj%next    	!Use pointer in datatype to obtain next item in list
+			molnoj = oldj%molno 		!Number of molecule
+			rj = r(:,molnoj)         	!Retrieve rj
+			currentj => oldj
+			oldj => currentj%next    	!Use pointer in datatype to obtain next item in list
 
-				rij(:) = ri(:) - rj(:)   	!Evaluate distance between particle i and j
-				rij2 = dot_product(rij,rij)	!Square of vector calculated
+			rij(:) = ri(:) - rj(:)   	!Evaluate distance between particle i and j
+			rij2 = dot_product(rij,rij)	!Square of vector calculated
 
-				if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
-				!Used for halo cell so molnoj and molnoi swapped over!
-				if (rij2 < rneighbr2) call linklist_checkpushneighbr(neighbour, molnoj, molnoi)
+			if (potential_flag.eq.1) call check_update_adjacentbeadinfo(molnoi,molnoj)	
+			!Used for halo cell so molnoj and molnoi swapped over!
+			if (rij2 < rneighbr2) call linklist_checkpushneighbr(neighbour, molnoj, molnoi)
 
-			enddo
-
-			currenti => oldi
-			oldi => currenti%next !Use pointer in datatype to obtain next item in list
 		enddo
 
-    end subroutine calculate_cell_interactions
+		currenti => oldi
+		oldi => currenti%next !Use pointer in datatype to obtain next item in list
+	enddo
+
+end subroutine calculate_cell_interactions
 
 !------------------------------------------------------------------------------
 ! * * * Optimised by performing loop inside routine * * *
@@ -2576,7 +2576,7 @@ contains
 	implicit none
 		
 		integer, intent(in) :: molno
-        r(0,-1) = 1
+        !r(0,-1) = 1
 		call error_abort('Error: too many bonds for molno ', molno)
 	
 	end subroutine too_many_bonds_error 
@@ -2605,6 +2605,7 @@ subroutine check_update_adjacentbeadinfo_allint(molnoi,molnoj)
 		bflag = get_bondflag(molnoi,jscID)                             !Check if molnoi/j are connected
 		select case (bflag)
 		case(1)                                                        !If connected, add to bond list
+			!print*, "update_adjacentbead", molnoi, bondcount(molnoi), jscid
 			bondcount(molnoi) = bondcount(molnoi) + 1
 			if (bondcount(molnoi).gt.monomer(molnoi)%funcy) call too_many_bonds_error(molnoi)
 			bond(bondcount(molnoi),molnoi) = molnoj
@@ -2619,7 +2620,8 @@ contains
 	implicit none
 		
 		integer, intent(in) :: molno
-        r(0,-1) = 1
+        !r(0,-1) = 1
+		!print*, "bondcount= ", bondcount(molno), "funcy=", monomer(molno)%funcy
 		call error_abort('Error: too many bonds for molno ', molno)
 	
 	end subroutine too_many_bonds_error 
@@ -2705,7 +2707,7 @@ end subroutine assign_to_halocell
 ! each other ~ re-ordered so that each all i and all j interactions are calculated
 ! for each cell pair before moving to next cell pair
 
-subroutine assign_to_neighbourlist!(self)
+subroutine assign_to_neighbourlist()
 	use computational_constants_MD, only : force_list
     use interfaces
     use linked_list, only : assign_to_neighbourlist_allint, &
@@ -2739,7 +2741,7 @@ end subroutine assign_to_neighbourlist
 !Sort molecular locations to improve cache efficiecy using
 !blocks of multiple cells
 
-subroutine sort_mols
+subroutine sort_mols()
 	use arrays_MD, only : r, v, tag, rtether
 	use physical_constants_MD
 	use computational_constants_MD
@@ -2867,7 +2869,7 @@ end subroutine sort_mols
 !===================================================================================
 !Deallocate all linklists
 
-subroutine linklist_deallocateall
+subroutine linklist_deallocateall()
     use computational_constants_MD, only : potential_flag
 	use polymer_info_MD, only: bond, bondcount
     use linked_list, only : linklist_deallocate_bins, & 
