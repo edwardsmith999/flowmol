@@ -3,6 +3,8 @@
 import time
 import os
 import shutil
+from threading import Thread 
+import psutil
 
 import wx
 import wx.propgrid as wxpg
@@ -152,7 +154,7 @@ class CanvasPanel(wx.Panel):
                         #if (i - globalno[i]-1 > 1e-7):
                         #    print("Molecules no ordered by indices, cannot draw chains")
                         #    break
-                        print("chain no = ", chainID[i], i, globalno[i]-1, moltypes[i:i+nmon], subchainID[i:i+nmon])
+                        #print("chain no = ", chainID[i], i, globalno[i]-1, moltypes[i:i+nmon], subchainID[i:i+nmon])
                         #self.axes.plot(rt[i:i+nmon,0], rt[i:i+nmon,1], rt[i:i+nmon,2], '-', lw=2.)
                         maxmoltype = moltypes.max()
                         for n in range(i,i+nmon-2):
@@ -189,6 +191,7 @@ class CanvasPanel(wx.Panel):
             #    self.axisEqual3D(self.axes)
 
             if self.ft:
+
                 self.axes.view_init(90, -90)
                 self.ft=False
             else:
@@ -387,7 +390,7 @@ class CanvasPanel(wx.Panel):
 
 class MyFrame(wx.Frame):
     def __init__(self, parent=None, inputfilename=None, restartfilename=None,
-                 width=800, height=600, title="Flowmol Input"):
+                 executable="parallel_md.exe", width=800, height=600, title="Flowmol Input"):
 
         # begin wxGlade: MyFrame.__init__
         wx.Frame.__init__(self, parent)
@@ -408,12 +411,13 @@ class MyFrame(wx.Frame):
         #Add runs tab
         self.notebook_1_pane_2 = wx.Panel(self.notebook_1, wx.ID_ANY)
         self.notebook_1.AddPage(self.notebook_1_pane_2, "Runs")
-
+        self.executable = executable
+        self.checkrunning()  #Check for any currently running jobs
 
         # notify AUI which frame to use
-        self.notebook_1_pane_2._mgr = wx.aui.AuiManager()
-        self.notebook_1_pane_2._mgr.SetManagedWindow(self.notebook_1_pane_2)
-        self.notebook_1_pane_2._mgr.Bind(wx.aui.EVT_AUI_PANE_CLOSE, self.panelclose)
+        self.notebook_1_pane_2.mgr = wx.aui.AuiManager()
+        self.notebook_1_pane_2.mgr.SetManagedWindow(self.notebook_1_pane_2)
+        self.notebook_1_pane_2.mgr.Bind(wx.aui.EVT_AUI_PANE_CLOSE, self.panelclose)
 
         #Top sizer
         sizer_top = wx.BoxSizer(wx.HORIZONTAL)
@@ -460,6 +464,16 @@ class MyFrame(wx.Frame):
 
         #Close handle
         self.Bind(wx.EVT_CLOSE, self.OnClose)
+
+    def checkrunning(self):
+        
+        #In flowmol, we want to monitor the output
+        pids = psutil.pids()
+        self.auipanes = []
+        for pid in pids:
+            exe = psutil.Process(pid).exe()
+            if self.executable in exe:
+                print("executable ", self.executable, " running with pid= ", pid)
 
     def InitUI(self):    
 
@@ -579,8 +593,7 @@ class MyFrame(wx.Frame):
                                                  wxpg.PG_TOOLBAR)
         sizer_props.Add(self.propgrid, 1, wx.EXPAND, 0)
         self.propgrid.Bind(wxpg.EVT_PG_CHANGED, self.change_propgrid)
-        #self.propgrid.Bind(wxpg.EVT_PG_CHANGING, self.on_select_child_of_category)
-        self.propgrid.Bind(wxpg.EVT_PG_ITEM_EXPANDED, self.on_click)
+        self.propgrid.Bind(wxpg.EVT_PG_ITEM_EXPANDED, self.propgrid_click)
 
 
         self.window_props.SetSizer(sizer_props)
@@ -754,27 +767,6 @@ class MyFrame(wx.Frame):
                         InputsDict[key]["vars"][item[i]] = "0"
 
 
-
-        #Store additional names for each var to prevent nameclash
-        #and save conditionals
-        # included = []
-        # for Ik in InputsDict.keys():
-            # for kcheck, var in InputsDict[Ik]["vars"].items():
-
-                # if kcheck in included:
-                    # k = Ik + " " + kcheck
-                # else:
-                    # k = kcheck
-                # included.append(k) 
-
-                # #Save alias name for variables
-                # #InputsDict[Ik]["vars"][k] = InputsDict[Ik]["vars"][kcheck]
-
-                # conditions = self.FlowmolInputs.get_conditional(kcheck)
-                # if conditions[1] != []:
-                    # print("Setup conditionals=", Ik, kcheck, conditions)
-
-
         return InputsDict
 
 
@@ -810,11 +802,6 @@ class MyFrame(wx.Frame):
 
                 #if kcheck in included:
                 k = Ik + " " + kcheck
-                #else:
-                #    k = kcheck
-                #included.append(k) 
-
-                #print("K and check = ", k, kcheck)
 
                 try:
                     #Should be in form of nested dictonaries
@@ -883,7 +870,7 @@ class MyFrame(wx.Frame):
         self.update_all_conditionals()
         pg.CollapseAll()
 
-    def on_click(self, event):
+    def propgrid_click(self, event):
 
         key = event.GetPropertyName()
 
@@ -895,21 +882,6 @@ class MyFrame(wx.Frame):
         except KeyError:
             print("InputDict entries should contain HELP, missing for", value)
             raise
-
-    # def on_select_child_of_category(self, event):
-
-        # prop = event.GetPropertyName()
-        # categoryObj = self.propgrid.GetPropertyCategory(prop)
-        # key = categoryObj.GetLabel()
-
-        # #Look for value in Dict
-        # try:
-            # VarsDict = self.InputsDict[key]
-            # cleantext = VarsDict["HELP"].replace("#","").replace("!","").replace("--","").replace("\t","")
-            # self.helptxt.SetValue(cleantext)
-        # except KeyError:
-            # print("InputDict entries should contain HELP, missing for", value)
-            # raise
 
     def on_search(self, event):
 
@@ -946,19 +918,9 @@ class MyFrame(wx.Frame):
         PropObj = event.GetProperty()
         categoryObj = self.propgrid.GetPropertyCategory(propName)
         category = categoryObj.GetLabel()
-        #key = categoryObj.GetValueAsString(argFlags=0)
         key = categoryObj.GetLabel()
-        #key = self.searchctrl.GetValue()
         prop = propName.replace(category,"").replace(" ", "")
 
-        #print(prop, val, PropObj, key, categoryObj.GetValue(), categoryObj.GetName(), categoryObj.GetLabel(), propName)#, dir(categoryObj))
-
-        #print(categoryObj.GetName(), key, prop.replace(category,"").replace(" ", ""))
-
-        #if (key == ""):
-        #    return
-
-        #print(event.GetSelection(), event.GetProperty())
         if (isinstance(self.InputsDict[key]["vars"][prop], dict)):
             self.InputsDict[key]["vars"][prop]["set"] = val
             #print("Set value = ", val, PropObj, PropObj.GetChoiceSelection(), PropObj.ValueToString(val))
@@ -995,72 +957,13 @@ class MyFrame(wx.Frame):
 
         print("Changes = ", key, changes, self.ChangeDict)
 
-        if self.showhide_conditional:
-            #print("conditional", key, prop, val)
-            self.Apply_conditional(key, prop, val)
-
-        # #Get conditional arguments and hide property grid as apropriate
-        # conditions = self.FlowmolInputs.get_conditional(prop)
-
-        # #Could use val from event.GetPropertyValue() here
-        # try:
-            # setval = self.InputsDict[key]["vars"][int(prop)]["set"]
-        # except ValueError:
-            # try:
-                # setval = self.InputsDict[key]["vars"][prop]["set"]
-            # except TypeError:
-                # setval = self.InputsDict[key]["vars"][prop]
-
         # #Conditions are stored as 
         # # [[condition1, condition2, ... ], [dependent1, dependent2, ...]]
         # for i, c in enumerate(conditions[0]):
-            # hideprops = conditions[1][i]
-            # check = self.FlowmolInputs.fortran_ifstatement(c, varcheck=setval) 
-            # print("Conditions=", prop, c, setval, check, hideprops)
-
-            # if (check):
-                # for hp in hideprops:
-                    # print("showing ", hp)
-
-                    # self.propgrid.HideProperty(hp, hide=False)
-                    # if (hp.isupper()):
-                        # self.autolist.append(hp)
-                # out = self.searchctrl.AutoComplete(self.autolist)
-            # else:
-                # for hp in hideprops:
-                    # print("hiding ", hp)
-
-                    # self.propgrid.HideProperty(hp, hide=True)
-                    # try:
-                        # if (hp.isupper()):
-                            # self.autolist.remove(hp)
-                    # except ValueError:
-                        # pass
-                # out = self.searchctrl.AutoComplete(self.autolist)
-
-
-        #Proof of concept for conditional hiding of catagories
-        # hideprops = ["FIXDISTBOTTOM", "FIXDISTTOP", "TETHEREDDISTTOP", 
-                     # "TETHEREDDISTBOTTOM", "TETHERCOEFFICIENTS", "SLIDEDISTBOTTOM", 
-                     # "SLIDEDISTTOP", "THERMSTATBOTTOM", "THERMSTATTOP"]
-        # if (prop == "ensemble" and val == 6):
-            # self.propgrid.HideProperty("dynamically_update_tags", hide=False)
-            # for hp in hideprops:
-                # self.propgrid.HideProperty(hp, hide=False)
-                # self.autolist.append(hp)
-            # out = self.searchctrl.AutoComplete(self.autolist)
-        # else:
-            # self.propgrid.HideProperty("dynamically_update_tags", hide=True)
-            # for hp in hideprops:
-                # self.propgrid.HideProperty(hp, hide=True)
-                # try:
-                    # self.autolist.remove(hp)
-                # except ValueError:
-                    # pass
-            # out = self.searchctrl.AutoComplete(self.autolist)
+        if self.showhide_conditional:
+            self.Apply_conditional(key, prop, val)
 
         return
-
 
     def update_all_conditionals(self):
 
@@ -1078,16 +981,7 @@ class MyFrame(wx.Frame):
 
         #Get conditional arguments and hide property grid as apropriate
         conditions = self.FlowmolInputs.get_conditional(prop)
-
         setval = val
-        # #Could use val from event.GetPropertyValue() here
-        # try:
-            # setval = self.InputsDict[key]["vars"][int(prop)]["set"]
-        # except ValueError:
-            # try:
-                # setval = self.InputsDict[key]["vars"][prop]["set"]
-            # except TypeError:
-                # setval = self.InputsDict[key]["vars"][prop]
 
         #Conditions are stored as 
         # [[condition1, condition2, ... ], [dependent1, dependent2, ...]]
@@ -1157,14 +1051,20 @@ class MyFrame(wx.Frame):
 
         return basedir, pathtoinput, inputfile, restartfile
 
-    def run_btn(self, event): 
+    def reader(self, f, buffer, chunk=1000):
+        while True:
+            line=f.read(chunk)
+            if line:
+                buffer.append(line)
+            else:
+                break
 
-        #btn = event.GetEventObject().GetLabel() 
+
+    def run_btn(self, event): 
 
         # otherwise ask the user what new file to open
         with wx.DirDialog(self, "Choose output directory",
-                          defaultPath="../runs/",
-                            style=wx.DD_DIR_MUST_EXIST) as folderDiag:
+                          defaultPath="../runs/") as folderDiag:
 
             if folderDiag.ShowModal() == wx.ID_CANCEL:
                 return     # the user changed their mind
@@ -1183,34 +1083,57 @@ class MyFrame(wx.Frame):
             wx.LogError("Select input file and run Setup before Run")
             return
 
+        #Create a panel associated with this run
+        #self.plotupdate = 0
         self.rundir = rundir
-        self.run = swl.MDRun(src, basedir, rundir,
-                  "parallel_md.exe", 
-                  inputfile, "setup.out",
-                  inputchanges=changes, finishargs = {},
-                  restartfile = restartfile,
-                  dryrun=False)
+        self.auipane = self.create_aui_pane(rundir)
+        if self.auipane:
+            self.auipanes.append(self.auipane)
 
-        self.run.setup()
-        self.run.execute(print_output=False, out_to_file=False, blocking=False)
-        self.Bind(wx.EVT_IDLE, self.OnIdle)
+            self.run = swl.MDRun(src, basedir, rundir,
+                                 self.executable, 
+                                 inputfile, "run",
+                                 inputchanges=changes, finishargs = {},
+                                 restartfile = restartfile,
+                                 dryrun=False)
 
-        self.auipane = wx.aui.AuiPaneInfo().Center().Caption(rundir)
-        self.auipane.figure = Figure()
-        self.auipane.axis = self.auipane.figure.add_subplot(111)
-        self.auipane.canvas = FigureCanvas(self.notebook_1_pane_2, -1, self.auipane.figure)
-        self.plotupdate = 0
+            self.run.setup()
+            self.run.execute(print_output=False, out_to_file=False, blocking=False)
+            self.auipane.run = self.run
 
-        self.auipane.run = self.run
-        self.notebook_1_pane_2._mgr.AddPane(self.auipane.canvas, self.auipane)
-        self.notebook_1_pane_2._mgr.Update()
+        #Create a thread to manage output from run
+        self.linebuffer = []; self.runbufcount = 0
+        self.t = Thread(target=self.reader, args=(self.run.proc.stdout, 
+                                                  self.linebuffer))
+        self.t.daemon=True
+        self.t.start()
+        self.Bind(wx.EVT_IDLE, self.OnIdleRun)
+
+        #Switch to Runs tab
         self.notebook_1.SetSelection(1)
 
-        # Run the study
-        #runlist = [run]
-        #threadlist =[runlist]
-        #with wx.BusyInfo("Working, please wait", self):
-        #    study = swl.Study(threadlist, self.ncpus)
+    def create_aui_pane(self, rundir):
+
+        panes = self.notebook_1_pane_2.mgr.GetAllPanes()
+        for pane in panes:
+            print("Panes include = ", pane.name, dir(pane))
+            if (pane.name == rundir):
+                msgbx = wx.MessageDialog(self, "Case already running in " + rundir,
+                                        style=wx.OK|wx.ICON_ERROR)
+                msgbx.ShowModal()
+                msgbx.Destroy()
+                return None
+
+        auipane = wx.aui.AuiPaneInfo().Center().Caption(rundir)
+        auipane.Name(rundir)
+        auipane.DestroyOnClose(True)
+
+        auipane.figure = Figure()
+        auipane.axis = auipane.figure.add_subplot(111)
+        auipane.canvas = FigureCanvas(self.notebook_1_pane_2, -1, auipane.figure)
+        self.notebook_1_pane_2.mgr.AddPane(auipane.canvas, auipane)
+        self.notebook_1_pane_2.mgr.Update()
+        return auipane
 
     def panelclose(self, event):
         print("Panel close", event)
@@ -1237,16 +1160,11 @@ class MyFrame(wx.Frame):
             msgbx.Destroy()
             return
 
-        #Create list of changes
+        #Concat dictonaries (incase item already in)
         try:
-            #Concat dictonaries (incase item already in)
             changes = dict({'VMD_OUTFLAG': [5]}, **self.ChangeDict)
-            #Changes needs to be a list of dictonaries
-            #changes = [{k:v} for k,v in ChangeDict.items()]
-
         except IndexError:
             changes = {'VMD_OUTFLAG': [5]}
-
 
         print("Running setup run", self.inputfilename, " with changes", changes)
 
@@ -1264,7 +1182,7 @@ class MyFrame(wx.Frame):
         print("Restart file =", self.restartfilename, " inputfile = ",  self.inputfilename)
 
         self.run = swl.MDRun(self.srcdir, basedir, self.srcdir + "/" + self.tmpdir,
-                  "parallel_md.exe", 
+                  self.executable, 
                   inputfile, "setup.out",
                   inputchanges=changes, finishargs = {},
                   restartfile = restartfile,
@@ -1272,10 +1190,14 @@ class MyFrame(wx.Frame):
 
         self.run.setup()
         self.run.execute(print_output=False, out_to_file=False, blocking=False)
-        self.Bind(wx.EVT_IDLE, self.OnIdle)
+        self.Bind(wx.EVT_IDLE, self.OnIdleSetup)
 
 
-    def OnIdle(self, event):
+    def OnIdleSetup(self, event):
+
+        """
+            Function to run setup in background
+        """
 
         run = self.run
         stdout = run.proc.stdout.read()
@@ -1284,29 +1206,10 @@ class MyFrame(wx.Frame):
             print(stdout)
         self.helptxt.SetValue(stdout)
 
-        #Plot to aui panel if it exists
-        try:
-            if (self.run is self.auipane.run):
-                data = np.genfromtxt(self.rundir + "/results/macroscopic_properties", 
-                                      names=True, delimiter=";")
-                self.auipane.axis.cla()
-                self.auipane.axis.plot(data["iter"], data["KE"], label="Kinetic Energy")
-                self.auipane.axis.plot(data["iter"], data["PE"], label="Potential Energy")
-                self.auipane.axis.plot(data["iter"], data["TE"], label="Total Energy")
-                self.auipane.axis.legend()
-                self.auipane.canvas.draw()
-                self.plotupdate = 0
-            else:
-                print(self.plotupdate, self.run, self.auipane.run )
-                self.plotupdate += 1
-        except AttributeError:
-            pass
-
-        #self.gauge.SetValue(0)
         if (run.proc.returncode or errormsg != ""):
             run.proc.kill()
             #Clean stderr
-            print("stderr = ", errormsg)#, "stdout =", stdout)
+            print("stderr = ", errormsg, "stdout =", stdout)
             errormsg_box = errormsg.split("\n")[0]
             msgbx = wx.MessageDialog(self, errormsg_box 
                                      +"\n Look at terminal for more error information",
@@ -1314,10 +1217,6 @@ class MyFrame(wx.Frame):
             msgbx.ShowModal()
             msgbx.Destroy()
             self.Unbind(wx.EVT_IDLE)
-            #try:
-            #    self.notebook_1_pane_2._mgr.ClosePane(self.auipane)
-            #except AttributeError:
-            #    pass
             return
 
         if "Time taken" in stdout:
@@ -1328,6 +1227,81 @@ class MyFrame(wx.Frame):
 
         self.plotpanel.draw(self.plotype)
         self.Unbind(wx.EVT_IDLE)
+
+
+
+    def OnIdleRun(self, event):
+
+        """
+            Function to run code in background
+        """
+
+        if self.linebuffer:
+            #self.runbufcount = 0
+            for i in range(len(self.linebuffer)):
+                print(self.linebuffer.pop(0))
+
+            #Plot to aui panel if it exists
+            try:
+                if (self.run is self.auipane.run):
+                    data = np.genfromtxt(self.rundir + "/results/macroscopic_properties", 
+                                          names=True, delimiter=";")
+                    self.auipane.axis.cla()
+                    self.auipane.axis.plot(data["iter"], data["KE"], label="Kinetic Energy")
+                    try:
+                        self.auipane.axis.plot(data["iter"], data["PE"], label="Potential Energy")
+                        self.auipane.axis.plot(data["iter"], data["TE"], label="Total Energy")
+                    except ValueError:
+                        print(data)
+                        self.auipane.axis.plot(data["iter"], data["PE_LJ"], label="LJ Potential Energy")
+                        self.auipane.axis.plot(data["iter"], data["PE_POLY"], label="Polymer Potential Energy")
+                        self.auipane.axis.plot(data["iter"], data["TE"], label="Total Energy")
+                    self.auipane.axis.legend()
+                    self.auipane.canvas.draw()
+                    #self.plotupdate = 0
+                else:
+                    pass
+                    #print(self.plotupdate, self.run, self.auipane.run )
+                    #self.plotupdate += 1
+            except AttributeError:
+                pass
+        else:
+            #print(self.run.proc.returncode)
+            #self.runbufcount += 1
+            #print("nothing in buffer", self.runbufcount)
+            event.RequestMore()
+            return
+
+        # run = self.run
+        # stdout = run.proc.stdout.read()
+        # errormsg = run.proc.stderr.read()
+        # if (self.run.proc.returncode or run.proc.stderr.read() != ""):
+            # run.proc.kill()
+            # #Clean stderr
+            # print("stderr = ", errormsg)#, "stdout =", stdout)
+            # errormsg_box = errormsg.split("\n")[0]
+            # msgbx = wx.MessageDialog(self, errormsg_box 
+                                     # +"\n Look at terminal for more error information",
+                                     # style=wx.OK|wx.ICON_ERROR)
+            # msgbx.ShowModal()
+            # msgbx.Destroy()
+            # self.Unbind(wx.EVT_IDLE)
+            # self.t.end()
+            # #try:
+            # #    self.notebook_1_pane_2.mgr.ClosePane(self.auipane)
+            # #except AttributeError:
+            # #    pass
+            # return
+
+        # if "Time taken" in stdout:
+            # run.proc.kill()
+            # self.t.end()
+        # else:
+            # event.RequestMore()
+            # return
+
+        # self.plotpanel.draw(self.plotype)
+        # self.Unbind(wx.EVT_IDLE)
         
 
     def OnOpen(self, event):
