@@ -469,7 +469,7 @@ class MyFrame(wx.Frame):
         
         #In flowmol, we want to monitor the output
         pids = psutil.pids()
-        self.auipanes = []
+        self.auipanes = {}
         for pid in pids:
             exe = psutil.Process(pid).exe()
             if self.executable in exe:
@@ -1088,7 +1088,6 @@ class MyFrame(wx.Frame):
         self.rundir = rundir
         self.auipane = self.create_aui_pane(rundir)
         if self.auipane:
-            self.auipanes.append(self.auipane)
 
             self.run = swl.MDRun(src, basedir, rundir,
                                  self.executable, 
@@ -1100,6 +1099,7 @@ class MyFrame(wx.Frame):
             self.run.setup()
             self.run.execute(print_output=False, out_to_file=False, blocking=False)
             self.auipane.run = self.run
+            self.auipanes[rundir] = self.auipane
 
         #Create a thread to manage output from run
         self.linebuffer = []; self.runbufcount = 0
@@ -1236,31 +1236,32 @@ class MyFrame(wx.Frame):
             Function to run code in background
         """
 
-        if self.linebuffer:
+        if (self.notebook_1.GetSelection() == 1
+            and self.linebuffer):
             #self.runbufcount = 0
             for i in range(len(self.linebuffer)):
                 print(self.linebuffer.pop(0))
 
             #Plot to aui panel if it exists
             try:
-                if (self.run is self.auipane.run):
+                for k in self.auipanes:
+                    auipane = self.auipanes[k]
+                    run = auipane.run
                     data = np.genfromtxt(self.rundir + "/results/macroscopic_properties", 
                                           names=True, delimiter=";")
-                    self.auipane.axis.cla()
-                    self.auipane.axis.plot(data["iter"], data["KE"], label="Kinetic Energy")
+                    auipane.axis.cla()
+                    auipane.axis.plot(data["iter"], data["KE"], label="Kinetic Energy")
                     try:
-                        self.auipane.axis.plot(data["iter"], data["PE"], label="Potential Energy")
-                        self.auipane.axis.plot(data["iter"], data["TE"], label="Total Energy")
+                        auipane.axis.plot(data["iter"], data["PE"], label="Potential Energy")
+                        auipane.axis.plot(data["iter"], data["TE"], label="Total Energy")
                     except ValueError:
                         print(data)
-                        self.auipane.axis.plot(data["iter"], data["PE_LJ"], label="LJ Potential Energy")
-                        self.auipane.axis.plot(data["iter"], data["PE_POLY"], label="Polymer Potential Energy")
-                        self.auipane.axis.plot(data["iter"], data["TE"], label="Total Energy")
-                    self.auipane.axis.legend()
-                    self.auipane.canvas.draw()
+                        auipane.axis.plot(data["iter"], data["PE_LJ"], label="LJ Potential Energy")
+                        auipane.axis.plot(data["iter"], data["PE_POLY"], label="Polymer Potential Energy")
+                        auipane.axis.plot(data["iter"], data["TE"], label="Total Energy")
+                    auipane.axis.legend()
+                    auipane.canvas.draw()
                     #self.plotupdate = 0
-                else:
-                    pass
                     #print(self.plotupdate, self.run, self.auipane.run )
                     #self.plotupdate += 1
             except AttributeError:
