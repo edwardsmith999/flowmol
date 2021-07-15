@@ -411,13 +411,16 @@ class MyFrame(wx.Frame):
         #Add runs tab
         self.notebook_1_pane_2 = wx.Panel(self.notebook_1, wx.ID_ANY)
         self.notebook_1.AddPage(self.notebook_1_pane_2, "Runs")
-        self.executable = executable
-        self.checkrunning()  #Check for any currently running jobs
 
         # notify AUI which frame to use
         self.notebook_1_pane_2.mgr = wx.aui.AuiManager()
         self.notebook_1_pane_2.mgr.SetManagedWindow(self.notebook_1_pane_2)
         self.notebook_1_pane_2.mgr.Bind(wx.aui.EVT_AUI_PANE_CLOSE, self.panelclose)
+
+        #Check for any existing runs and add to panel
+        self.executable = executable
+        self.outputfile = "output"
+        self.checkrunning()  #Check for any currently running jobs
 
         #Top sizer
         sizer_top = wx.BoxSizer(wx.HORIZONTAL)
@@ -471,9 +474,33 @@ class MyFrame(wx.Frame):
         pids = psutil.pids()
         self.auipanes = {}
         for pid in pids:
-            exe = psutil.Process(pid).exe()
+            p = psutil.Process(pid)
+            exe = p.exe()
+            
             if self.executable in exe:
-                print("executable ", self.executable, " running with pid= ", pid)
+                print("executable= ", self.executable,
+                      "cmdline= ", p.cmdline(),
+                      "cwd= ", p.cwd(),
+                      "pid= ", pid,
+                      "status= ", p.status(),
+                      "parent= ", p.parent(),
+                      "children= ", p.children(recursive=True))
+                if (p.status() == "running"):
+                    pass
+                else:   
+                    p.resume()
+
+                #Get directory of exectuable
+                rundir = p.cwd()
+                #Create associated pane
+                self.auipane = self.create_aui_pane(rundir)
+                self.auipanes[rundir] = self.auipane
+                filename = rundir + "/" + self.outputfile  
+                #Link all output files to pane
+                self.auipanes[rundir].stdout = open(filename, "r")
+                self.auipanes[rundir].stderr = open(filename+'_err' , "r")
+                self.auipanes[rundir].endrun = False
+                self.Bind(wx.EVT_IDLE, self.OnIdleRun)
 
     def InitUI(self):    
 
@@ -565,7 +592,7 @@ class MyFrame(wx.Frame):
         self.button_2 = wx.Button(self.window_left, wx.ID_ANY, "Setup")
         self.button_2.SetMinSize((50, 30))
         search_run_sizer.Add(self.button_2, 1, 0, 0)
-        self.button_2.Bind(wx.EVT_BUTTON, self.run_setup)
+        self.button_2.Bind(wx.EVT_BUTTON, self.setup_btn)
 
         #Setup adjustable window between properties and help
         self.window_help_props = wx.SplitterWindow(self.window_left, wx.ID_ANY)
@@ -578,7 +605,8 @@ class MyFrame(wx.Frame):
         #########################################
         self.window_help = wx.Panel(self.window_help_props, wx.ID_ANY)
         sizer_help = wx.BoxSizer(wx.HORIZONTAL)
-        self.helptxt = wx.TextCtrl(self.window_help, style=wx.TE_MULTILINE | wx.TE_READONLY, size=(self.width/3, self.height/4))
+        self.helptxt = wx.TextCtrl(self.window_help, style=wx.TE_MULTILINE |
+                                   wx.TE_READONLY, size=(self.width/3, self.height/4))
         self.helptxt.SetValue("Help Text \n\n\n\n\n\n\n")
         sizer_help.Add(self.helptxt, 1, wx.EXPAND, 0)
 
@@ -870,6 +898,9 @@ class MyFrame(wx.Frame):
         self.update_all_conditionals()
         pg.CollapseAll()
 
+        #Redraw with toolbar
+        self.Update()
+
     def propgrid_click(self, event):
 
         key = event.GetPropertyName()
@@ -1085,32 +1116,60 @@ class MyFrame(wx.Frame):
 
         #Create a panel associated with this run
         #self.plotupdate = 0
-        self.rundir = rundir
         self.auipane = self.create_aui_pane(rundir)
         if self.auipane:
 
             self.run = swl.MDRun(src, basedir, rundir,
-                                 self.executable, 
-                                 inputfile, "run",
-                                 inputchanges=changes, finishargs = {},
+                                 "./"+self.executable, 
+                                 inputfile,
+                                 self.outputfile,
+                                 inputchanges=changes, 
+                                 finishargs = {},
                                  restartfile = restartfile,
                                  dryrun=False)
 
             self.run.setup()
-            self.run.execute(print_output=False, out_to_file=False, blocking=False)
+            try:
+                shutil.move(rundir+"/"+self.outputfile, 
+                            rundir+"/"+self.outputfile+".bak")
+                shutil.move(rundir+"/"+self.outputfile+'_err', 
+                            rundir+"/"+self.outputfile+'_err'+".bak")
+                os.remove(rundir+"/ABORTABORT")
+            except FileNotFoundError:
+                pass
+            self.run.execute(print_output=False, out_to_file=True, 
+                             blocking=False, shell=True)
             self.auipane.run = self.run
             self.auipanes[rundir] = self.auipane
-
-        #Create a thread to manage output from run
-        self.linebuffer = []; self.runbufcount = 0
-        self.t = Thread(target=self.reader, args=(self.run.proc.stdout, 
-                                                  self.linebuffer))
-        self.t.daemon=True
-        self.t.start()
+            self.auipanes[rundir].endrun = False
+        #self.linebuffer = []; self.runbufcount = 0
+        #self.t = Thread(target=self.reader, args=(self.run.proc.stdout, 
+        #                                          self.linebuffer))
+        #self.t.daemon=True
+        #self.t.start()
         self.Bind(wx.EVT_IDLE, self.OnIdleRun)
 
         #Switch to Runs tab
         self.notebook_1.SetSelection(1)
+
+        #Read files from run
+        for i in range(50):
+            try:
+                filename = rundir + "/" + self.outputfile
+                self.auipanes[rundir].stdout = open(filename, "r")
+                self.auipanes[rundir].stderr = open(filename+'_err' , "r")
+                self.auipanes[rundir].endrun = False
+                return
+            except IOError:
+                time.sleep(0.1)
+                print("Waiting for output file", filename)
+
+        #If no stdour and stderr files appear, assume run has failed
+        self.run.proc.kill()
+        msgbx = wx.MessageDialog(self, "Failed to start run in " + rundir,
+                                style=wx.OK|wx.ICON_ERROR)
+        msgbx.ShowModal()
+        msgbx.Destroy()
 
     def create_aui_pane(self, rundir):
 
@@ -1136,10 +1195,22 @@ class MyFrame(wx.Frame):
         return auipane
 
     def panelclose(self, event):
-        print("Panel close", event)
-        #self.Naui -= 1
+        id =  event.GetId()
+        pane = event.GetPane()
+        #run = self.auipanes[pane.name].run
+        if (not self.auipanes[pane.name].endrun):
+            event.SetCanVeto(True)
+            msgbx = wx.MessageBox("Stop run linked to this panel",
+                             "Please confirm",
+                             wx.ICON_QUESTION | wx.CANCEL | wx.OK )
+            if  msgbx != wx.OK:
+                event.Veto()
+                return
+            else:
+                self.killproc(rundir=pane.name)
+                #open(pane.name + "/ABORTABORT", 'a').close()
 
-    def run_setup(self, event): 
+    def setup_btn(self, event): 
 
         btn = event.GetEventObject().GetLabel() 
 
@@ -1182,7 +1253,7 @@ class MyFrame(wx.Frame):
         print("Restart file =", self.restartfilename, " inputfile = ",  self.inputfilename)
 
         self.run = swl.MDRun(self.srcdir, basedir, self.srcdir + "/" + self.tmpdir,
-                  self.executable, 
+                  "./"+self.executable, 
                   inputfile, "setup.out",
                   inputchanges=changes, finishargs = {},
                   restartfile = restartfile,
@@ -1235,43 +1306,66 @@ class MyFrame(wx.Frame):
         """
             Function to run code in background
         """
-
-        if (self.notebook_1.GetSelection() == 1
-            and self.linebuffer):
-            #self.runbufcount = 0
-            for i in range(len(self.linebuffer)):
-                print(self.linebuffer.pop(0))
-
-            #Plot to aui panel if it exists
-            try:
-                for k in self.auipanes:
-                    auipane = self.auipanes[k]
-                    run = auipane.run
-                    data = np.genfromtxt(self.rundir + "/results/macroscopic_properties", 
-                                          names=True, delimiter=";")
-                    auipane.axis.cla()
-                    auipane.axis.plot(data["iter"], data["KE"], label="Kinetic Energy")
-                    try:
-                        auipane.axis.plot(data["iter"], data["PE"], label="Potential Energy")
-                        auipane.axis.plot(data["iter"], data["TE"], label="Total Energy")
-                    except ValueError:
-                        print(data)
-                        auipane.axis.plot(data["iter"], data["PE_LJ"], label="LJ Potential Energy")
-                        auipane.axis.plot(data["iter"], data["PE_POLY"], label="Polymer Potential Energy")
-                        auipane.axis.plot(data["iter"], data["TE"], label="Total Energy")
-                    auipane.axis.legend()
-                    auipane.canvas.draw()
-                    #self.plotupdate = 0
-                    #print(self.plotupdate, self.run, self.auipane.run )
-                    #self.plotupdate += 1
-            except AttributeError:
-                pass
-        else:
-            #print(self.run.proc.returncode)
-            #self.runbufcount += 1
-            #print("nothing in buffer", self.runbufcount)
-            event.RequestMore()
+        #Only update if on run panel
+        if (self.notebook_1.GetSelection() != 1):   
             return
+
+        #Check for all auipanes which ones need updating
+        for rundir in self.auipanes:
+            auipane = self.auipanes[rundir]
+            stdout = auipane.stdout
+            stdoutline = stdout.readline()
+            if (stdoutline):
+                update=True
+                #Print any new file changes
+                print(stdoutline)
+                for line in stdout:
+                    print(line)
+                    #Trigger an end of run if final output time shown
+                    if "Time taken" in line:
+                        self.auipanes[rundir].endrun = True
+            else:
+                continue
+
+            #Update plots
+            data = np.genfromtxt(rundir + "/results/macroscopic_properties", 
+                                  names=True, delimiter=";")
+            auipane.axis.cla()
+            auipane.axis.plot(data["iter"], data["KE"], label="Kinetic Energy")
+            try:
+                auipane.axis.plot(data["iter"], data["PE"], label="Potential Energy")
+                auipane.axis.plot(data["iter"], data["TE"], label="Total Energy")
+            except ValueError:
+                print(data)
+                auipane.axis.plot(data["iter"], data["PE_LJ"], label="LJ Potential Energy")
+                auipane.axis.plot(data["iter"], data["PE_POLY"], label="Polymer Potential Energy")
+                auipane.axis.plot(data["iter"], data["TE"], label="Total Energy")
+            auipane.axis.legend()
+            auipane.canvas.draw()
+
+            #Check for errors
+            #run = auipane.run
+            stderr = auipane.stderr
+            stderrline = stderr.readline()
+            if (stderrline != ""):
+                #Read stderr
+                errormsg = stderrline+stderr.read()
+                errormsg_box = errormsg.split("\n")[0]
+                msgbx = wx.MessageDialog(self, errormsg_box 
+                                         +"\n Look at terminal for more error information",
+                                         style=wx.OK|wx.ICON_ERROR)
+                msgbx.ShowModal()
+                msgbx.Destroy()
+                self.auipanes[rundir].endrun = True
+
+            #Kill subprocess and unbind idle runner
+            if self.auipanes[rundir].endrun:
+                self.auipanes[rundir].pop()
+                if self.auipanes == {}:
+                    self.Unbind(wx.EVT_IDLE)
+                return
+
+
 
         # run = self.run
         # stdout = run.proc.stdout.read()
@@ -1448,7 +1542,6 @@ class MyFrame(wx.Frame):
         self.ncpus = event.GetId()-1000
         print(event.GetId(), self.ncpus)
 
-
     def onRadioBox(self, e): 
         #print(self.radio_box_1.GetStringSelection(),' is clicked from Radio Box')
         self.plotype = self.radio_box_1.GetStringSelection()
@@ -1459,11 +1552,32 @@ class MyFrame(wx.Frame):
         self.plotpanel.draw_grid(cb.GetValue())
 
     def OnClose(self, event):
+
+        if self.auipanes != {}:
+            msgbx = wx.MessageBox("Let runs continue in background",
+                             "Please confirm",
+                             wx.ICON_QUESTION | wx.CANCEL | wx.YES_NO )
+            if  msgbx == wx.CANCEL:
+                event.Veto()
+                return
+            if  msgbx == wx.NO:
+                for rundir in self.auipanes:
+                    self.killproc(rundir)
+            else:
+                pass
+
         try:
             shutil.rmtree(self.tmpdir)
         except FileNotFoundError:
             pass        
         self.Destroy()
+
+    def killproc(self, rundir):
+        open(rundir + "/ABORTABORT", 'a').close()
+        try:
+            self.auipanes[rundir].run.proc.kill()
+        except AttributeError:
+            print(rundir, "Not a subprocess object")
 
     def OnQuit(self, e):
         try:
