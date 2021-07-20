@@ -11,6 +11,7 @@ import wx.propgrid as wxpg
 import wx.aui
 from wx.adv import BitmapComboBox
 import wx.lib.dialogs
+import wx.stc 
 
 import numpy as np
 from itertools import product
@@ -421,6 +422,7 @@ class MyFrame(wx.Frame):
         self.executable = executable
         self.outputfile = "output"
         self.checkrunning()  #Check for any currently running jobs
+        self.updatefreq = 1
 
         #Top sizer
         sizer_top = wx.BoxSizer(wx.HORIZONTAL)
@@ -500,6 +502,7 @@ class MyFrame(wx.Frame):
                 self.auipanes[rundir].stdout = open(filename, "r")
                 self.auipanes[rundir].stderr = open(filename+'_err' , "r")
                 self.auipanes[rundir].endrun = False
+                #self.auipanes[rundir].stdouthist = ""
                 self.Bind(wx.EVT_IDLE, self.OnIdleRun)
 
     def InitUI(self):    
@@ -622,7 +625,6 @@ class MyFrame(wx.Frame):
         sizer_props.Add(self.propgrid, 1, wx.EXPAND, 0)
         self.propgrid.Bind(wxpg.EVT_PG_CHANGED, self.change_propgrid)
         self.propgrid.Bind(wxpg.EVT_PG_ITEM_EXPANDED, self.propgrid_click)
-
 
         self.window_props.SetSizer(sizer_props)
         self.window_help.SetSizer(sizer_help)
@@ -1116,6 +1118,14 @@ class MyFrame(wx.Frame):
 
         #Create a panel associated with this run
         #self.plotupdate = 0
+        if (len(self.auipanes.keys()) > self.ncpus):
+            msgbx = wx.MessageDialog(self, 
+                        "Running cases greater than number of cpus ",
+                                    style=wx.OK|wx.ICON_ERROR)
+            msgbx.ShowModal()
+            msgbx.Destroy()
+            return
+
         self.auipane = self.create_aui_pane(rundir)
         if self.auipane:
 
@@ -1148,6 +1158,7 @@ class MyFrame(wx.Frame):
         #self.t.daemon=True
         #self.t.start()
         self.Bind(wx.EVT_IDLE, self.OnIdleRun)
+        self.idlecount = self.updatefreq-10
 
         #Switch to Runs tab
         self.notebook_1.SetSelection(1)
@@ -1159,6 +1170,7 @@ class MyFrame(wx.Frame):
                 self.auipanes[rundir].stdout = open(filename, "r")
                 self.auipanes[rundir].stderr = open(filename+'_err' , "r")
                 self.auipanes[rundir].endrun = False
+                #self.auipanes[rundir].stdouthist = ""
                 return
             except IOError:
                 time.sleep(0.1)
@@ -1183,15 +1195,52 @@ class MyFrame(wx.Frame):
                 msgbx.Destroy()
                 return None
 
+        #Split display and properties window
+        # auipane.panel = wx.Panel(auipane, wx.ID_ANY)
+        # auipane.spt = wx.SplitterWindow(auipane.panel, wx.ID_ANY)
+        # auipane.spt.SetMinimumPaneSize(20)
+        # auipane.spt.outputpanel = wx.Panel(auipane.spt, wx.ID_ANY)
+
+        # auipane.spt.SplitVertically(auipane.spt.output, auipane.spt.plots)
+
+        # auipane.figure = Figure()
+        # auipane.axis = auipane.figure.add_subplot(111)
+        # auipane.canvas = FigureCanvas(self.notebook_1_pane_2, -1, auipane.figure)
+        # self.notebook_1_pane_2.mgr.AddPane(auipane.canvas, auipane.spt.plots)
+        # self.notebook_1_pane_2.mgr.Update()
+
+        #Setup aui pane
         auipane = wx.aui.AuiPaneInfo().Center().Caption(rundir)
         auipane.Name(rundir)
         auipane.DestroyOnClose(True)
 
+        #Create splitted panel
+        auipane.spt = wx.SplitterWindow(self.notebook_1_pane_2, wx.ID_ANY)
+
+        #Setup plotting element
         auipane.figure = Figure()
         auipane.axis = auipane.figure.add_subplot(111)
-        auipane.canvas = FigureCanvas(self.notebook_1_pane_2, -1, auipane.figure)
-        self.notebook_1_pane_2.mgr.AddPane(auipane.canvas, auipane)
+        auipane.canvas = FigureCanvas(auipane.spt, -1, auipane.figure)
+
+        #Setup txt element
+        auipane.txt = wx.stc.StyledTextCtrl(auipane.spt, -1, 
+                                            style=wx.TE_MULTILINE |
+                                                  wx.TE_READONLY)
+
+        #Split
+        auipane.spt.SplitHorizontally(auipane.txt, auipane.canvas)
+        auipane.spt.SetMinimumPaneSize(self.height/2.)
+        #auipane.spt.SetSashPosition(self.width/2., redraw=True)
+        #auipane.spt.UpdateSize()
+
+        #Add pane
+        self.notebook_1_pane_2.mgr.AddPane(auipane.spt, auipane)
         self.notebook_1_pane_2.mgr.Update()
+
+        #auipane2 = wx.aui.AuiPaneInfo().Center().Caption(rundir)
+
+        #self.notebook_1_pane_2.mgr.AddPane(auipane2.output, auipane2)
+
         return auipane
 
     def panelclose(self, event):
@@ -1208,6 +1257,7 @@ class MyFrame(wx.Frame):
                 return
             else:
                 self.killproc(rundir=pane.name)
+                self.auipanes.pop(pane.name)
                 #open(pane.name + "/ABORTABORT", 'a').close()
 
     def setup_btn(self, event): 
@@ -1310,6 +1360,14 @@ class MyFrame(wx.Frame):
         if (self.notebook_1.GetSelection() != 1):   
             return
 
+        #Add a counter to reduce frequency of updates
+        if self.idlecount < self.updatefreq:
+            self.idlecount += 1
+            #print("Idlecount", self.idlecount)
+            return
+        else:
+            self.idlecount = 0
+
         #Check for all auipanes which ones need updating
         for rundir in self.auipanes:
             auipane = self.auipanes[rundir]
@@ -1318,12 +1376,36 @@ class MyFrame(wx.Frame):
             if (stdoutline):
                 update=True
                 #Print any new file changes
-                print(stdoutline)
+                stdouthist = stdoutline
+                #print(stdoutline)
+                #self.auipanes[rundir].stdouthist = self.auipanes[rundir].stdouthist + stdoutline
                 for line in stdout:
-                    print(line)
+                    #print(line)
+                    stdouthist = stdouthist + line
+                    #self.auipanes[rundir].stdouthist = self.auipanes[rundir].stdouthist + line
                     #Trigger an end of run if final output time shown
                     if "Time taken" in line:
                         self.auipanes[rundir].endrun = True
+
+                #Get current screen position
+                topline = auipane.txt.GetFirstVisibleLine()
+                #Add text
+                auipane.txt.AppendText(stdouthist)
+                #Check maximum position
+                lastline = auipane.txt.GetLineCount()
+                lastpos = auipane.txt.GetLastPosition()
+                #print("lastpos=", lastline, topline, lastline-topline,
+                #        lastpos, 
+                #        auipane.txt.GetEndAtLastLine(),
+                #        auipane.txt.GetScrollPos(wx.VERTICAL))
+
+                # If near the bottom, start autoscrolling
+                # change autoscroll_sensitivity to make this 
+                # more or less sensitive
+                autoscroll_sensitivity = 100
+                if (lastline-topline < autoscroll_sensitivity):
+                    auipane.txt.ShowPosition(lastpos) 
+
             else:
                 continue
 
@@ -1360,7 +1442,7 @@ class MyFrame(wx.Frame):
 
             #Kill subprocess and unbind idle runner
             if self.auipanes[rundir].endrun:
-                self.auipanes[rundir].pop()
+                self.auipanes.pop(rundir)
                 if self.auipanes == {}:
                     self.Unbind(wx.EVT_IDLE)
                 return
@@ -1460,7 +1542,7 @@ class MyFrame(wx.Frame):
 
         try:
             for key, values in self.ChangeDict.items():
-                print("Dryrun in OnSave - saving to ", self.inputfilename, "keys=", key, "values=",values)
+                #print("Dryrun in OnSave - saving to ", self.inputfilename, "keys=", key, "values=",values)
                 self.InputFileMod.replace_input(key, values)
 
             #Clear history of changes
