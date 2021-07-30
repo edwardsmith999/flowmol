@@ -121,10 +121,10 @@ class SetupInputs():
                     continue
                 # First get what condition is extracting
                 # between brackets "()" handling newline "&"
-                # assuming more than 10 is unlikely
+                # assuming more than 20 is unlikely
                 condition = item
                 #print("condition = ", condition, var, item.find('if') != -1)
-                for i in range(1,10):
+                for i in range(1,20):
                     if (self.listout[l+i].find('&') == -1):
                         condition += self.listout[l+i]
                     else:
