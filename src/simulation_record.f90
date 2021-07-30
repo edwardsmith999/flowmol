@@ -4574,7 +4574,8 @@ contains
 
 subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR, surface_flux, stress)
 	use module_record, only : get_bin, get_crossings, nd, intrinsic_surface_real, &
-							ISR_b, iter, delta_t, Nsurfevo_outflag
+							ISR_b, iter, delta_t, Nsurfevo_outflag, &
+                        riemann_transform
     use librarymod, only : CV_surface_flux, imaxloc
     use module_set_parameters, only : mass
 	use CV_objects, only : CVcheck_momentum
@@ -4591,15 +4592,17 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR, surface_flux, st
     logical, save                   :: first_time=.true.
 
     logical                         :: crossings, crossings_test, changed
-	integer							:: ixyz,i,j,k,n,n1,t1,t2, Xcount
+	integer							:: ixyz,i,j,k,n,n1,t1,t2,iT, Xcount
 	integer		,dimension(3)		:: bin1,bin2,cbin,bs
 	real(kind(0.d0)),parameter		:: eps = 1e-12
 	real(kind(0.d0))        		:: crossdir, denom, t1_curv, t2_curv
     real(kind(0.d0)),dimension(3)	:: ri12, rci
+    real(kind(0.d0)),dimension(2,2)	:: T, T_g
 
     integer, dimension(:), allocatable :: cbins
     real(kind(0.d0)),dimension(:,:),allocatable :: points
     real(kind(0.d0)),dimension(:,:), allocatable :: rc, dSdr
+    real(kind(0.d0)),dimension(:,:,:), allocatable :: g
 
 	changed = .false.
 
@@ -4633,13 +4636,19 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR, surface_flux, st
             ri12   = ri1 - ri2		        !Molecule i trajectory between t-dt and t
             where (abs(ri12) .lt. 0.000001d0) ri12 = 0.000001d0
 
-            if (present(ISR) .and. (ixyz .eq. n1)) then
-                if (allocated(points)) deallocate(points)
-                allocate(points(size(rc,2), nd))
-                points(:,1) = rc(1,:)
-                points(:,2) = rc(2,:)
-                points(:,3) = rc(3,:)
-                call ISR%get_surface_derivative(points, dSdr)
+            if (present(ISR)) then
+                if (ixyz .eq. n1 .or. Riemann_transform .eq. 1) then
+                    if (allocated(points)) deallocate(points)
+                    allocate(points(size(rc,2), nd))
+                    points(:,1) = rc(1,:)
+                    points(:,2) = rc(2,:)
+                    points(:,3) = rc(3,:)
+                    if (ixyz .eq. n1) then
+                        call ISR%get_surface_derivative(points, dSdr)
+                    else if (Riemann_transform .eq. 1) then
+                        call ISR%get_metric_tensor(points, g)
+                    endif
+                endif
             endif
 
             do i=1,size(rc,2)
@@ -4682,10 +4691,48 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR, surface_flux, st
                     crossdir  = sign(1.d0, ri12(ixyz))
                 endif
 
-                fluxes(cbin(1),cbin(2),cbin(3),:,ixyz) = & 
-                    fluxes(cbin(1),cbin(2),cbin(3),:,ixyz) + crossdir*quantity(:)
-                fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),:,ixyz+3) = & 
-                    fluxes(cbin(1),cbin(2),cbin(3),:,ixyz)
+
+                if (present(ISR) .and. Riemann_transform .eq. 1 .and. &
+                    (ixyz .ne. n1) .and. size(quantity,1) .eq. 3) then
+                    !Riemann transform applied here
+
+                    fluxes(cbin(1),cbin(2),cbin(3),n1,ixyz) = & 
+                        fluxes(cbin(1),cbin(2),cbin(3),n1,ixyz) + crossdir*quantity(n1)
+
+                    iT = mod(ixyz,2)+1
+                    T = 0.d0
+                    T(iT,1) = quantity(t1)
+                    T(iT,2) = quantity(t2)
+                    T_g(1,1) = T(1,1)*g(i,1,1) + T(1,2)*g(i,2,1)
+                    T_g(1,2) = T(1,1)*g(i,1,2) + T(1,2)*g(i,2,2)
+                    T_g(2,1) = T(2,1)*g(i,1,1) + T(2,2)*g(i,2,1)
+                    T_g(2,2) = T(2,1)*g(i,1,2) + T(2,2)*g(i,2,2)
+
+                    fluxes(cbin(1),cbin(2),cbin(3),t1,t1) = fluxes(cbin(1),cbin(2),cbin(3),t1,t1) + crossdir*T_g(1,1)
+                    fluxes(cbin(1),cbin(2),cbin(3),t1,t2) = fluxes(cbin(1),cbin(2),cbin(3),t1,t2) + crossdir*T_g(2,1)
+                    fluxes(cbin(1),cbin(2),cbin(3),t2,t1) = fluxes(cbin(1),cbin(2),cbin(3),t2,t1) + crossdir*T_g(1,2)
+                    fluxes(cbin(1),cbin(2),cbin(3),t2,t2) = fluxes(cbin(1),cbin(2),cbin(3),t2,t2) + crossdir*T_g(2,2)
+                    bs = 0; bs(t1) = 1
+                    if (cbin(1)-bs(1) .ge. 1 .and. cbin(2)-bs(2) .ge. 1 .and. cbin(3)-bs(3) .ge. 1) then
+                        !fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),:,ixyz+3) = & 
+                        !    fluxes(cbin(1),cbin(2),cbin(3),:,ixyz)
+                        fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),:,t1+3) = & 
+                            fluxes(cbin(1),cbin(2),cbin(3),:,t1)
+                    endif
+                    bs = 0; bs(t2) = 1
+                    if (cbin(1)-bs(1) .ge. 1 .and. cbin(2)-bs(2) .ge. 1 .and. cbin(3)-bs(3) .ge. 1) then
+                        fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),:,t2+3) = & 
+                            fluxes(cbin(1),cbin(2),cbin(3),:,t2)
+                    endif
+
+                else
+                    fluxes(cbin(1),cbin(2),cbin(3),:,ixyz) = & 
+                        fluxes(cbin(1),cbin(2),cbin(3),:,ixyz) + crossdir*quantity(:)
+                    if (cbin(1)-bs(1) .ge. 1 .and. cbin(2)-bs(2) .ge. 1 .and. cbin(3)-bs(3) .ge. 1) then
+                        fluxes(cbin(1)-bs(1),cbin(2)-bs(2),cbin(3)-bs(3),:,ixyz+3) = & 
+                            fluxes(cbin(1),cbin(2),cbin(3),:,ixyz)
+                    endif
+                endif
 
             enddo
             deallocate(rc)
