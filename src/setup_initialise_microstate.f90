@@ -404,7 +404,8 @@ end subroutine setup_lattice_dense_FENE_info
 
 subroutine setup_FENE_solution
     use interfaces
-    use polymer_info_MD
+    use polymer_info_MD, only : targetconc, monomer, bond,& 
+								nchains, nmonomers, R_0, mark_chain_as_solvent
     use messenger
     use messenger_data_exchange, only : globalSum
     use arrays_MD, only: r
@@ -2436,7 +2437,8 @@ end subroutine split_domain
 
 subroutine setup_initialise_surfactants(casename)
     use module_initialise_microstate
-    use polymer_info_MD
+    use polymer_info_MD, only : targetconc, monomer, bond,  bondcount, mark_chain_as_solvent, & 
+								nchains, nmonomers, R_0, surface_surfactant_layer
     use messenger
     use interfaces, only: error_abort
     use messenger_data_exchange, only : globalSum
@@ -2451,6 +2453,10 @@ subroutine setup_initialise_surfactants(casename)
     real(kind(0.d0)) :: solid_bottom(3), solid_top(3), concentration
     real(kind(0.d0)) :: gasupperregion(6), gaslowerregion(6), nosurfactant(6)
     real(kind(0.d0)) :: grafting_density_real, solid_density, density_ratio_sl, density_ratio_gl
+
+	!Solid top and bottom normally worked out per molecule for wall texture_type
+	solid_bottom = tethereddistbottom
+	solid_top = tethereddisttop
 
     !Setup regions of gas either side of central region
     gaslowerregion = (/ -0.5d0*globaldomain(1), & 
@@ -2473,16 +2479,16 @@ subroutine setup_initialise_surfactants(casename)
     solid_density = density
     call setup_initialise_solid_liquid_gas('2phase')
     call setup_location_tags(0)               !Setup locn of fixed mols
-    call initialise_info
+    call initialise_info()
+
+    if (irank.eq.1) then
+        print*, 'Target concentration: ', targetconc
+    end if
 
     ! Start by connectiong every possible chain 
     call connect_all_possible_chains_surfactant(maxchainID, targetconc)
     !call connect_all_possible_chains(maxchainID)
     proc_chains(irank) = maxchainID
-
-    if (irank.eq.1) then
-        print*, 'Target concentration: ', targetconc
-    end if
 
     if (targetconc .gt. 1e-4) then
 		! Remove chains to get target concentration (as close as possible) 

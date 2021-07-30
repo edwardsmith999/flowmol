@@ -1,0 +1,134 @@
+ Simulation run on Date;  sim_date ;20210313
+ Simulation start time ;  sim_start_time ;000508.670
+ Subversion revision number ;  svn_version_number ;DISABLED  
+ Number of Dimensions ;  nd ;           3
+ Number of Particles ;  globalnp ;        2635
+ Time Step - delta t ;   delta_t ;   5.0000000000000001E-003
+ Total number of steps ; Nsteps;      500000
+ Integration algorithm ; integration_algorithm;           0
+ Potential flag ; potential_flag;           0
+ Starting step of simulation ;  initialstep ;      100000
+ Generate output file every steps ;   tplot ;           1
+ Density ; density ;   1.0000000000000000     
+ Liquid density ; liquid_density ;  0.78610000000000002     
+ Gas density ; gas_density ;   2.0000000000000001E-004
+ Liquid_Fraction ; lg_fract ;  0.42999999999999999     
+ Initial Temperature ;   inputtemperature ;  0.60570000000000002     
+ Cut off distance ;  rcutoff ;   2.5000000000000000     
+ Neighbour List Delta r x;  delta_rneighbrx ;  0.29999999999999999     
+ Neighbour List Delta r y;  delta_rneighbry ;  0.29999999999999999     
+ Neighbour List Delta r z;  delta_rneighbrz ;  0.29999999999999999     
+ Initial FCC unit size in x ;  initialunitsize(1) ;   1.5874010519681996     
+ Initial FCC unit size in y ;  initialunitsize(2) ;   1.5874010519681994     
+ Initial FCC unit size in z ;  initialunitsize(3) ;   1.5874010519681994     
+ Domain in x ;  globaldomain(1)  ;   47.622031559045986     
+ Domain in y ;  globaldomain(2)  ;   12.699208415745595     
+ Domain in z ;  globaldomain(3)  ;   12.699208415745595     
+ Domain volume ;  volume ;   7679.9999999999991     
+ Periodic Boundary Conditions in x ;  periodic(1) ;           1
+ Periodic Boundary Conditions in y ;  periodic(2) ;           1
+ Periodic Boundary Conditions in z ;  periodic(3) ;           1
+ Dist frm bot Fixed Mol in x; fixdistbot(1);   0.0000000000000000     
+ Dist frm bot Fixed Mol in y; fixdistbot(2);   0.0000000000000000     
+ Dist frm bot Fixed Mol in z; fixdistbot(3);   0.0000000000000000     
+ Dist frm top Fixed Mol in x; fixdisttop(1);   0.0000000000000000     
+ Dist frm top Fixed Mol in y; fixdisttop(2);   0.0000000000000000     
+ Dist frm top Fixed Mol in z; fixdisttop(3);   0.0000000000000000     
+ Dist frm bot Tethered Mol in x; tethdistbot(1);   0.0000000000000000     
+ Dist frm bot Tethered Mol in y; tethdistbot(2);   0.0000000000000000     
+ Dist frm bot Tethered Mol in z; tethdistbot(3);   0.0000000000000000     
+ Dist frm top Tethered Mol in x; tethdisttop(1);   0.0000000000000000     
+ Dist frm top Tethered Mol in y; tethdisttop(2);   0.0000000000000000     
+ Dist frm top Tethered Mol in z; tethdisttop(3);   0.0000000000000000     
+ Dist frm bot Sliding Mol in x; slidedistbot(1);   0.0000000000000000     
+ Dist frm bot Sliding Mol in y; slidedistbot(2);   0.0000000000000000     
+ Dist frm bot Sliding Mol in z; slidedistbot(3);   0.0000000000000000     
+ Dist frm top Sliding Mol in x; slidedisttop(1);   0.0000000000000000     
+ Dist frm top Sliding Mol in y; slidedisttop(2);   0.0000000000000000     
+ Dist frm top Sliding Mol in z; slidedisttop(3);   0.0000000000000000     
+ Sliding velocity of wall in x; wallslidev(1);   0.0000000000000000     
+ Sliding velocity of wall in y; wallslidev(2);   0.0000000000000000     
+ Sliding velocity of wall in z; wallslidev(3);   0.0000000000000000     
+ Dist frm bot NH Thermstat Mol in x; thermstatbot(1);   0.0000000000000000     
+ Dist frm bot NH Thermstat Mol in y; thermstatbot(2);   0.0000000000000000     
+ Dist frm bot NH Thermstat Mol in z; thermstatbot(3);   0.0000000000000000     
+ Dist frm top NH Thermstat Mol in x; thermstattop(1);   0.0000000000000000     
+ Dist frm top NH Thermstat Mol in y; thermstattop(2);   0.0000000000000000     
+ Dist frm top NH Thermstat Mol in z; thermstattop(3);   0.0000000000000000     
+ External force flag; external_force_flag;           0
+ External force; F_ext;   0.0000000000000000     
+ External force direction; F_ext_ixyz;           1
+ Thethered potential 2 coefficient; teth_k2;   0.0000000000000000     
+ Thethered potential 4 coefficient; teth_k4;   5000.0000000000000     
+ Thethered potential 6 coefficient; teth_k6;   5000000.0000000000     
+ Computational cells in x ;  globalncells(1) ;          17
+ Computational cells in y ;  globalncells(2)  ;           4
+ Computational cells in z ;  globalncells(3)  ;           4
+ Of size in x ;  cellsidelength(1) ;   2.8012959740615284     
+ Of size in y ;  cellsidelength(2) ;   3.1748021039363987     
+ Of size in z ;  cellsidelength(3) ;   3.1748021039363987     
+ Number of processors in x ;  npx ;           1
+ Number of processors in y ;  npy ;           1
+ Number of processors in z ;  npz ;           1
+ Cells per Processor in x ;  nicellxl ;           0
+ Cells per Processor in y ;  nicellyl ;           0
+ Cells per Processor in z ;  nicellzl ;           0
+ Cells per Processor including Halos in x ;  ncellxl ;           0
+ Cells per Processor including Halos in y ;  ncellyl ;           0
+ Cells per Processor including Halos in z ;  ncellzl ;           0
+ 1st Random seed ;  seed_1 ;           1
+ 2nd Random seed ;  seed_2 ;           2
+ Separate output file flag;  separate_outfiles; T
+ VMD flag ;  vmd_outflag ;           0
+ VMD skip ;  vmd_skip ;           1
+ macro flag ;  macro_outflag  ;           2
+ mass flag ;  mass_outflag ;           0
+ momentum flag ;  momentum_outflag ;           0
+ temperature flag ;  temperature_outflag ;           0
+ Peculiar flag ;  peculiar_flag ;           0
+ Pressure flag ;  pressure_outflag ;           0
+ viscosity flag ;  viscosity_outflag ;           0
+ cv conservation flag ;  cv_conserve ;           1
+ mass flux flag ;  mflux_outflag ;           1
+ velocity flux flag ;  vflux_outflag ;           4
+ energy flux flag ;  eflux_outflag ;           0
+ mass average steps ;  Nmass_ave ;           0
+ momentum average steps ;  Nvel_ave ;           0
+ Temperature average steps ;  NTemp_ave ;           0
+ energy average steps ;  Nenergy_ave ;           0
+ pressure average steps ;  Nstress_ave ;           0
+ heatflux average steps ;  Nheatflux_ave ;           0
+ viscosity average samples ;  Nvisc_ave ;           0
+ mass flux average steps ;  Nmflux_ave ;        1000
+ velocity flux average steps ;  Nvflux_ave ;        1000
+ energy flux average steps ;  Neflux_ave ;           0
+ mass surface average steps ;  Nsurfm_ave ;           0
+ Cylindrical polar bins post-proc flag ; cpol_bins ;  0 
+ momentum/stress Averaging Bins in x ;  gnbins(1) ;         544
+ momentum/stress Averaging Bins in y ;  gnbins(2) ;          64
+ momentum/stress Averaging Bins in z ;  gnbins(3) ;          64
+ Of size in x ;  binsize(1)  ;   8.7540499189422763E-002
+ Of size in y ;  binsize(2)  ;  0.19842513149602492     
+ Of size in z ;  binsize(3)  ;  0.19842513149602492     
+ Bins per Processor in x ;  nbins(1) ;         544
+ Bins per Processor in y ;  nbins(2) ;          64
+ Bins per Processor in z ;  nbins(3) ;          64
+ Number of Bins on outer Surface of each processor ;  nsurfacebins ;      144776
+ Number of Bins in halo of each processor ;  nhalobins ;      150152
+ Leapfrog or Velocity-Verlet ; integration_algorithm ;           0
+ Force calculation list methodd ; force_list ;           1
+ Slice or bins ; vPDF_flag ;           0
+ Output frequency of PDF ; NvPDF_ave ;           5
+ Number of PDF bins ; NPDFbins  ;          50
+ PDF range max_min ; PDFvlims  ;   5.0000000000000000     
+ Shear direction ; le_sd;           1
+ Shear plane ; le_sp;           2
+ Shear remaining plane ; le_rp;           3
+ Shear rate; le_sr;   0.0000000000000000     
+ Shear velocity; le_sv;   0.0000000000000000     
+ Shear iter0 ; le_i0;           0
+ g(r) nbins ; rdf_nbins;         100
+ g(r) rmax  ; rdf_rmax;   3.5000000000000000     
+ S(k) nmax  ; ssf_nmax;          50
+ S(k) axis1 ; ssf_ax1;           1
+ S(k) axis2 ; ssf_ax2;           2

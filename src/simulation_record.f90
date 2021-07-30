@@ -1262,9 +1262,11 @@ subroutine evaluate_macroscopic_properties
 		do n=1,np
 			write(3000+irank,'(i10,f28.4,6f10.4)') n , potenergymol(n), r(:,n), globalise(r(:,n))
 		enddo
-		print*, 'Simulation aborted because max PE has reached an unreasonably high value.'
-		print*, 'Inspect fort.(3000+irank) for n, potenergymol, r, r_global'
-		call error_abort("STOPPING CODE")
+		call error_abort("Simulation aborted because max PE has reached an unreasonably high value &
+						  &Inspect fort.(3000+irank) for n, potenergymol, r, r_global")
+		!print*, 'Simulation aborted because max PE has reached an unreasonably high value.'
+		!print*, 'Inspect fort.(3000+irank) for n, potenergymol, r, r_global'
+		!call error_abort("STOPPING CODE")
 	endif
 	totenergy   = kinenergy + potenergy
 	temperature = mv2sum / real(nd*globalnp,kind(0.d0))
@@ -4760,18 +4762,17 @@ subroutine cumulative_mass_flux_opt()
     if (cluster_analysis_outflag .eq. 1 .and.  & 
         any(intrinsic_interface_outflag .eq. (/1,2/))) then
         use_bilinear = .true.
+		allocate(surface_flux(size(mass_surface_flux,1),    size(mass_surface_flux,2), & 
+							  size(mass_surface_flux,3), 1, size(mass_surface_flux,4)))
+		surface_flux(:,:,:,1,:) = mass_surface_flux(:,:,:,:)
     else
         use_bilinear = .false.
     endif
 
     allocate(quantity(1))
-    allocate(fluxes(size(mass_flux,1), size(mass_flux,2), & 
+    allocate(fluxes(size(mass_flux,1),    size(mass_flux,2), & 
                     size(mass_flux,3), 1, size(mass_flux,4)))
     fluxes(:,:,:,1,:) = mass_flux(:,:,:,:)
-
-    allocate(surface_flux(size(mass_flux,1),    size(mass_flux,2), & 
-                          size(mass_flux,3), 1, size(mass_flux,4)))
-    surface_flux(:,:,:,1,:) = mass_surface_flux(:,:,:,:)
 
 	do n = 1,np
 		ri1(:) = r(:,n) 							!Molecule i at time t
@@ -4785,7 +4786,7 @@ subroutine cumulative_mass_flux_opt()
 		endif
     enddo
     mass_flux(:,:,:,:) = fluxes(:,:,:,1,:)
-    mass_surface_flux(:,:,:,:) = surface_flux(:,:,:,1,:)
+    if (use_bilinear) mass_surface_flux(:,:,:,:) = surface_flux(:,:,:,1,:)
 
 end subroutine cumulative_mass_flux_opt
 

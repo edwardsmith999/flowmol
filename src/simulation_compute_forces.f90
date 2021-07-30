@@ -182,7 +182,7 @@ end module module_compute_forces
 subroutine simulation_compute_forces
 	use interfaces
 	use module_compute_forces
-	use polymer_info_MD, only: solvent_flag, angular_potential
+	use polymer_info_MD, only: solvent_flag, angular_potential, bond, bondcount
 	implicit none
 
 	a					= 0.d0	!Reset acceleration matrix before force calculations
@@ -208,10 +208,27 @@ subroutine simulation_compute_forces
 		!Forces calculated using cell lists
 		select case(potential_flag)
 		case(0)					!If simple LJ fluid
-            !print*, "simulation_compute_forces_LJ_cells switched off"
 			call simulation_compute_forces_LJ_cells
-		case default								
-			call error_abort("Potential flag/force_list incompatible - only LJ available with cell lists")
+		case(1)
+			if (mod(iter,tplot) .eq. 0) then
+				print*, "WARNING, Potential flag/force_list has not been tested fully with cell list"
+				print*, "Factor of 2 error in CV measures for chains expected"
+			endif
+			!call error_abort("Potential flag/force_list incompatible - only LJ available with cell lists")
+			potenergymol_POLY	= 0.d0
+			potenergysum_POLY	= 0.d0
+			select case(solvent_flag)
+			case(0)
+				bond = 0
+				bondcount = 0
+				call simulation_compute_forces_LJ_cells()	!Compute LJ bead interactions
+ 			    call simulation_compute_forces_poly()				!Add on FENE or harmonic spring interactions
+                if (angular_potential .ne. 0) then
+					call error_abort('angular_potential not supported with cell list')
+                endif
+			case default
+				call error_abort('Solvent flag not recognised or not supported with cell list')
+			end select
 		end select
 
 	case(2)
@@ -235,15 +252,15 @@ subroutine simulation_compute_forces
 			potenergysum_POLY	= 0.d0
 			select case(solvent_flag)
 			case(0)
-				call simulation_compute_forces_LJ_neigbr_halfint	!Compute LJ bead interactions
- 			    call simulation_compute_forces_poly				!Add on FENE or harmonic spring interactions
+				call simulation_compute_forces_LJ_neigbr_halfint()	!Compute LJ bead interactions
+ 			    call simulation_compute_forces_poly()				!Add on FENE or harmonic spring interactions
                 if (angular_potential .ne. 0) then
                     call simulation_compute_forces_angular
                 endif
 			case(1)
 				!call simulation_compute_forces_Soddemann_AP
-				call simulation_compute_forces_Soddemann_neigbr_halfint
-				call simulation_compute_forces_poly
+				call simulation_compute_forces_Soddemann_neigbr_halfint()
+				call simulation_compute_forces_poly()
 			case default
 				call error_abort('Solvent flag not recognised!')
 			end select
@@ -465,6 +482,10 @@ subroutine simulation_compute_forces_LJ_cells
 					rij2=0						!Set rij^2 to zero
 					rij(:) = ri(:) - rj(:)		!Evaluate distance between particle i and j
 					rij2 = dot_product(rij,rij)	!Square of vector calculated
+
+					!Build polymer lists here if we need them, normally built 
+					!when constructing neighbourlist but we don't do this for cells
+					if (potential_flag.eq.1) call check_update_adjacentbeadinfo_allint(molnoi,molnoj)	
 
 					if (rij2 < rcutoff2) then
 
@@ -707,7 +728,7 @@ end subroutine simulation_compute_forces_LJ_neigbr_halfint
 !========================================================================
 !Compute polymer FENE potential forces using monomer bond lists
 
-subroutine simulation_compute_forces_poly
+subroutine simulation_compute_forces_poly()
 	use module_compute_forces
 	use polymer_info_MD
     use module_set_parameters, only : get_poly_accijmag, get_poly_energy
@@ -715,7 +736,7 @@ subroutine simulation_compute_forces_poly
 
 	integer	:: molnoi,molnoj						!Current LJ bead
 	integer :: b
-	
+
 	do molnoi=1,np
 
 		ri(:) = r(:,molnoi)							!Retrieve ri(:)
