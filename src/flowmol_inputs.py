@@ -52,6 +52,9 @@ class CanvasPanel(wx.Panel):
             self.axes = self.figure.add_subplot(111, projection='3d', proj_type = 'ortho')
         else:
             self.axes = self.figure.add_subplot(111)
+
+        self.figure.tight_layout()
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.canvas, 1, wx.LEFT | wx.TOP | wx.GROW)
         self.SetSizer(self.sizer)
@@ -608,7 +611,7 @@ class MyFrame(wx.Frame):
         #########################################
         self.window_help = wx.Panel(self.window_help_props, wx.ID_ANY)
         sizer_help = wx.BoxSizer(wx.HORIZONTAL)
-        self.helptxt = wx.TextCtrl(self.window_help, style=wx.TE_MULTILINE |
+        self.helptxt = wx.stc.StyledTextCtrl(self.window_help, style=wx.TE_MULTILINE |
                                    wx.TE_READONLY, size=(self.width/3, self.height/4))
         self.helptxt.SetValue("Help Text \n\n\n\n\n\n\n")
         sizer_help.Add(self.helptxt, 1, wx.EXPAND, 0)
@@ -1152,40 +1155,38 @@ class MyFrame(wx.Frame):
             self.auipane.run = self.run
             self.auipanes[rundir] = self.auipane
             self.auipanes[rundir].endrun = False
-        #self.linebuffer = []; self.runbufcount = 0
-        #self.t = Thread(target=self.reader, args=(self.run.proc.stdout, 
-        #                                          self.linebuffer))
-        #self.t.daemon=True
-        #self.t.start()
-        self.Bind(wx.EVT_IDLE, self.OnIdleRun)
-        self.idlecount = self.updatefreq-10
 
-        #Switch to Runs tab
-        self.notebook_1.SetSelection(1)
+            self.Bind(wx.EVT_IDLE, self.OnIdleRun)
+            self.idlecount = self.updatefreq-10
 
-        #Read files from run
-        for i in range(50):
-            try:
-                filename = rundir + "/" + self.outputfile
-                self.auipanes[rundir].stdout = open(filename, "r")
-                self.auipanes[rundir].stderr = open(filename+'_err' , "r")
-                self.auipanes[rundir].endrun = False
-                #self.auipanes[rundir].stdouthist = ""
-                return
-            except IOError:
-                time.sleep(0.1)
-                print("Waiting for output file", filename)
+            #Switch to Runs tab
+            self.notebook_1.SetSelection(1)
 
-        #If no stdour and stderr files appear, assume run has failed
-        self.run.proc.kill()
-        msgbx = wx.MessageDialog(self, "Failed to start run in " + rundir,
-                                style=wx.OK|wx.ICON_ERROR)
-        msgbx.ShowModal()
-        msgbx.Destroy()
+            #Read files from run
+            for i in range(50):
+                try:
+                    filename = rundir + "/" + self.outputfile
+                    self.auipanes[rundir].stdout = open(filename, "r")
+                    self.auipanes[rundir].stderr = open(filename+'_err' , "r")
+                    self.auipanes[rundir].endrun = False
+                    #self.auipanes[rundir].stdouthist = ""
+                    return
+                except IOError:
+                    time.sleep(0.1)
+                    print("Waiting for output file", filename)
+
+            #If no stdour and stderr files appear, assume run has failed
+            self.run.proc.kill()
+            msgbx = wx.MessageDialog(self, "Failed to start run in " + rundir,
+                                    style=wx.OK|wx.ICON_ERROR)
+            msgbx.ShowModal()
+            msgbx.Destroy()
 
     def create_aui_pane(self, rundir):
 
+        w, h = self.GetSize()
         panes = self.notebook_1_pane_2.mgr.GetAllPanes()
+        Npanes = len(panes) + 1
         for pane in panes:
             print("Panes include = ", pane.name, dir(pane))
             if (pane.name == rundir):
@@ -1194,6 +1195,12 @@ class MyFrame(wx.Frame):
                 msgbx.ShowModal()
                 msgbx.Destroy()
                 return None
+
+            #Get existing pane and resize splitter
+            apane = self.auipanes[pane.name]
+            apane.spt.SetMinimumPaneSize(h/(2*Npanes))
+            apane.spt.UpdateSize()
+
 
         #Split display and properties window
         # auipane.panel = wx.Panel(auipane, wx.ID_ANY)
@@ -1228,8 +1235,8 @@ class MyFrame(wx.Frame):
                                                   wx.TE_READONLY)
 
         #Split
-        auipane.spt.SplitHorizontally(auipane.txt, auipane.canvas)
-        auipane.spt.SetMinimumPaneSize(self.height/2.)
+        auipane.spt.SplitHorizontally(auipane.txt, auipane.canvas, sashPosition=-1)
+        auipane.spt.SetMinimumPaneSize(h/(2*Npanes))
         #auipane.spt.SetSashPosition(self.width/2., redraw=True)
         #auipane.spt.UpdateSize()
 

@@ -608,7 +608,7 @@ subroutine setup_read_input
 	call locate(1,'NEWPAGE_COMPUTATIONAL_PARAMETERS',.false.,found_in_input)
 	if (found_in_input) then
 		!read(1,*) newpage
-		print*, "The keyword OUTPUT does nothing, "
+		print*, "The keyword NEWPAGE_* does nothing, "
 		print*, "it is used to denote start of output section flowmol_inputs" 
 	endif
 
@@ -825,6 +825,12 @@ subroutine setup_read_input
         Mie_potential = 0
     endif
 
+	! #########################################################################
+	! # Number of processors in each direction
+	! # [1] int - Processors in x
+	! # [2] int - Processors in y
+	! # [3] int - Processors in z
+	! # -----------------------------------------------------------------------
     call locate(1,'PROCESSORS',.false.,found_in_input)
 	if (found_in_input) then
 	    read(1,*) npx
@@ -855,7 +861,18 @@ subroutine setup_read_input
 	endif
 
 
-	!Flags to determine if periodic boundaries are on or shearing Lees Edwards
+	! #########################################################################
+	! # Flags to determine if periodic boundaries are on or shearing Lees Edwards
+	! # [1] 0 - not periodic in x
+	! # [1] 1 - periodic in x
+	! # [1] 2 - Lees Edwards in x (depricated)
+	! # [2] 0 - not periodic in y
+	! # [2] 1 - periodic in y
+	! # [2] 2 - Lees Edwards in y (depricated)
+	! # [3] 0 - not periodic in z
+	! # [3] 1 - periodic in z
+	! # [3] 2 - Lees Edwards in z (depricated)
+	! # -----------------------------------------------------------------------
 	call locate(1,'PERIODIC',.true.)
 	read(1,*) periodic(1)
 	read(1,*) periodic(2)
@@ -993,11 +1010,13 @@ subroutine setup_read_input
 		do ixyz=1,3
 			if (periodic(ixyz).eq.1) then
 				if (open_boundary(2*ixyz - 1).ne.0) then
-					print'(a,i6,a,i6,a)',  'Open boundary ',  2*ixyz - 1, ' is on but periodic Boundary ', ixyz, ' is also stil on '
+					print'(a,i6,a,i6,a)',  'Open boundary ',  & 
+						2*ixyz - 1, ' is on but periodic Boundary ', ixyz, ' is also stil on '
 					error = .true.
 				endif
 				if (open_boundary(2*ixyz).ne.0) then
-					print'(a,i6,a,i6,a)',  'Open boundary ',  2*ixyz , ' is on but periodic Boundary ', ixyz, ' is also stil on '
+					print'(a,i6,a,i6,a)',  'Open boundary ', &
+						2*ixyz , ' is on but periodic Boundary ', ixyz, ' is also stil on '
 					error = .true.
 				endif
 			endif
@@ -1147,8 +1166,8 @@ subroutine setup_read_input
 	endif
 
 	!Define specular wall location (if any)
-	specular_wall = 0.d0
 	call locate(1,'SPECULAR_WALL',.false.,found_in_input)
+	specular_wall = 0.d0
 	if (found_in_input) then
 		specular_flag = specular_flat
 		read(1,*) specular_wall(1)			
@@ -1542,6 +1561,10 @@ subroutine setup_read_input
 		vmd_outflag = 0
 	endif
 
+	! #########################################################################
+	! # Frequency of VMD output
+	! # [1] int - Number of tplot steps between outputs
+	! # -----------------------------------------------------------------------
     call locate(1,'VMD_SKIP',.false.,found_in_input)
     if (found_in_input) then
         read(1,*) vmd_skip  
@@ -1833,7 +1856,6 @@ subroutine setup_read_input
 	! # [1] 0 - Off
 	! # [1] 1 - On (3D grid using local control volumes)
 	! # [2] int - No. of samples for mass flux & interval for CV mass snapshot
-	! #
 	! # -----------------------------------------------------------------------
 	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
@@ -1888,6 +1910,19 @@ subroutine setup_read_input
 			call error_abort("If CV_debug is true, mass/momentum/energy flux must be turned on")
 		endif
 	endif
+
+	! #########################################################################
+	! # Output flag for flux based density on a control volume 
+	! # Density of molecules found on the surface of a bin 
+	! # Includes all intermediate bins, methodology from 
+	! # " A technique for the calculation of mass, energy, and momentum densities
+	! #  at planes in molecular dynamics simulations"
+	! #  By Peter J. Daivis, Karl P. Travis, and B. D. Todd
+	! # Will save density snapshots msurf.
+	! # [1] 0 - Off
+	! # [1] 1 - On (3D grid using local control volumes)
+	! # [2] int - No. of samples for flux density snapshot
+	! # -----------------------------------------------------------------------
 	call locate(1,'MSURF_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
         read(1,*) msurf_outflag
@@ -1897,6 +1932,15 @@ subroutine setup_read_input
         Nsurfm_ave = 0
     endif
 
+	! #########################################################################
+	! # Turn on logging for mass, momentum and energy change in a control	  
+	! # volume due to the surface moving past the molecules
+	! # outputs dsurf_mflux, dsurf_vflux and dsurf_eflux files
+	! # Note this may be unnecessary
+	! # [1] 0 - Off
+	! # [1] 1 - On (3D grid using local control volumes)
+	! # [2] int - No. of samples for flux density snapshot
+	! # -----------------------------------------------------------------------
 	call locate(1,'SURF_EVO_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
         read(1,*) Nsurfevo_outflag
