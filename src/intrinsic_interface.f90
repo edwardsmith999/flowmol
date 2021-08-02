@@ -61,6 +61,7 @@ module intrinsic_module
 
 	    contains
 		    procedure :: initialise  => initialise
+			procedure :: get_A_b => get_A_b
 		    procedure :: update_surface => update_real_surface
 		    procedure :: get_surface => get_real_surface
 		    procedure :: get_surface_derivative => get_real_surface_derivative
@@ -84,7 +85,7 @@ module intrinsic_module
 			!Over ride existing routines
 		    procedure :: get_surface => get_bilinear_surface
 		    procedure :: get_surface_derivative => get_bilinear_surface_derivative
-			procedure :: fit_intrinsic_surface => fit_intrinsic_surface_bilinear
+			!procedure :: fit_intrinsic_surface => fit_intrinsic_surface_bilinear
 			procedure :: get_crossings => get_crossings_bilinear
 
 			!New specialist routines
@@ -98,6 +99,15 @@ module intrinsic_module
 			procedure ::intrinsic_area_bilinear => intrinsic_area_bilinear
 
 	end type intrinsic_surface_bilinear
+
+	type, extends(intrinsic_surface_bilinear) :: intrinsic_surface_chebychev
+
+		contains
+
+			procedure :: get_A_b => get_A_b_chebychev
+		    procedure :: get_surface => get_chebychev_surface
+
+	end type intrinsic_surface_chebychev
 
 	!An object which allows localised surface calculations
 	! type, extends(intrinsic_surface_real) :: intrinsic_surface_real_binwidth
@@ -250,6 +260,64 @@ function derivative_wave_function(x, u, Lx)
 
 end function derivative_wave_function
 
+
+function chebyshev_function(x, u, Lx) result(T)
+    implicit none
+
+    integer,intent(in),dimension(:) :: u
+    real(kind(0.d0)),intent(in) :: Lx
+    real(kind(0.d0)),intent(in),dimension(:) :: x
+
+    real(kind(0.d0)),dimension(size(x),size(u))  :: T
+
+    integer :: n, M, un, unm1, unm2
+	real(kind(0.d0)), dimension(:), allocatable :: xs
+    real(kind(0.d0)),dimension(size(x))  :: Tm1, Tm2
+
+	M = size(u)
+
+	!Rescale to [-1, 1] from -Lx/2 to Lx/2
+	allocate(xs(size(x)))
+	xs = 2.d0 * x(:) / Lx
+
+	do n=1,M
+		un = u(n)
+		!print*, n, un, unm1, unm2, un .eq. 0, un .eq. 1, un .eq. unm1
+		select case(un)
+		case (0)
+			T(:,n) = 1
+			Tm2 = T(:,n)
+			unm2 = un
+		case (1)
+			T(:,n) = xs(:)
+			Tm1 = T(:,n)
+			unm1 = un
+		case default
+			if (un .eq. unm1) then
+				T(:,n) = T(:,n-1)
+			else
+				T(:,n) = 2*xs(:)*Tm1 - Tm2
+				Tm2 = Tm1	
+				Tm1 = T(:,n)
+				unm2 = unm1
+			endif
+			unm1 = un
+		end select
+	enddo
+	!Recurrence formula is used so advice is to always get all 
+	!points together at same time for efficiency
+	! T(1,:) = 1.d0
+	! T(2,:) = xs(:)
+	! do n=2,M-1
+		! !print*, "chebyshev_function", n, u(n)
+		! T(n+1,:) = 2.d0*xs(:)*T(n,:) - T(n-1,:)
+	! enddo
+
+end function chebyshev_function
+
+
+!Start of intitialistion functions
+
 subroutine initialise(self, box, normal, alpha, eps, nbins, nhb, topbot)
     implicit none
 
@@ -279,18 +347,37 @@ subroutine initialise(self, box, normal, alpha, eps, nbins, nhb, topbot)
     self%n_waves = 2*self%qm+1
     self%n_waves2 = self%n_waves**2
     allocate(self%u(self%n_waves2), self%v(self%n_waves2))
-    do i=1,self%n_waves2
-        self%u(i) = (i-1) / self%n_waves - self%qm
-        self%v(i) = modulo((i-1), self%n_waves) - self%qm
-    enddo
-	
 	allocate(self%coeff(self%n_waves2))
+    allocate(self%diag(self%n_waves2))
 	self%coeff = 0.d0
 
-    allocate(self%diag(self%n_waves2))
-    self%diag = check_uv(self%u, self%v) & 
-                 * (  self%u**2 * box(self%jxyz) / box(self%ixyz) & 
-                    + self%v**2 * box(self%ixyz) / box(self%jxyz))
+	!Note default behaviour in select type is 
+	!to priorities type over class regardless of order
+	!(i.e. if type b is derived from a, it will still
+	! branch to type(b) even if class(a) is before)
+    select type (self)
+	type is (intrinsic_surface_chebychev)
+		!Chebychev 
+		do i=1,self%n_waves2
+			self%u(i) = (i-1) / self%n_waves
+			self%v(i) = modulo((i-1), self%n_waves)
+			!print*, "setup u, v for chebychev", i, self%u(i), self%v(i)
+		enddo
+		self%diag(:) = 1.d0
+    class is (intrinsic_surface_real)
+		!Numbers between -qm and +qm
+		do i=1,self%n_waves2
+			self%u(i) = (i-1) / self%n_waves - self%qm
+			self%v(i) = modulo((i-1), self%n_waves) - self%qm
+		enddo
+		!Factor to account for domain not square from 
+		!Longford et al (2018 J. Chem. Phys. 149, 234705 (2018); 
+		!https://doi.org/10.1063/1.5055241
+		self%diag = check_uv(self%u, self%v) & 
+					 * (  self%u**2 * box(self%jxyz) / box(self%ixyz) & 
+						+ self%v**2 * box(self%ixyz) / box(self%jxyz))
+	end select
+	
     allocate(self%diag_matrix(size(self%diag,1),size(self%diag,1)))
     self%diag_matrix = 0.d0
     do i=1,size(self%diag,1)
@@ -304,8 +391,8 @@ subroutine initialise(self, box, normal, alpha, eps, nbins, nhb, topbot)
     select type (self)
     class is (intrinsic_surface_real)
 		!pass
-    !class is (intrinsic_surface_complex)
-	!	stop "Error - intrinsic_surface initialise -  Complex code not tested"
+    !type is (intrinsic_surface_complex)
+	!	stop "Error - intrinsic_surface initialise -  Complex code is depricated"
     class is (intrinsic_surface_bilinear)
 		allocate(self%intrnsc_smple(self%nbins(self%ixyz)+1+2*self%nhb(self%ixyz), & 
 									self%nbins(self%jxyz)+1+2*self%nhb(self%jxyz)))
@@ -317,6 +404,90 @@ subroutine initialise(self, box, normal, alpha, eps, nbins, nhb, topbot)
     end select
 
 end subroutine initialise
+
+
+subroutine get_A_b(self, points, A, b)
+#if USE_LAPACK
+    use lapack_fns, only : multiply_by_tranpose
+#endif
+    implicit none
+
+	class(intrinsic_surface_real) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+
+    double precision, intent(out), dimension(:), allocatable :: b
+    double precision, intent(out), dimension(:,:), allocatable :: A
+
+    integer :: j
+    double precision, dimension(:,:), allocatable :: fuv
+
+    allocate(A(self%n_waves2, self%n_waves2))
+    allocate(b(self%n_waves2))
+    allocate(fuv(size(points,1), self%n_waves2))
+
+    A = 0.d0
+    b = 0.d0
+    do j =1, self%n_waves2
+        fuv(:,j) = wave_function(points(:,self%ixyz), self%u(j), self%box(self%ixyz)) & 
+                  *wave_function(points(:,self%jxyz), self%v(j), self%box(self%jxyz))
+        b(j) = b(j) + sum(points(:,self%normal) * fuv(:,j))
+    enddo
+
+    A = 0.d0
+#if USE_LAPACK
+    call multiply_by_tranpose(fuv, fuv, A)
+#else
+	A = matmul(transpose(fuv), fuv)
+    !call error_abort("Error - must build with lapack (p_lapack or p_sys_lapack) to use intrinsic interface")
+#endif
+
+	!Add constraint on minimum size
+    A = A + self%diag_matrix
+
+end subroutine get_A_b
+
+subroutine get_A_b_chebychev(self, points, A, b)
+#if USE_LAPACK
+    use lapack_fns, only : multiply_by_tranpose
+#endif
+    implicit none
+
+	class(intrinsic_surface_chebychev) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+
+    double precision, intent(out), dimension(:), allocatable :: b
+    double precision, intent(out), dimension(:,:), allocatable :: A
+
+    integer :: j
+    double precision, dimension(:,:), allocatable :: fuv
+
+    allocate(A(self%n_waves2, self%n_waves2))
+    allocate(b(self%n_waves2))
+    allocate(fuv(size(points,1), self%n_waves2))
+
+    A = 0.d0
+    b = 0.d0
+	fuv = chebyshev_function(points(:,self%ixyz), self%u(:), self%box(self%ixyz)) & 
+		 *chebyshev_function(points(:,self%jxyz), self%v(:), self%box(self%jxyz))
+    do j =1, self%n_waves2
+		b(j) = b(j) + sum(points(:,self%normal) * fuv(:,j))
+	enddo
+
+    A = 0.d0
+#if USE_LAPACK
+    call multiply_by_tranpose(fuv, fuv, A)
+#else
+	A = matmul(transpose(fuv), fuv)
+    !call error_abort("Error - must build with lapack (p_lapack or p_sys_lapack) to use intrinsic interface")
+#endif
+
+	!Add constraint on minimum size
+    A = A + self%diag_matrix
+
+end subroutine get_A_b_chebychev
+
 
 subroutine update_real_surface(self, points)
 #if USE_LAPACK
@@ -334,37 +505,16 @@ subroutine update_real_surface(self, points)
     integer :: i, j
 	integer,dimension(:),allocatable		:: indx
     double precision, dimension(:), allocatable :: b
-    double precision, dimension(:,:), allocatable :: A, fuv
+    double precision, dimension(:,:), allocatable :: A
 
-    logical :: debug=.false.
+    logical :: debug=.true.
     double precision, dimension(:), allocatable :: surf
     double precision, allocatable, dimension(:) :: x
+
+	!Function to get the matrix A and RHS b
+	call self%get_A_b(points, A, b)
 	
-    allocate(A(self%n_waves2, self%n_waves2))
-    allocate(b(self%n_waves2))
-    allocate(fuv(size(points,1), self%n_waves2))
-
-    !Save Previous solution
-    !if (.not. allocated(self%coeff_mdt)) allocate(self%coeff_mdt)
-    !self%coeff_mdt = self%coeff
-
-    A = 0.d0
-    b = 0.d0
-    do j =1, self%n_waves2
-        fuv(:,j) = wave_function(points(:,self%ixyz), self%u(j), self%box(self%ixyz)) & 
-                  *wave_function(points(:,self%jxyz), self%v(j), self%box(self%jxyz))
-        b(j) = b(j) + sum(points(:,self%normal) * fuv(:,j))
-    enddo
-
-    A = 0.d0
-#if USE_LAPACK
-    call multiply_by_tranpose(fuv, fuv, A)
-#else
-	A = matmul(transpose(fuv), fuv)
-    !call error_abort("Error - must build with lapack (p_lapack or p_sys_lapack) to use intrinsic interface")
-#endif
     !This solves Ax = b
-    A = A + self%diag_matrix
 #if USE_LAPACK
     call solve(A, b, x)
 #else
@@ -373,17 +523,15 @@ subroutine update_real_surface(self, points)
     ! call error_abort("Error - must build with lapack (p_lapack or p_sys_lapack) to use intrinsic interface")
 #endif
 	self%coeff(:) = x(:)
+	!print*, x
     !Check surface we just fitted actually matches our points
     if (debug) then
-        call get_real_surface(self, points, surf)
+        call self%get_surface(points, surf)
         do j = 1, size(points,1)
-            print*, "update_real_surface DEBUG ON Elevation vs points = ", & 
-					j, surf(j) , points(j,self%normal), &
+            print'(a, i5, 4f10.5, g20.10)', "update_real_surface DEBUG ON Elevation vs points = ", & 
+					j, points(j,self%ixyz), points(j,self%jxyz), surf(j) , points(j,self%normal), &
                      surf(j)-points(j,self%normal)
         enddo
-!    do j=1, self%n_waves2
-!        print*, "Coeffs = ", j, self%coeff(j)
-!    enddo
 
     endif
 
@@ -419,9 +567,13 @@ subroutine get_real_surface(self, points, elevation, include_zeromode, qu)
     !Get elevation at point from sum of modes
     allocate(elevation(size(points,1)))
     elevation = 0.d0
+
+	!Note we could also do
+	!do j=1,self%n_waves2 ; ui = self%u(j); vi = self%v(j)
     do ui = -qu_, qu_
     do vi = -qu_, qu_
         j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
+		!print*, ui, vi, j, self%qm, self%u(j), self%v(j)
         elevation = elevation + self%coeff(j) &
                      * wave_function(points(:,self%ixyz), ui, self%box(self%ixyz)) &
                      * wave_function(points(:,self%jxyz), vi, self%box(self%jxyz))
@@ -568,6 +720,51 @@ subroutine get_real_surface_derivative(self, points, dSdr, qu)
     enddo
 
 end subroutine get_real_surface_derivative
+
+
+
+
+subroutine get_chebychev_surface(self, points, elevation, include_zeromode, qu)
+    implicit none
+
+	class(intrinsic_surface_chebychev) :: self
+
+    double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(out), dimension(:), allocatable :: elevation
+
+	logical, intent(in), optional :: include_zeromode
+    double precision, intent(in), optional ::  qu
+
+    integer :: j, ui, vi, qu_
+    double precision :: zeromode
+
+    double precision, dimension(:,:), allocatable :: fuv
+
+    allocate(fuv(size(points,1), self%n_waves2))
+	
+    if (present(qu)) then
+        stop "Error in get_chebychev_surface, optional qu not supported"
+    endif
+
+    !Get elevation at point from sum of modes
+    allocate(elevation(size(points,1)))
+    elevation = 0.d0
+
+	fuv = chebyshev_function(points(:,self%ixyz), self%u(:), self%box(self%ixyz)) & 
+		 *chebyshev_function(points(:,self%jxyz), self%v(:), self%box(self%jxyz))
+
+	do j=1,self%n_waves2
+		elevation(:) = elevation(:) + self%coeff(j)*fuv(:,j)	
+	enddo
+
+	if (present(include_zeromode)) then
+		if (.not. include_zeromode) then
+			call self%get_zero_mode(zeromode)
+			elevation = elevation - zeromode
+		endif
+	endif
+
+end subroutine get_chebychev_surface
 
 
 
@@ -2119,7 +2316,7 @@ subroutine fit_intrinsic_surface_modes(self, points, tau, ns, pivots)
         !print*, "initial pivot pos = ", i, pivot_pos(i,:)
     enddo
 
-    call update_real_surface(self, pivot_pos)
+	call update_real_surface(self, pivot_pos)
 
 !    do i=1,sp
 !        print*, "Pivot error = ", pivot_pos(i,:), surf(i), pivot_pos(i,3)-surf(i)
@@ -2211,6 +2408,15 @@ subroutine fit_intrinsic_surface_modes(self, points, tau, ns, pivots)
 
     enddo
 
+	!This was handled by defining a constructor which called the parent
+	!constructor but then type is parent
+	select type (self)
+	type is (intrinsic_surface_bilinear)
+		!Update the saved surface at locations to use for quick surface 
+		!interaction calculations 
+		call self%update_sampled_surface(self%nbins, self%nhb)
+	end select
+
     !Plot updated surface error
     !DEBUG DEBUG DEBUG DEBUG
 !    if (allocated(d)) deallocate(d)
@@ -2269,10 +2475,14 @@ subroutine paramterise_bilinear_surface(self, P, A)
 	!Determinate
     x12 = x2 - x1; y12 = y2 - y1
     d = x12*y12
-    A(1,1) = ( P(1,self%normal)*x2*y2 - P(3,self%normal)*x2*y1 - P(2,self%normal)*x1*y2 + P(4,self%normal)*x1*y1)/d
-    A(2,1) = (-P(1,self%normal)*y2    + P(3,self%normal)*y1    + P(2,self%normal)*y2    - P(4,self%normal)*y1   )/d
-    A(1,2) = (-P(1,self%normal)*x2    + P(3,self%normal)*x2    + P(2,self%normal)*x1    - P(4,self%normal)*x1   )/d
-    A(2,2) = ( P(1,self%normal)       - P(3,self%normal)       - P(2,self%normal)       + P(4,self%normal)      )/d
+    A(1,1) = (  P(1,self%normal)*x2*y2 - P(3,self%normal)*x2*y1 &
+			  - P(2,self%normal)*x1*y2 + P(4,self%normal)*x1*y1)/d
+    A(2,1) = (- P(1,self%normal)*y2    + P(3,self%normal)*y1 &
+			  + P(2,self%normal)*y2    - P(4,self%normal)*y1   )/d
+    A(1,2) = (- P(1,self%normal)*x2    + P(3,self%normal)*x2 &
+			  + P(2,self%normal)*x1    - P(4,self%normal)*x1   )/d
+    A(2,2) = (  P(1,self%normal)       - P(3,self%normal) &
+			  - P(2,self%normal)       + P(4,self%normal)      )/d
 
 end subroutine paramterise_bilinear_surface
 

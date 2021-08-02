@@ -67,7 +67,9 @@ module module_record
 	use arrays_MD
 	use calculated_properties_MD
 	use polymer_info_MD
-    use intrinsic_module, only : intrinsic_surface_real, intrinsic_surface_bilinear
+    use intrinsic_module, only : intrinsic_surface_real, &
+								 intrinsic_surface_chebychev, &  
+ 								 intrinsic_surface_bilinear
 
 #if __INTEL_COMPILER > 1200
     use boundary_MD, only: bforce_pdf_measure
@@ -79,6 +81,8 @@ module module_record
 	class(intrinsic_surface_real), pointer :: ISR, ISR_mdt
 	type(intrinsic_surface_real), target		:: ISR_r, ISR_mdt_r	! declare an instance
 	type(intrinsic_surface_bilinear), target		:: ISR_b, ISR_mdt_b	! declare an instance
+	type(intrinsic_surface_chebychev), target		:: ISR_c, ISR_mdt_c	! declare an instance
+
 	!real(kind(0.d0)), dimension(:,:,:), allocatable :: q_vectors
 	real(kind(0.d0)), dimension(:,:,:,:), allocatable :: Abilinear
 
@@ -1027,7 +1031,7 @@ subroutine setup_assign_get_bins_fn()
 
     !Cluster analysis or average bin based tracking of liquid vapour interfaces
     if (cluster_analysis_outflag .eq. 1 .and.  & 
-        any(intrinsic_interface_outflag .eq. (/1,2/))) then
+        any(intrinsic_interface_outflag .eq. (/1,2,3/))) then
         call get_interface_from_clusters()
 		get_bin => bin_from_full_intrinsic
 		get_bin_molno => bin_molno_from_full_intrinsic
@@ -4713,7 +4717,7 @@ subroutine cumulative_mass_flux_opt()
 	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable	:: fluxes, surface_flux
 
     if (cluster_analysis_outflag .eq. 1 .and.  & 
-        any(intrinsic_interface_outflag .eq. (/1,2/))) then
+        any(intrinsic_interface_outflag .eq. (/1,2,3/))) then
         use_bilinear = .true.
 		allocate(surface_flux(size(mass_surface_flux,1),    size(mass_surface_flux,2), & 
 							  size(mass_surface_flux,3), 1, size(mass_surface_flux,4)))
@@ -4768,7 +4772,7 @@ subroutine cumulative_momentum_flux_opt(r_,v_,momentum_flux_,notcrossing)
 	endif
 
    if (cluster_analysis_outflag .eq. 1 .and.  & 
-       any(intrinsic_interface_outflag .eq. (/1,2/))) then
+       any(intrinsic_interface_outflag .eq. (/1,2,3/))) then
        use_bilinear = .true.
    else
        use_bilinear = .false.
@@ -4819,7 +4823,7 @@ subroutine control_volume_stresses_opt(fij, ri, rj)
 	allocate(quantity(3))
 	quantity(:) = 2.d0*fij(:)
 	if (cluster_analysis_outflag .eq. 1 .and.  & 
-	   any(intrinsic_interface_outflag .eq. (/1,2/))) then
+	   any(intrinsic_interface_outflag .eq. (/1,2,3/))) then
 		call cumulative_flux_opt(ri, rj, Pxyface, quantity, & 
                                  ISR, momentum_surface_flux, .true.)
 	else
@@ -7915,7 +7919,8 @@ contains
 #endif
         use intrinsic_module, only : fit_intrinsic_surface_bilinear, fit_intrinsic_surface_modes
         use calculated_properties_MD, only : nbins, nbinso, binsize, mass_surface_flux
-        use module_record, only : Abilinear, ISR, ISR_mdt, ISR_r, ISR_mdt_r, ISR_b, ISR_mdt_b
+        use module_record, only : Abilinear, ISR, ISR_mdt, ISR_r, ISR_mdt_r, ISR_b, & 
+											ISR_mdt_b, ISR_c, ISR_mdt_c
         use interfaces, only : error_abort
         use cubic_surface_CV, only : cluster_CV_fn
         use module_record, only : get_bin, get_bin_molno
@@ -7954,7 +7959,7 @@ contains
         if (intrinsic_interface_outflag .eq. 0) then
             !Do nothing, no intrinsic interface
             return
-        else if (any(intrinsic_interface_outflag .eq. (/ 1, 2 /))) then
+        else if (any(intrinsic_interface_outflag .eq. (/ 1, 2, 3 /))) then
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! Fit intrinsic (sine/cosine) surface !
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -7974,6 +7979,9 @@ contains
 				elseif (intrinsic_interface_outflag .eq. 2) then
 					ISR => ISR_b
 					ISR_mdt => ISR_mdt_b
+				elseif (intrinsic_interface_outflag .eq. 3) then
+					ISR => ISR_c
+					ISR_mdt => ISR_mdt_c
 				endif
                 call ISR%initialise(globaldomain, normal, alpha, eps, nbins, nhb, topbot)   ! initialise
                 call ISR_mdt%initialise(globaldomain, normal, alpha, eps, nbins, nhb, topbot)   ! initialise
@@ -8008,7 +8016,7 @@ contains
 				!if (.not. first_time_coeff) then
 				!ISR%coeff = 0.d0
 				ISR_mdt%coeff = ISR%coeff
-				if (intrinsic_interface_outflag .eq. 2) then
+				if (any(intrinsic_interface_outflag .eq. (/ 2, 3 /))) then
 					ISR_mdt%Abilinear = ISR%Abilinear
 					ISR_mdt%intrnsc_smple = ISR%intrnsc_smple
 				endif
@@ -8104,7 +8112,7 @@ contains
 
             endif
 
-        elseif (intrinsic_interface_outflag .eq. 3) then
+        elseif (intrinsic_interface_outflag .eq. 4) then
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !     Fit linear and cubic surface    !
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -9787,7 +9795,7 @@ subroutine get_interface_from_clusters()
     rd = CA_rd !1.5d0
     if (mod(iter,tplot) .eq. 0 .or. CV_conserve .eq. 1) then
         call build_clusters(cluster, rd)
-        if (any(intrinsic_interface_outflag .eq. (/1,2/))) then
+        if (any(intrinsic_interface_outflag .eq. (/1,2,3/))) then
             call get_cluster_properties(cluster, rd, min_ngbr)
         endif
         if (CA_generate_xyz .eq. 1) call write_cluster_xyz(cluster, min_ngbr)
