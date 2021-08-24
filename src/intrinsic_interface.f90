@@ -303,6 +303,8 @@ function chebyshev_function(x, u, Lx) result(T)
 			endif
 			unm1 = un
 		end select
+        !Add scaling factor to make orthogonal
+        !T(:,n) = T(:,n)*sqrt(1-xs(:)**2)
 	enddo
 	!Recurrence formula is used so advice is to always get all 
 	!points together at same time for efficiency
@@ -523,7 +525,12 @@ subroutine update_real_surface(self, points)
     ! call error_abort("Error - must build with lapack (p_lapack or p_sys_lapack) to use intrinsic interface")
 #endif
 	self%coeff(:) = x(:)
-	!print*, x
+
+    !The Fejér summation (or averaging) to suppress oscillatory Gibbs phenomenon artifacts   
+    !do j=1,size(x)
+    !	self%coeff(j) = x(j)*(size(x)-j)/size(x)
+    !enddo
+
     !Check surface we just fitted actually matches our points
     if (debug) then
         call self%get_surface(points, surf)
@@ -754,7 +761,8 @@ subroutine get_chebychev_surface(self, points, elevation, include_zeromode, qu)
 		 *chebyshev_function(points(:,self%jxyz), self%v(:), self%box(self%jxyz))
 
 	do j=1,self%n_waves2
-		elevation(:) = elevation(:) + self%coeff(j)*fuv(:,j)	
+		elevation(:) = elevation(:) + self%coeff(j)*fuv(:,j)
+        !print*, j, 	self%coeff(j), fuv(1,j), elevation(1)
 	enddo
 
 	if (present(include_zeromode)) then
@@ -2229,7 +2237,14 @@ subroutine update_pivots_alt(points, ISR, pivots, tau, ns, new_pivots)
     !Get surface for all molecular locations
     nmols = int(ns*ISR%area)
 
-    call get_real_surface(ISR, points, surf)
+    select type (ISR)
+    type is (intrinsic_surface_chebychev)
+        call get_chebychev_surface(ISR, points, surf)
+    class is (intrinsic_surface_real)
+        call get_real_surface(ISR, points, surf)
+    end select
+    !call ISR%get_surface(points, surf)
+
     allocate(z(size(points,1)))
     z = abs(points(:,ISR%normal)-surf(:))
     allocate(indices(size(points,1)))
