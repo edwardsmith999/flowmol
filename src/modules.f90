@@ -157,6 +157,8 @@ module computational_constants_MD
 		rdf_outflag, &
 		rtrue_flag, &
 		prev_rtrue_flag, &
+        diffusion_flag, &
+        moltraj_flag, &
 		ssf_outflag, &
 		vPDF_flag, & 
 		cv_conserve,	&
@@ -226,6 +228,7 @@ module computational_constants_MD
 		Neflux_ave, 			&	!Number of averages for each energy flux
 		Nsurfm_ave, 			&	!Number of averages for each surface mass
 		Nsurfevo_ave, 			&	!Number of averages for each surface mass
+		Ndiff_samples,		    &	!Number of samples before diffusion resets
 		initialstep, 			&	!Initial step of simulation
 		finalstep,              &   !Final step of simulation
 		Nsteps, 				&	!Total number of computational steps
@@ -233,6 +236,7 @@ module computational_constants_MD
 		extralloc, 				&	!Extra allocation space to include copied halos
 		overlap, 				&	!Size of overlap region used to apply force to molecular region
 		Nvmd_intervals,         &
+        Nmoltraj,               &   !Number of molecules to write the trajectories of to file
 		rdf_nbins,              &   !Number of discrete "bins" used to calculate g(r)
 		ssf_ax1,                &   !1st projection axis for static structure factor
 		ssf_ax2,                &
@@ -270,6 +274,9 @@ module computational_constants_MD
 
 	integer		 								:: nhalocellbins 	!Minimum of halo bins or cells
 	integer,allocatable,dimension(:,:),target	:: halocellbins		!Minimum values of halo bins or cells
+
+
+	integer,allocatable,dimension(:)	    :: molnotraj		!Array of molecular numbers to follow the trajectory of
 
 	!Number and size of unit used for initial setup of molecules (i.e. FCC unit)
 	integer,          dimension(3)		:: initialnunits
@@ -360,6 +367,8 @@ module arrays_MD
 		rtrue, 		&      			!Positions with no period BC
 		vtrue,      &               !Corresponding velocities
 		rtether, 	&
+		rinitial, 	&
+		vinitial, 	&
 		rijsum, 	&				!Sum of all molecular rij values
 		theta, 		&
 		aD,aR
@@ -756,8 +765,8 @@ module calculated_properties_MD
 	real(kind(0.d0)), dimension(:), allocatable :: &
 		planes,				&  		!Location of planes used in MOP
 		rdf,				&		!Radial distribution function
-		diffusion,			&		!Diffusion of molecules
-		meandiffusion,		&		!Time averaged diffusion of molecules
+!		diffusion,			&		!Diffusion of molecules
+!		meandiffusion,		&		!Time averaged diffusion of molecules
 		Pxycorrel,			&     	!Sum of correlations of Pxy and Pxyzero
 		slice_temperature,	&		!Temperature in a domain slice
 		Pxyv_plane 	 				!Energy on plane for MOP

@@ -1066,6 +1066,11 @@ subroutine simulation_record
         call surface_density_averaging(msurf_outflag)	    !Obtain and record density on a surface
 	endif
 
+
+    if (moltraj_flag .eq. 1) then
+        call molecular_trajectories(molnotraj,Nmoltraj)
+    endif
+
 	!---------------Only record every tplot iterations------------------------
 	!--------------Only evaluate every teval iterations-----------------------
 	if (mod(iter,tplot) .eq. 0) then
@@ -2011,26 +2016,191 @@ end subroutine evaluate_properties_ssf
 !===================================================================================
 !Diffusion function calculated
 
-!subroutine evaluate_properties_diffusion
-!	use module_record
-!	implicit none
-!
-!	integer          :: n
-!
-!	diffusion = 0
-!	do n=1,np
-!		diffusion(:)=diffusion(:)+(rtrue(:,n) - rinitial(:,n))**2
-!	enddo
-!	meandiffusion(:) = diffusion(:)/(2.d0*nd*np*(delta_t*iter/tplot))
-!	!print*, 'Instantanous diffusion', diffusion
-!	print*, 'time average of diffusion', meandiffusion
-!
-!	!Using the auto-correlation function
-!	do n=1,np
-!		diffusion(:) = v(:,n) - 0.5 * a(:,n) * delta_t
-!	enddo
-!
-!end subroutine evaluate_properties_diffusion
+subroutine evaluate_properties_diffusion
+    use computational_constants_MD, only : iter, delta_t, tplot, irank, & 
+                                           iroot, tether_tags, Ndiff_samples
+    use physical_constants_MD, only : np, globalnp, nd
+    use arrays_MD, only : v, rtrue, rinitial, vinitial, tag
+    use messenger_data_exchange, only : globalSum
+    use librarymod, only : get_new_fileunit
+	implicit none
+
+	integer             :: n, indb, indt, mom, unitno
+    logical, save       :: first_time = .true.
+    integer, save                    :: nmols
+    real(kind(0.d0)), save           :: vcorrelnorm
+    real(kind(0.d0))                 :: vautocorrel
+    real(kind(0.d0)), dimension(3)   :: dr, dv, rdiffusion, vdiffusion
+    real(kind(0.d0)), dimension(24)  ::  rmoments, vmoments !18, six moments with 3 components
+
+    if (modulo(iter,Ndiff_samples) .eq. 0 .or. first_time) then
+        rinitial = rtrue
+        vinitial = v
+        vcorrelnorm = 0.d0
+        nmols = 0
+	    do n=1,np
+            if (any(tag(n) .eq. tether_tags)) cycle
+            !With no tethered tags, this is current processor np and after sum globalnp
+            nmols = nmols + 1
+            vcorrelnorm = vcorrelnorm + dot_product(vinitial(:,n),vinitial(:,n))
+	    enddo
+        !Sum over all processes
+        call globalSum(nmols)
+        call globalSum(vcorrelnorm)
+        vcorrelnorm = vcorrelnorm/nmols
+    endif
+
+    if (first_time) then
+        unitno = get_new_fileunit()
+        open(unit=unitno,file="./results/diffsummary",status='replace')
+        close(unitno, status='keep')
+
+        unitno = get_new_fileunit()
+        open(unit=unitno,file="./results/diffusion",status='replace')
+        close(unitno, status='keep')
+
+        unitno = get_new_fileunit()
+        open(unit=unitno,file="./results/structure_fn",status='replace')
+        close(unitno, status='keep')
+
+        first_time = .false.
+    endif
+
+    !div = (2.d0*nd*globalnp*(delta_t*iter/tplot))
+
+    !Sum up all this timestep's diffusion
+	rdiffusion = 0.d0
+    vdiffusion = 0.d0
+    rmoments = 0.d0
+    vmoments = 0.d0
+	do n=1,np
+
+        if (any(tag(n) .eq. tether_tags)) cycle
+
+        !Get molecular mean square diffusion
+        dr(:) = rtrue(:,n) - rinitial(:,n)
+		rdiffusion(:)=rdiffusion(:)+dr**2
+
+        !Get molecular mean square velocity
+        dv(:) =  v(:,n) - vinitial(:,n)
+		vdiffusion(:)=vdiffusion(:)+dv**2
+
+    	!Using the velocity auto-correlation function
+        vautocorrel = vautocorrel + dot_product(v(:,n),vinitial(:,n))
+
+        !Collect higher order moments
+        do mom =1,int(size(vmoments,1)/nd)
+            indb = (mom-1)*3+1
+            indt = mom*3
+            if (mom .eq. 1) then
+                rmoments(indb:indt) = rmoments(indb:indt) + abs(dr(:))
+                vmoments(indb:indt) = vmoments(indb:indt) + abs(dv(:))
+            else
+                rmoments(indb:indt) = rmoments(indb:indt) + dr(:)**mom
+                vmoments(indb:indt) = vmoments(indb:indt) + dv(:)**mom
+            endif
+        enddo      
+	enddo
+    !Sum over all processes
+    call globalSum(rdiffusion,3)
+    call globalSum(vdiffusion,3)
+    call globalSum(rmoments,24)
+    call globalSum(vmoments,24)
+    call globalSum(vautocorrel)
+
+    !rmoments =  reshape(rmoments,(/ 3,6 /)) !vmoments + reshape(vmomtemp,(/ 3,6 /))
+    !vmoments =  reshape(vmomtemp,(/ 3,6 /)) !vmoments + reshape(vmomtemp,(/ 3,6 /))
+
+    if (irank .eq. iroot) then
+        unitno = get_new_fileunit()
+        open(unit=unitno,file="./results/diffsummary",position='append')
+    	write(unitno,'(2i8,9f22.12)'), irank, iter, & 
+                                rdiffusion/nmols, vdiffusion/nmols, & 
+                                vautocorrel/(vcorrelnorm*nmols)
+        close(unitno, status='keep')
+
+        unitno = get_new_fileunit()
+        open(unit=unitno,file="./results/diffusion",position='append')
+    	write(unitno,'(2i8,24f22.12)'), irank, iter, rmoments/nmols
+        close(unitno, status='keep')
+
+        unitno = get_new_fileunit()
+        open(unit=unitno,file="./results/structure_fn",position='append')
+    	write(unitno,'(2i8,24f22.12)'), irank, iter, vmoments/nmols
+        close(unitno, status='keep')
+    endif
+
+end subroutine evaluate_properties_diffusion
+
+
+!===================================================================================
+! Molecular trajectory stored to be written to file
+
+subroutine molecular_trajectories(molnos, nmols)
+    use computational_constants_MD, only : iter, tplot, irank, globaldomain, tether_tags, iroot
+    use physical_constants_MD, only : np, tethereddisttop, tethereddistbottom, wallslidev
+    use arrays_MD, only : rtrue, r, v, a, glob_no, tag
+    use librarymod, only : get_new_fileunit, get_FileName
+    use messenger, only : globalise
+	implicit none
+
+    integer, intent(in)                   :: nmols
+    integer, dimension(nmols), intent(in) :: molnos
+
+    integer, dimension(:), allocatable, save       :: molno_index
+    logical, save       :: first_time = .true.
+    integer             :: i, j, ind, gmol, mol
+    integer, save       :: unitno
+    double precision, dimension(3)  :: rglob, vmean
+    !double precision, dimension(:,:), allocatable, save  :: rhist, vhist, ahist
+    character(33), save             :: base
+    character(33)                   :: filename
+
+    if (first_time) then
+        !allocate(rhist(3,nmols))
+        !allocate(vhist(3,nmols))
+        !allocate(ahist(3,nmols))
+        base = './results/moltrace'
+
+        if (irank .eq. iroot) then
+            do j = 1, size(molnos)
+                unitno = get_new_fileunit()
+                call get_FileName(molnos(j),base,filename)
+                open(unit=unitno,file=trim(filename),status='replace')
+                close(unitno, status='keep')
+            enddo
+        endif
+        first_time = .false.
+    endif
+
+    do i = 1,np
+        do j = 1, size(molnos)
+            if (glob_no(i) .eq. molnos(j)) then
+
+                rglob = globalise(r(:,i))
+
+                vmean = 0.d0
+                if (any(tag(i) .eq. tether_tags)) then
+                    vmean(2) = 0.d0
+                else
+                    vmean(2) = 2.d0*wallslidev(1)*rglob(2)/(globaldomain(2)-tethereddisttop(2)-tethereddistbottom(2))
+                endif
+                unitno = get_new_fileunit()
+                mol = molnos(j)
+                call get_FileName(mol,base,filename)
+                open(unit=unitno,file=filename,access='append')
+                write(unitno,'(2i8, 13f14.6)') iter, mol, rtrue(:,i), & 
+                                               v(:,i), a(:,i), rglob(:), vmean(2)
+                close(unitno, status='keep')
+                exit
+            endif
+        enddo
+    enddo
+
+contains
+
+
+end subroutine molecular_trajectories
 
 !=============================================================================
 !Evaluate viscometric data
@@ -8024,6 +8194,9 @@ contains
 
                 !Get surface in terms of modes
 				call ISR%fit_intrinsic_surface(points, tau, ns, pivots)
+
+
+                print*, "Area = ", ISR%area, ISR%intrinsic_area(), ISR_b%intrinsic_area_bilinear()
  				
 				!Save initial surface for debugging
 				!if (first_time_coeff) then

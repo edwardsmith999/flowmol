@@ -477,7 +477,6 @@ subroutine get_A_b_chebychev(self, points, A, b)
 		b(j) = b(j) + sum(points(:,self%normal) * fuv(:,j))
 	enddo
 
-    A = 0.d0
 #if USE_LAPACK
     call multiply_by_tranpose(fuv, fuv, A)
 #else
@@ -509,7 +508,7 @@ subroutine update_real_surface(self, points)
     double precision, dimension(:), allocatable :: b
     double precision, dimension(:,:), allocatable :: A
 
-    logical :: debug=.true.
+    logical :: debug=.false.
     double precision, dimension(:), allocatable :: surf
     double precision, allocatable, dimension(:) :: x
 
@@ -753,20 +752,21 @@ subroutine get_chebychev_surface(self, points, elevation, include_zeromode, qu)
         stop "Error in get_chebychev_surface, optional qu not supported"
     endif
 
-    !Get elevation at point from sum of modes
-    allocate(elevation(size(points,1)))
-    elevation = 0.d0
-
+    !Get array of chebychev terms per point
 	fuv = chebyshev_function(points(:,self%ixyz), self%u(:), self%box(self%ixyz)) & 
 		 *chebyshev_function(points(:,self%jxyz), self%v(:), self%box(self%jxyz))
 
+    !Get elevation at point from sum of modes
+    allocate(elevation(size(points,1)))
+    elevation = 0.d0
 	do j=1,self%n_waves2
 		elevation(:) = elevation(:) + self%coeff(j)*fuv(:,j)
-        !print*, j, 	self%coeff(j), fuv(1,j), elevation(1)
+        print*, "get_Cheby", j, self%u(j), self%v(j), self%coeff(j), fuv(1,j), elevation(1)
 	enddo
 
 	if (present(include_zeromode)) then
 		if (.not. include_zeromode) then
+            stop "Error in get_chebychev_surface, optional zeromode not supported"
 			call self%get_zero_mode(zeromode)
 			elevation = elevation - zeromode
 		endif
@@ -1804,7 +1804,7 @@ subroutine sample_intrinsic_surface(self, vertices, nbins, writeiter)
     integer,dimension(3) :: nbins_
     real(kind(0.d0)),dimension(3) :: binsize
 
-    logical          :: debug=.true., writeobj=.false.
+    logical          :: debug=.false., writeobj=.false.
     logical, save    :: first_time = .true.
     integer          :: i, j, k, n, v, ixyz, jxyz, fileno, qm, qu
     real(kind(0.d0)) :: vert(4), area
@@ -1859,7 +1859,12 @@ subroutine sample_intrinsic_surface(self, vertices, nbins, writeiter)
         !points(3,self%ixyz) = ysb; points(3,self%jxyz) = zst !Top left
         !points(4,self%ixyz) = yst; points(4,self%jxyz) = zst !Top right
 
-        call get_real_surface(self, points, elevation)
+        select type (self)
+        type is (intrinsic_surface_chebychev)
+            call get_chebychev_surface(self, points, elevation)
+        class is (intrinsic_surface_real)
+            call get_real_surface(self, points, elevation)
+        end select
         !call surface_from_modes(points, 3, q_vectors, modes, elevation)
         do i = 1, 4
             vertices(v,i,:) = (/elevation(i), points(i,self%ixyz), points(i,self%jxyz)/)
@@ -1895,7 +1900,7 @@ subroutine update_sampled_surface(self, nbins, nhb)
 
     integer,intent(in),dimension(3), optional :: nbins, nhb
 
-    logical          :: debug=.true., writeobj=.false.
+    logical          :: debug=.false., writeobj=.false.
     logical, save    :: first_time = .true.
     integer          :: j, k
     real(kind(0.d0)) :: v(4), binsize(3), A(2,2)
@@ -1925,7 +1930,13 @@ subroutine update_sampled_surface(self, nbins, nhb)
 		points(3,self%ixyz) = v(1); points(3,self%jxyz) = v(4) !Top left
 		points(4,self%ixyz) = v(3); points(4,self%jxyz) = v(4) !Top right
 
-        call get_real_surface(self, points, elevation, include_zeromode=.true.)
+        select type (self)
+        type is (intrinsic_surface_chebychev)
+            call get_chebychev_surface(self, points, elevation, include_zeromode=.true.)
+        class is (intrinsic_surface_bilinear)
+            call get_real_surface(self, points, elevation, include_zeromode=.true.)
+        end select
+
 		points(:,self%normal) = elevation
         self%intrnsc_smple( j ,  k ) = elevation(1)
         self%intrnsc_smple(j+1,  k ) = elevation(2)
@@ -2193,7 +2204,12 @@ subroutine update_pivots(points, ISR, pivots, tau, new_pivots)
     enddo
 
     !Recalculate surface at candidate pivot locations
-    call get_real_surface(ISR, candidates_pos, surf)
+    select type (ISR)
+    type is (intrinsic_surface_chebychev)
+        call get_chebychev_surface(ISR, candidates_pos, surf)
+    class is (intrinsic_surface_real)
+        call get_real_surface(ISR, candidates_pos, surf)
+    end select
 
     nPivots = 0
     allocate(updated_pivots(n))
@@ -2244,6 +2260,16 @@ subroutine update_pivots_alt(points, ISR, pivots, tau, ns, new_pivots)
         call get_real_surface(ISR, points, surf)
     end select
     !call ISR%get_surface(points, surf)
+
+    !Write out surface and stop
+    !Plot in python with 
+    !import numpy as np
+    !import matplotlib.pyplot as plt
+    !d=np.genfromtxt("./fort.12345"); cm = plt.scatter(d[:,2], d[:,3], c=d[:,4]); plt.colorbar(cm); plt.show()
+!    do i=1,size(surf)
+!        write(12345,*), i, points(i,:), surf(i)
+!    enddo
+!    stop "update_pivots_alt"
 
     allocate(z(size(points,1)))
     z = abs(points(:,ISR%normal)-surf(:))
@@ -2397,7 +2423,13 @@ subroutine fit_intrinsic_surface_modes(self, points, tau, ns, pivots)
             !Plot updated surface error
             if (allocated(d)) deallocate(d)
             allocate(d(sp))
-            call get_real_surface(self, pivot_pos, surf)
+
+            select type (self)
+            type is (intrinsic_surface_chebychev)
+                call get_chebychev_surface(self, pivot_pos, surf)
+            class is (intrinsic_surface_real)
+                call get_real_surface(self, pivot_pos, surf)
+            end select
 
             d = pivot_pos(:, self%normal) - surf(:)
             Error = sqrt(sum(d * d) / size(d))
@@ -2564,21 +2596,93 @@ function intrinsic_area_bilinear(self) result(Area)
 	class(intrinsic_surface_bilinear), intent(in) :: self
 
 	integer :: i, j, k
-    double precision	 :: Area
+    double precision	 :: Area, patchArea, dx, dy
+
+    dx = self%box(self%ixyz)/self%nbins(self%ixyz)
+    dy = self%box(self%jxyz)/self%nbins(self%jxyz)
+    
 
 	i = 1
 	Area = 0.d0
     do j = 1,self%nbins(self%ixyz)
     do k = 1,self%nbins(self%jxyz)
-		Area = Area + self%get_bilinear_patch_area(i, j, k)
+        patchArea = self%get_bilinear_patch_area(i, j, k)
+		Area = Area + patchArea
+        !print*,"intrinsic_area_bilinear", j,k,patchArea,Area,dx*dy
 	enddo	
 	enddo
 
 end function intrinsic_area_bilinear
 
 
-!Get surface area
+
+
+! Bilinear patch we cannot get exactly so we use 
+! A = int int sqrt[ (df/dx)^2 + (df/dy)^2 + 1] dx dy
+! and use trapzium rule to integrate
 function get_bilinear_patch_area(self, i, j, k) result(Area)
+    use librarymod, only : linspace, integrate_trap2d
+    implicit none
+
+	class(intrinsic_surface_bilinear), intent(in) :: self
+
+    double precision	 :: Area
+	integer, intent(in) :: i, j, k
+
+    integer :: n, m, xres, yres
+    double precision                 :: xmin, ymin, xmax, ymax
+    double precision, dimension(2,2) :: A
+    double precision, dimension(:), allocatable :: x, y
+    double precision, dimension(:,:), allocatable :: p, f
+
+	!1=Bottom left, 2=Bottom right, 3=Top left, 4=Top right
+	p = self%indices_to_points(i, j, k)
+    xmin = p(1,self%ixyz); xmax = p(4,self%ixyz)
+    ymin = p(1,self%jxyz); ymax = p(4,self%jxyz)
+
+    xres = 3; yres = 3
+    x = linspace(xmin, xmax, xres)
+    y = linspace(ymin, ymax, yres)
+    A = self%Abilinear(:,:,j,k)
+    allocate(f(xres, yres))
+    do n=1,xres
+    do m=1,yres
+        f(n,m) = sqrt( (A(1,2)+A(2,2)*x(n))**2 &
+                      +(A(2,1)+A(2,2)*y(m))**2 + 1)
+    enddo
+    enddo
+    call integrate_trap2d(f,x(2)-x(1),y(2)-y(1),xres,yres,Area)
+
+
+    ! Bilinear patch we cannot get exactly so we use 
+    ! A = int int sqrt[ (df/dx)^2 + (df/dy)^2 + 1] dx dy
+    ! and use trapzium rule to integrate
+    !allocate(f(size(p)/2, size(p)/2))
+    !do n=1,4
+    !    call self%get_surface_derivative_bilinear(p, self%Abilinear(:,:,j,k), dSdr)
+    !    f(n/2,mod(n,2)) = sqrt( dSdr(n,1)**2 +dSdr(n,2)**2 + 1)
+
+        !f(n/2,mod(n,2)) = sqrt( (self%Abilinear(1,2,j,k)+self%Abilinear(2,2,j,k)*x(n))**2 &
+        !                       +(self%Abilinear(2,1,j,k)+self%Abilinear(2,2,j,k)*y(n))**2 + 1)
+    !enddo
+    !dx = self%box(self%ixyz)/self%nbins(self%ixyz)
+    !dy = self%box(self%jxyz)/self%nbins(self%jxyz)
+    !call integrate_trap2d(f,dx,dy,2,2,Area)
+
+    !To a first approximation, can assume xy coefficient is zero
+    !const = sqrt(self%Abilinear(1,2,j,k)**2 +  self%Abilinear(2,1,j,k)**2 + 1)
+    !Area = dx*dy*const
+    
+
+	!p = self%indices_to_points(i, j, k)
+	!x = p(:,self%ixyz); y = p(:,self%jxyz)
+    !Area = ( x(1)*y(1) - x(2)*y(2) &
+	!	    -x(3)*y(3) + x(4)*y(4) )*const
+
+end function get_bilinear_patch_area
+
+!Get volume under surface 
+function get_bilinear_patch_volume(self, i, j, k) result(Area)
     implicit none
 
 	class(intrinsic_surface_bilinear), intent(in) :: self
@@ -2599,10 +2703,12 @@ function get_bilinear_patch_area(self, i, j, k) result(Area)
 	call self%get_surface_bilinear(hp, self%Abilinear(:,:,j,k), f)
 	!1=Bottom left, 2=Bottom right, 3=Top left, 4=Top right
 	x = p(:,self%ixyz); y = p(:,self%jxyz)
-	Area = 	x(1)*y(1)*f(1) - x(2)*y(1)*f(2) &
-		  - x(1)*y(2)*f(3) + x(2)*y(2)*f(4)
+    print*, "get_bilinear_patch_volume", j,k, x(1),y(1),x(2),y(2),x(3),y(3),x(4),y(4), f
 
-end function get_bilinear_patch_area
+	Area = 	x(1)*y(1)*f(1) - x(2)*y(2)*f(2) &
+		  - x(3)*y(3)*f(3) + x(4)*y(4)*f(4)
+
+end function get_bilinear_patch_volume
 
 
 ! subroutine modes_surface_to_bilinear_surface(ISR, nbins, Abilinear)
