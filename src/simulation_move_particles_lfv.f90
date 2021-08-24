@@ -524,11 +524,11 @@ contains
 		implicit none
 
         if (any(periodic .gt. 1)) then
-		vtrue = v
-		do n=1,np
-			vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
-			rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n)
-		end do
+		    vtrue = v
+		    do n=1,np
+			    vtrue(le_sd,n) = v(le_sd,n) + anint(rtrue(le_sp,n)/domain(le_sp))*le_sv
+			    rtrue(:,n)     = rtrue(:,n) + delta_t*vtrue(:,n)
+		    end do
         else
 		    do n=1,np
 			    rtrue(:,n) = rtrue(:,n) + delta_t*v(:,n)

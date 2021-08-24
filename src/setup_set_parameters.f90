@@ -737,7 +737,17 @@ subroutine setup_mie_potential
     !ether and Water
     epsilon_lookup(6,3) = 0.9756d0
     !SAFT adjusted water--CH3 interaction from prior studies
-    epsilon_lookup(7,3) = 0.5081d0
+    !select case (wall_liquid)
+    !case(No_wetting) 
+    !    epsilon_lookup(7,3) = 1.d0
+    !case(Paraffin_Water) 
+        epsilon_lookup(7,3) = 0.5081d0
+    !case(Superhydrophobic)
+    !    epsilon_lookup(7,3) = 0.01d0  !No wall/water interaction
+    !case(superspreading)
+    !    !Superspreading requires this as 1.4 according to Panos
+    !    epsilon_lookup(7,3) = 1.4
+    !end select
     !SAFT adjusted D--M interaction from prior studies
     epsilon_lookup(5,4) = 0.7114d0
     !SAFT adjusted alkane--ether interaction from prior studies
@@ -1111,6 +1121,7 @@ subroutine set_parameters_allocate
 
 	integer :: ixyz, n, mem_start, mem_end
     double precision    :: temp
+    double precision, dimension(:),allocatable :: temparray
 
     !Log memory useage
     call system_mem_usage(mem_start)
@@ -1152,8 +1163,31 @@ subroutine set_parameters_allocate
 	if (r_gyration_outflag .eq. 1 .or. vmd_outflag	   .eq. 4) rtrue_flag = 1
 	if (rtrue_flag.eq.1) then
 		allocate(rtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
-		allocate(vtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
+        if (any(periodic .gt. 1)) then
+    		allocate(vtrue(nd,np+extralloc)) !Used to establish diffusion - r with no periodic BC
+        endif
 	endif
+
+    if (diffusion_flag .eq. 1) then
+        allocate(rinitial(nd,np+extralloc))
+        allocate(vinitial(nd,np+extralloc))
+    endif
+
+    if (moltraj_flag .eq. 1) then 
+        allocate(molnotraj(Nmoltraj))
+        if (irank .eq. iroot) then
+            allocate(temparray(Nmoltraj))
+            call random_number(temparray)
+            molnotraj = floor(temparray*globalnp)+1
+            !print*, 'Molecular trajectories for ', temparray,molnotraj
+            deallocate(temparray)
+        endif
+
+        call globalbroadcastInt(molnotraj, Nmoltraj, iroot)
+
+        !print*, 'Molecular trajectories for ', molnotraj
+    endif
+
 
     !Profile memory use in setup
     call system_mem_usage(mem_end)

@@ -1777,11 +1777,11 @@ end subroutine least_squares
 !-------------------------------------------------------------------------------------
 !Subrountine used to intergrate a function over a uniform grid using the trapizium rule
 
-subroutine integrate_trap(y,x_interval,npoints,s)
+subroutine integrate_trap(y,dx,npoints,s)
 implicit none
 
 	integer		, intent(in)						:: npoints
-	real(kind(0.d0)), intent(in)					:: x_interval
+	real(kind(0.d0)), intent(in)					:: dx
 	real(kind(0.d0)), intent(out)					:: s
 	real(kind(0.d0)), dimension(npoints), intent(in):: y
 
@@ -1791,12 +1791,36 @@ implicit none
 	s = 0.d0
 
 	!Trapizium Rule to calculate area under line
-	s = 0.5d0 * x_interval * (y(1) + y(npoints))
+	s = 0.5d0 * dx * (y(1) + y(npoints))
 	do n = 2, npoints-1
-		s = s + x_interval * y(n)
+		s = s + dx * y(n)
 	enddo
 
 end subroutine integrate_trap
+
+!-------------------------------------------------------------------------------------
+! Subrountine used to intergrate a 2d function on a uniform grid
+! using the trapizium rule
+
+subroutine integrate_trap2d(f,dx,dy,xn,yn,s)
+    implicit none
+
+	integer		, intent(in)						:: xn, yn
+	real(kind(0.d0)), intent(in)					:: dx, dy
+	real(kind(0.d0)), intent(out)					:: s
+	real(kind(0.d0)), dimension(xn, yn), intent(in) :: f
+
+	integer											:: n
+	real(kind(0.d0)), dimension(yn)                 :: y
+
+    !First integerate all strips along x to get y areas
+    do n=1,yn
+        call integrate_trap(f(:,n),dx,xn,y(n))
+    enddo
+    !Then integrate along y
+    call integrate_trap(y,dy,yn,s)
+
+end subroutine integrate_trap2d
 
 
 !-------------------------------------------------------------------------------------

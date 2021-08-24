@@ -1970,6 +1970,26 @@ subroutine setup_read_input
 		rtrue_flag = 0
 	endif
 
+	call locate(1,'DIFFUSION',.false.,found_in_input)
+	if (found_in_input) then
+        read(1,*) diffusion_flag
+        read(1,*,iostat=ios) Ndiff_samples
+		if (ios .ne. 0) Ndiff_samples = Nsteps
+        if (diffusion_flag .eq. 1) rtrue_flag = 1
+    else
+        diffusion_flag = 0
+    endif
+
+	call locate(1,'MOLTRAJ',.false.,found_in_input)
+	if (found_in_input) then
+        read(1,*) moltraj_flag
+        read(1,*) Nmoltraj
+        if (moltraj_flag .eq. 1) rtrue_flag = 1
+    else
+        moltraj_flag = 0
+    endif
+
+
 	call locate(1,'R_GYRATION_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) r_gyration_outflag

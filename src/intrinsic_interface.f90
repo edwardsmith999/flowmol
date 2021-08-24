@@ -2473,10 +2473,14 @@ subroutine paramterise_bilinear_surface(self, P, A)
 	!Determinate
     x12 = x2 - x1; y12 = y2 - y1
     d = x12*y12
-    A(1,1) = ( P(1,self%normal)*x2*y2 - P(3,self%normal)*x2*y1 - P(2,self%normal)*x1*y2 + P(4,self%normal)*x1*y1)/d
-    A(2,1) = (-P(1,self%normal)*y2    + P(3,self%normal)*y1    + P(2,self%normal)*y2    - P(4,self%normal)*y1   )/d
-    A(1,2) = (-P(1,self%normal)*x2    + P(3,self%normal)*x2    + P(2,self%normal)*x1    - P(4,self%normal)*x1   )/d
-    A(2,2) = ( P(1,self%normal)       - P(3,self%normal)       - P(2,self%normal)       + P(4,self%normal)      )/d
+    A(1,1) = (  P(1,self%normal)*x2*y2 - P(3,self%normal)*x2*y1 &
+			  - P(2,self%normal)*x1*y2 + P(4,self%normal)*x1*y1)/d
+    A(2,1) = (- P(1,self%normal)*y2    + P(3,self%normal)*y1 &
+			  + P(2,self%normal)*y2    - P(4,self%normal)*y1   )/d
+    A(1,2) = (- P(1,self%normal)*x2    + P(3,self%normal)*x2 &
+			  + P(2,self%normal)*x1    - P(4,self%normal)*x1   )/d
+    A(2,2) = (  P(1,self%normal)       - P(3,self%normal) &
+			  - P(2,self%normal)       + P(4,self%normal)      )/d
 
 end subroutine paramterise_bilinear_surface
 
@@ -2544,21 +2548,93 @@ function intrinsic_area_bilinear(self) result(Area)
 	class(intrinsic_surface_bilinear), intent(in) :: self
 
 	integer :: i, j, k
-    double precision	 :: Area
+    double precision	 :: Area, patchArea, dx, dy
+
+    dx = self%box(self%ixyz)/self%nbins(self%ixyz)
+    dy = self%box(self%jxyz)/self%nbins(self%jxyz)
+    
 
 	i = 1
 	Area = 0.d0
     do j = 1,self%nbins(self%ixyz)
     do k = 1,self%nbins(self%jxyz)
-		Area = Area + self%get_bilinear_patch_area(i, j, k)
+        patchArea = self%get_bilinear_patch_area(i, j, k)
+		Area = Area + patchArea
+        !print*,"intrinsic_area_bilinear", j,k,patchArea,Area,dx*dy
 	enddo	
 	enddo
 
 end function intrinsic_area_bilinear
 
 
-!Get surface area
+
+
+! Bilinear patch we cannot get exactly so we use 
+! A = int int sqrt[ (df/dx)^2 + (df/dy)^2 + 1] dx dy
+! and use trapzium rule to integrate
 function get_bilinear_patch_area(self, i, j, k) result(Area)
+    use librarymod, only : linspace, integrate_trap2d
+    implicit none
+
+	class(intrinsic_surface_bilinear), intent(in) :: self
+
+    double precision	 :: Area
+	integer, intent(in) :: i, j, k
+
+    integer :: n, m, xres, yres
+    double precision                 :: xmin, ymin, xmax, ymax
+    double precision, dimension(2,2) :: A
+    double precision, dimension(:), allocatable :: x, y
+    double precision, dimension(:,:), allocatable :: p, f
+
+	!1=Bottom left, 2=Bottom right, 3=Top left, 4=Top right
+	p = self%indices_to_points(i, j, k)
+    xmin = p(1,self%ixyz); xmax = p(4,self%ixyz)
+    ymin = p(1,self%jxyz); ymax = p(4,self%jxyz)
+
+    xres = 3; yres = 3
+    x = linspace(xmin, xmax, xres)
+    y = linspace(ymin, ymax, yres)
+    A = self%Abilinear(:,:,j,k)
+    allocate(f(xres, yres))
+    do n=1,xres
+    do m=1,yres
+        f(n,m) = sqrt( (A(1,2)+A(2,2)*x(n))**2 &
+                      +(A(2,1)+A(2,2)*y(m))**2 + 1)
+    enddo
+    enddo
+    call integrate_trap2d(f,x(2)-x(1),y(2)-y(1),xres,yres,Area)
+
+
+    ! Bilinear patch we cannot get exactly so we use 
+    ! A = int int sqrt[ (df/dx)^2 + (df/dy)^2 + 1] dx dy
+    ! and use trapzium rule to integrate
+    !allocate(f(size(p)/2, size(p)/2))
+    !do n=1,4
+    !    call self%get_surface_derivative_bilinear(p, self%Abilinear(:,:,j,k), dSdr)
+    !    f(n/2,mod(n,2)) = sqrt( dSdr(n,1)**2 +dSdr(n,2)**2 + 1)
+
+        !f(n/2,mod(n,2)) = sqrt( (self%Abilinear(1,2,j,k)+self%Abilinear(2,2,j,k)*x(n))**2 &
+        !                       +(self%Abilinear(2,1,j,k)+self%Abilinear(2,2,j,k)*y(n))**2 + 1)
+    !enddo
+    !dx = self%box(self%ixyz)/self%nbins(self%ixyz)
+    !dy = self%box(self%jxyz)/self%nbins(self%jxyz)
+    !call integrate_trap2d(f,dx,dy,2,2,Area)
+
+    !To a first approximation, can assume xy coefficient is zero
+    !const = sqrt(self%Abilinear(1,2,j,k)**2 +  self%Abilinear(2,1,j,k)**2 + 1)
+    !Area = dx*dy*const
+    
+
+	!p = self%indices_to_points(i, j, k)
+	!x = p(:,self%ixyz); y = p(:,self%jxyz)
+    !Area = ( x(1)*y(1) - x(2)*y(2) &
+	!	    -x(3)*y(3) + x(4)*y(4) )*const
+
+end function get_bilinear_patch_area
+
+!Get volume under surface 
+function get_bilinear_patch_volume(self, i, j, k) result(Area)
     implicit none
 
 	class(intrinsic_surface_bilinear), intent(in) :: self
@@ -2579,10 +2655,12 @@ function get_bilinear_patch_area(self, i, j, k) result(Area)
 	call self%get_surface_bilinear(hp, self%Abilinear(:,:,j,k), f)
 	!1=Bottom left, 2=Bottom right, 3=Top left, 4=Top right
 	x = p(:,self%ixyz); y = p(:,self%jxyz)
-	Area = 	x(1)*y(1)*f(1) - x(2)*y(1)*f(2) &
-		  - x(1)*y(2)*f(3) + x(2)*y(2)*f(4)
+    print*, "get_bilinear_patch_volume", j,k, x(1),y(1),x(2),y(2),x(3),y(3),x(4),y(4), f
 
-end function get_bilinear_patch_area
+	Area = 	x(1)*y(1)*f(1) - x(2)*y(2)*f(2) &
+		  - x(3)*y(3)*f(3) + x(4)*y(4)*f(4)
+
+end function get_bilinear_patch_volume
 
 
 ! subroutine modes_surface_to_bilinear_surface(ISR, nbins, Abilinear)
