@@ -1121,7 +1121,6 @@ subroutine set_parameters_allocate
 
 	integer :: ixyz, n, mem_start, mem_end
     double precision    :: temp
-    double precision, dimension(:),allocatable :: temparray
 
     !Log memory useage
     call system_mem_usage(mem_start)
@@ -1172,22 +1171,6 @@ subroutine set_parameters_allocate
         allocate(rinitial(nd,np+extralloc))
         allocate(vinitial(nd,np+extralloc))
     endif
-
-    if (moltraj_flag .eq. 1) then 
-        allocate(molnotraj(Nmoltraj))
-        if (irank .eq. iroot) then
-            allocate(temparray(Nmoltraj))
-            call random_number(temparray)
-            molnotraj = floor(temparray*globalnp)+1
-            !print*, 'Molecular trajectories for ', temparray,molnotraj
-            deallocate(temparray)
-        endif
-
-        call globalbroadcastInt(molnotraj, Nmoltraj, iroot)
-
-        !print*, 'Molecular trajectories for ', molnotraj
-    endif
-
 
     !Profile memory use in setup
     call system_mem_usage(mem_end)

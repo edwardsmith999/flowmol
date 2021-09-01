@@ -2134,7 +2134,7 @@ end subroutine evaluate_properties_diffusion
 
 subroutine molecular_trajectories(molnos, nmols)
     use computational_constants_MD, only : iter, tplot, irank, globaldomain, tether_tags, iroot
-    use physical_constants_MD, only : np, tethereddisttop, tethereddistbottom, wallslidev
+    use physical_constants_MD, only : np, tethereddisttop, tethereddistbottom, wallslidev, globalnp
     use arrays_MD, only : rtrue, r, v, a, glob_no, tag
     use librarymod, only : get_new_fileunit, get_FileName
     use messenger, only : globalise
@@ -2159,6 +2159,15 @@ subroutine molecular_trajectories(molnos, nmols)
         base = './results/moltrace'
 
         if (irank .eq. iroot) then
+
+            !Delete all previous runs
+            do j = 1, globalnp
+                unitno = get_new_fileunit()
+                call get_FileName(j,base,filename)
+                open(unit=unitno,file=trim(filename))
+                close(unitno, status='delete')
+            enddo
+
             do j = 1, size(molnos)
                 unitno = get_new_fileunit()
                 call get_FileName(molnos(j),base,filename)
@@ -8233,6 +8242,9 @@ contains
 
                 !Get surface in terms of modes
 				call ISR%fit_intrinsic_surface(points, tau, ns, pivots)
+
+
+                print*, "Area = ", ISR%binsize, ISR%area, ISR%intrinsic_area(), ISR_b%intrinsic_area_bilinear()
  				
 				!Save initial surface for debugging
 				!if (first_time_coeff) then

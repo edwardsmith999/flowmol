@@ -51,6 +51,7 @@ subroutine setup_initialise_microstate()
     implicit none
 
     integer     ::  n
+    double precision, dimension(:),allocatable :: temparray
 
     !Choose initial molecular positions using configurational flag
     select case(initial_config_flag)
@@ -164,6 +165,23 @@ subroutine setup_initialise_microstate()
     case default
         call error_abort('Unidentified initial velocity flag')  
     end select
+
+
+    if (moltraj_flag .eq. 1) then 
+        allocate(molnotraj(Nmoltraj))
+        if (irank .eq. iroot) then
+            allocate(temparray(Nmoltraj))
+            call random_number(temparray)
+            molnotraj = floor(temparray*globalnp)+1
+            !print*, 'Molecular trajectories for ', temparray,molnotraj
+            deallocate(temparray)
+        endif
+
+        call globalbroadcastInt(molnotraj, Nmoltraj, iroot)
+
+        !print*, 'Molecular trajectories for ', molnotraj
+    endif
+
 
 end subroutine setup_initialise_microstate
 
