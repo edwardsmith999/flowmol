@@ -453,7 +453,7 @@ subroutine setup_FENE_solution
 
     if (targetconc .gt. 1e-4) then
 
-		! Remove chains to get target concentration (as close as possible) 
+		! Remove chains to get target concentration (as close as possible)
 		concentration = real(nmonomers*proc_chains(irank))/real(np)
 		nchainsremove = nint((concentration - targetconc)*real(np) &
 		                /real(nmonomers))
@@ -2509,6 +2509,7 @@ subroutine setup_initialise_surfactants(casename)
     proc_chains(irank) = maxchainID
 
     if (targetconc .gt. 1e-4) then
+
 		! Remove chains to get target concentration (as close as possible) 
 		concentration = real(nmonomers*proc_chains(irank))/real(fluid_np)
 		nchainsremove = nint((concentration - targetconc)*real(fluid_np) &
@@ -2793,7 +2794,7 @@ contains
             midendID = nmonomers-1
         endif
 
-        rmax = 1.d0
+        rmax = 1.d0; concentration = 0.d0
         !Attempt to link polymers -- use increasing rmax values
         !so they are as close together as possible
         do while (concentration .lt. targetconc)
@@ -2841,12 +2842,9 @@ contains
 
                 ! If possible, build whole chain, otherwise mark as solvent and move on 
                 if (connectable) then
-
-
                     call connect_beads(mols, ids, chainID, branch)
                     chainID = chainID + 1
                     n = n + nmonomers
-
                 else
                     monomer(n)%chainID     = 0
                     monomer(n)%subchainID  = 1
@@ -2854,12 +2852,11 @@ contains
                     monomer(n)%funcy       = 0
                     bond(:,n)              = 0
                     moltype(n) = 3  !WATER
-
                     n = n + 1
-
                 end if
 
             end do
+
             !Check that concentration has been reached
             maxchainID = chainID - 1
             concentration = real(nmonomers*maxchainID)/real(fluid_np)
