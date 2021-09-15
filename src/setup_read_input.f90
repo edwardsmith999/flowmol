@@ -32,7 +32,7 @@ subroutine setup_read_input
 	use librarymod, only :locate, linspace, find3factors
 	implicit none
 
-	logical					:: found_in_input, error, empty
+	logical					:: found_in_input, already_read, error, empty
 	integer 				:: ios, ixyz, n, Nvmd_interval_size
 	double precision,dimension(1000) :: temp
     character(256)          :: str
@@ -1672,6 +1672,26 @@ subroutine setup_read_input
 		end if
 	endif
 
+	! #########################################################################
+	! # Output flag for velocity record (identical to MOMENTUM_OUTFLAG):
+	! # [1] 0 - off 
+	! # [1] 4 - 3D grid of bins
+	! # [2] int - No. of samples for momentum average
+	! # -----------------------------------------------------------------------
+	call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) momentum_outflag
+		if (momentum_outflag .ne. 0) then
+			read(1,*) Nvel_ave
+		endif
+		if (momentum_outflag .eq. 5) then
+			call locate(1,'CPOL_BINS',.true.)
+			read(1,*) gcpol_bins(1)	
+			read(1,*) gcpol_bins(2)	
+			read(1,*) gcpol_bins(3)	
+		end if
+        already_read = .true.
+	endif
 
 	! #########################################################################
 	! # Output flag for momentum record:
@@ -1681,6 +1701,11 @@ subroutine setup_read_input
 	! # -----------------------------------------------------------------------
 	call locate(1,'MOMENTUM_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
+        if (already_read) then
+            print*, "Warning - VELOCITY_OUTFLAG already specified,", & 
+                    " overriding with MOMENTUM_OUTFLAG values" 
+            already_read = .false.
+        endif
 		read(1,*) momentum_outflag
 		if (momentum_outflag .ne. 0) then
 			read(1,*) Nvel_ave
