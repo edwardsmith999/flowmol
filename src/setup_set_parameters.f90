@@ -923,11 +923,12 @@ subroutine setup_mie_potential
                     !Exit conditions if failure or non-forces
                     if (abs(accijmag) .lt. 1e-5) exit ! print'(3i6,2f10.5)', n,i,j, accijmag, val
                     n = n + 1
-                    if (n .gt. 1000000) then
+                    if (n .gt. 10000000) then
                         print*, 'failed to find equilibrium distance'
                         print'(i7,2i3,4(a,f20.10))',n, i,j, ' Error = ',  &
                         error , ' Previous =', val, ' new = ',accijmag ,  &
                         ' Separation = ', sqrt(rij2)
+                        equil_sep_lookup(i,j) = rij2
                         exit                        
                     endif
 
