@@ -4755,7 +4755,7 @@ contains
 
 subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR, surface_flux, stress)
 	use module_record, only : get_bin, get_crossings, nd, intrinsic_surface_real, &
-							ISR_b, iter, delta_t, Nsurfevo_outflag, &
+							intrinsic_surface_bilinear, ISR_b, iter, delta_t, Nsurfevo_outflag, &
                         riemann_transform
     use librarymod, only : CV_surface_flux, imaxloc
     use module_set_parameters, only : mass
@@ -4818,7 +4818,7 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR, surface_flux, st
             where (abs(ri12) .lt. 0.000001d0) ri12 = 0.000001d0
 
             if (present(ISR)) then
-                if (ixyz .eq. n1 .or. Riemann_transform .eq. 1) then
+                if (ixyz .eq. n1 .or. Riemann_transform .ne. 0) then
                     if (allocated(points)) deallocate(points)
                     allocate(points(size(rc,2), nd))
                     points(:,1) = rc(1,:)
@@ -4826,7 +4826,7 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR, surface_flux, st
                     points(:,3) = rc(3,:)
                     if (ixyz .eq. n1) then
                         call ISR%get_surface_derivative(points, dSdr)
-                    else if (Riemann_transform .eq. 1) then
+                    else if (Riemann_transform .ne. 0) then
                         call ISR%get_metric_tensor(points, g)
                     endif
                 endif
@@ -4873,10 +4873,10 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR, surface_flux, st
                 endif
 
 
-                if (present(ISR) .and. Riemann_transform .eq. 1 .and. &
+                if (present(ISR) .and. Riemann_transform .ne. 0 .and. &
                     (ixyz .ne. n1) .and. size(quantity,1) .eq. 3) then
-                    !Riemann transform applied here
 
+                    !Riemann transform applied here
                     fluxes(cbin(1),cbin(2),cbin(3),n1,ixyz) = & 
                         fluxes(cbin(1),cbin(2),cbin(3),n1,ixyz) + crossdir*quantity(n1)
 
@@ -4888,6 +4888,20 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR, surface_flux, st
                     T_g(1,2) = T(1,1)*g(i,1,2) + T(1,2)*g(i,2,2)
                     T_g(2,1) = T(2,1)*g(i,1,1) + T(2,2)*g(i,2,1)
                     T_g(2,2) = T(2,1)*g(i,1,2) + T(2,2)*g(i,2,2)
+
+                    !Multiple metric tensor by patch area
+                    if (Riemann_transform .eq. 2) then
+                        select type (ISR)
+                        class is (intrinsic_surface_bilinear)
+                            !print*, cbin, "Riemann transform with Area = ", ISR%get_bilinear_patch_area(cbin(1),cbin(2),cbin(3)),& 
+                            !         ISR%binsize(ISR%ixyz)*ISR%binsize(ISR%jxyz), &
+                            !         ISR%get_bilinear_patch_area(cbin(1),cbin(2),cbin(3))& 
+                            !         /(ISR%binsize(ISR%ixyz)*ISR%binsize(ISR%jxyz))
+                            T_g = T_g*ISR%get_bilinear_patch_area(cbin(1),cbin(2),cbin(3))& 
+                                    /(ISR%binsize(ISR%ixyz)*ISR%binsize(ISR%jxyz))
+                        class default
+                        end select
+                    endif
 
                     fluxes(cbin(1),cbin(2),cbin(3),t1,t1) = fluxes(cbin(1),cbin(2),cbin(3),t1,t1) + crossdir*T_g(1,1)
                     fluxes(cbin(1),cbin(2),cbin(3),t1,t2) = fluxes(cbin(1),cbin(2),cbin(3),t1,t2) + crossdir*T_g(2,1)
@@ -4941,6 +4955,7 @@ subroutine cumulative_mass_flux_opt()
     if (cluster_analysis_outflag .eq. 1 .and.  & 
         any(intrinsic_interface_outflag .eq. (/1,2/))) then
         use_bilinear = .true.
+        if (.not. allocated(mass_surface_flux)) stop "mass_surface_flux not allocated, switch SURF_EVO_OUTFLAG on"
 		allocate(surface_flux(size(mass_surface_flux,1),    size(mass_surface_flux,2), & 
 							  size(mass_surface_flux,3), 1, size(mass_surface_flux,4)))
 		surface_flux(:,:,:,1,:) = mass_surface_flux(:,:,:,:)
@@ -8244,7 +8259,7 @@ contains
 				call ISR%fit_intrinsic_surface(points, tau, ns, pivots)
 
 
-                print*, "Area = ", ISR%binsize, ISR%area, ISR%intrinsic_area(), ISR_b%intrinsic_area_bilinear()
+                !print*, "Area = ", ISR%binsize, ISR%area, ISR%intrinsic_area(), ISR_b%intrinsic_area_bilinear()
  				
 				!Save initial surface for debugging
 				!if (first_time_coeff) then
