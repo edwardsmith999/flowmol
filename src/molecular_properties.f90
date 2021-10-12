@@ -283,13 +283,13 @@ subroutine output_tags(filebase, rin, n)
 
     !Get rank id
     if (irank .lt. 10) then
-        write(filename,'(a,i1)'),trim(prefix_dir)//'results/'//trim(filebase),irank
+        write(filename,'(a,i1)') trim(prefix_dir)//'results/'//trim(filebase),irank
     elseif (irank .lt. 100) then
-        write(filename,'(a,i2)'),trim(prefix_dir)//'results/'//trim(filebase),irank
+        write(filename,'(a,i2)') trim(prefix_dir)//'results/'//trim(filebase),irank
     elseif (irank .lt. 1000) then
-        write(filename,'(a,i3)'),trim(prefix_dir)//'results/'//trim(filebase),irank
+        write(filename,'(a,i3)') trim(prefix_dir)//'results/'//trim(filebase),irank
     elseif (irank .lt. 10000) then
-        write(filename,'(a,i4)'),trim(prefix_dir)//'results/'//trim(filebase),irank
+        write(filename,'(a,i4)') trim(prefix_dir)//'results/'//trim(filebase),irank
     else
        stop "Error in write tag -- irank > 1000"
     endif
@@ -1525,7 +1525,7 @@ subroutine reinsert_molecules
 			if (reinsertnp .eq. 0) exit
 		enddo
 		do n=1,size(insert_locs,2)
-			write(5000+irank,'(4i6,6f14.5)'), iter, iblock,jblock,kblock,globalise(insert_locs(:,n)), insert_vels(:,n)
+			write(5000+irank,'(4i6,6f14.5)') iter, iblock,jblock,kblock,globalise(insert_locs(:,n)), insert_vels(:,n)
 		enddo
 		call get_random_velocity(insertnp,insert_vels)
 		call insert_molecules(insert_locs,insert_vels)
@@ -1716,7 +1716,7 @@ contains
 					endif
 				enddo
 				rij2 = dot_product(rij,rij)
-				write(300+irank,'(5i5,7f18.9)'), iter, irank,  i,j, gm_to_p(j),  gi_locs(:,i), gi_locs(:,j),rij2
+				write(300+irank,'(5i5,7f18.9)') iter, irank,  i,j, gm_to_p(j),  gi_locs(:,i), gi_locs(:,j),rij2
 				if (rij2 .lt. rcutoff2) then
 					if (rank_ .eq. proc) then
 						print'(a,i8,3i5,7f12.7,i6)', 'Inserted Molecular overlap',iter,irank, i,j,sqrt(rij2),gi_locs(:,i),gi_locs(:,j),proc
@@ -2283,7 +2283,7 @@ contains
 					endif
 				enddo
 				rij2 = dot_product(rij,rij)
-				write(300+irank,'(5i5,7f18.9)'), iter, irank,  i,j, gm_to_p(j),  gi_locs(:,i), gi_locs(:,j),rij2
+				write(300+irank,'(5i5,7f18.9)') iter, irank,  i,j, gm_to_p(j),  gi_locs(:,i), gi_locs(:,j),rij2
 				if (rij2 .lt. rcutoff2) then
 					if (rank_ .eq. proc) then
 						print'(a,i8,3i5,7f12.7,i6)', 'Inserted Molecular overlap',iter,irank, i,j,sqrt(rij2),gi_locs(:,i),gi_locs(:,j),proc

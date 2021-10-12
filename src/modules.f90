@@ -767,8 +767,8 @@ module calculated_properties_MD
 	real(kind(0.d0)), dimension(:), allocatable :: &
 		planes,				&  		!Location of planes used in MOP
 		rdf,				&		!Radial distribution function
-		diffusion,			&		!Diffusion of molecules
-		meandiffusion,		&		!Time averaged diffusion of molecules
+!		diffusion,			&		!Diffusion of molecules
+!		meandiffusion,		&		!Time averaged diffusion of molecules
 		Pxycorrel,			&     	!Sum of correlations of Pxy and Pxyzero
 		slice_temperature,	&		!Temperature in a domain slice
 		Pxyv_plane 	 				!Energy on plane for MOP

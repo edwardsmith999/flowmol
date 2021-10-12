@@ -923,7 +923,7 @@ subroutine setup_mie_potential
                     !Exit conditions if failure or non-forces
                     if (abs(accijmag) .lt. 1e-5) exit ! print'(3i6,2f10.5)', n,i,j, accijmag, val
                     n = n + 1
-                    if (n .gt. 10000000) then
+                    if (n .gt. 1000000) then
                         print*, 'failed to find equilibrium distance'
                         print'(i7,2i3,4(a,f20.10))',n, i,j, ' Error = ',  &
                         error , ' Previous =', val, ' new = ',accijmag ,  &
@@ -1172,6 +1172,22 @@ subroutine set_parameters_allocate
         allocate(rinitial(nd,np+extralloc))
         allocate(vinitial(nd,np+extralloc))
     endif
+
+    if (moltraj_flag .eq. 1) then 
+        allocate(molnotraj(Nmoltraj))
+        if (irank .eq. iroot) then
+            allocate(temparray(Nmoltraj))
+            call random_number(temparray)
+            molnotraj = floor(temparray*globalnp)+1
+            !print*, 'Molecular trajectories for ', temparray,molnotraj
+            deallocate(temparray)
+        endif
+
+        call globalbroadcastInt(molnotraj, Nmoltraj, iroot)
+
+        !print*, 'Molecular trajectories for ', molnotraj
+    endif
+
 
     !Profile memory use in setup
     call system_mem_usage(mem_end)
