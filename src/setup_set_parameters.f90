@@ -1173,22 +1173,6 @@ subroutine set_parameters_allocate
         allocate(vinitial(nd,np+extralloc))
     endif
 
-    if (moltraj_flag .eq. 1) then 
-        allocate(molnotraj(Nmoltraj))
-        if (irank .eq. iroot) then
-            allocate(temparray(Nmoltraj))
-            call random_number(temparray)
-            molnotraj = floor(temparray*globalnp)+1
-            !print*, 'Molecular trajectories for ', temparray,molnotraj
-            deallocate(temparray)
-        endif
-
-        call globalbroadcastInt(molnotraj, Nmoltraj, iroot)
-
-        !print*, 'Molecular trajectories for ', molnotraj
-    endif
-
-
     !Profile memory use in setup
     call system_mem_usage(mem_end)
     print*, "Memory allocated after analysis potential and true=", & 

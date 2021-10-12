@@ -8160,7 +8160,8 @@ contains
 #endif
         use intrinsic_module, only : fit_intrinsic_surface_bilinear, fit_intrinsic_surface_modes
         use calculated_properties_MD, only : nbins, nbinso, binsize, mass_surface_flux
-        use module_record, only : Abilinear, ISR, ISR_mdt, ISR_r, ISR_mdt_r, ISR_b, ISR_mdt_b
+        use module_record, only : Abilinear, ISR, ISR_mdt, ISR_r, ISR_mdt_r, & 
+                                             ISR_b, ISR_mdt_b, ISR_c, ISR_mdt_c
         use interfaces, only : error_abort
         use cubic_surface_CV, only : cluster_CV_fn
         use module_record, only : get_bin, get_bin_molno
