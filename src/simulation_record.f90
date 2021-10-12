@@ -2114,19 +2114,19 @@ subroutine evaluate_properties_diffusion
     if (irank .eq. iroot) then
         unitno = get_new_fileunit()
         open(unit=unitno,file="./results/diffsummary",position='append')
-    	write(unitno,'(2i8,9f22.12)'), irank, iter, & 
+    	write(unitno,'(2i8,9f22.12)') irank, iter, & 
                                 rdiffusion/nmols, vdiffusion/nmols, & 
                                 vautocorrel/(vcorrelnorm*nmols)
         close(unitno, status='keep')
 
         unitno = get_new_fileunit()
         open(unit=unitno,file="./results/diffusion",position='append')
-    	write(unitno,'(2i8,24f22.12)'), irank, iter, rmoments/nmols
+    	write(unitno,'(2i8,24f22.12)') irank, iter, rmoments/nmols
         close(unitno, status='keep')
 
         unitno = get_new_fileunit()
         open(unit=unitno,file="./results/structure_fn",position='append')
-    	write(unitno,'(2i8,24f22.12)'), irank, iter, vmoments/nmols
+    	write(unitno,'(2i8,24f22.12)') irank, iter, vmoments/nmols
         close(unitno, status='keep')
     endif
 
@@ -8196,7 +8196,7 @@ contains
 				call ISR%fit_intrinsic_surface(points, tau, ns, pivots)
 
 
-                print*, "Area = ", ISR%area, ISR%intrinsic_area(), ISR_b%intrinsic_area_bilinear()
+                !print*, "Area = ", ISR%area, ISR%intrinsic_area(), ISR_b%intrinsic_area_bilinear()
  				
 				!Save initial surface for debugging
 				!if (first_time_coeff) then
@@ -8239,15 +8239,14 @@ contains
 				!DEBUG - write surface out
 				if (CA_generate_xyz .eq. 1) then
                     if (CA_generate_xyz_res .gt. 0) then
-                        print*, "RESOLUTION NOT ZERO", CA_generate_xyz_res
     					call ISR%sample_surface(vertices, nbins=(/1, CA_generate_xyz_res, CA_generate_xyz_res/), &
                                                 writeiter=writeiter)
                         !Default size writes bilinear as well
     					call ISR%sample_surface(vertices, writeiter=writeiter)
                         writeiter = writeiter + 1
                     else
-    					call ISR%sample_surface(vertices, writeiter=writeiter)
-                        writeiter = writeiter + 1
+    					call ISR%sample_surface(vertices)!, writeiter=writeiter)
+                        !writeiter = writeiter + 1
                     endif
 					call write_wave_xyz(vertices)
 					!Store pivots in intrinsic surface to plot
@@ -8487,7 +8486,6 @@ contains
             write(fileunit,*) Nrecords
             write(fileunit,*) ""
             first_time = .false.
-
         else
             fileunit = get_new_fileunit()
             open(fileunit, file="./all_clusters.xyz", access='append')
@@ -8507,7 +8505,7 @@ contains
                     !Write interface first
                     if (allocated(ISR%pivots)) then
                         do i =1, size(ISR%pivots,1)
-                            print*, "writing pivots", i, ISR%pivots(i), rnp(:,ISR%pivots(i))
+                            !print*, "writing pivots", i, ISR%pivots(i), rnp(:,ISR%pivots(i))
                             write(fileunit,'(a,3f18.8)') "C", rnp(:,ISR%pivots(i))
                             countwritten = countwritten + 1
                         enddo

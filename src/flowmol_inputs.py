@@ -31,10 +31,10 @@ from SetupInputs import SetupInputs
 
 # Code to read input file
 import sys
-sys.path.append("/home/es205/codes/SimWrapPy/")
+sys.path.append("/home/es205/codes/python/SimWrapPy/")
 import simwraplib as swl
 
-sys.path.insert(0, "/home/es205/codes/pyDataView/")
+sys.path.insert(0, "/home/es205/codes/python/pyDataView/")
 import postproclib as ppl
 import postproclib.visualiser as pplv
 
@@ -480,7 +480,13 @@ class MyFrame(wx.Frame):
         self.auipanes = {}
         for pid in pids:
             p = psutil.Process(pid)
-            exe = p.exe()
+            try:
+                exe = p.name()
+                self.idlecount = 0
+            except psutil.AccessDenied:
+                #exe = p.name()
+                #print("Access denied on pid", pid, p.cmdline())
+                continue
             
             if self.executable in exe:
                 print("executable= ", self.executable,

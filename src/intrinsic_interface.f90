@@ -365,7 +365,9 @@ subroutine initialise(self, box, normal, alpha, eps, nbins, nhb, topbot)
 			self%v(i) = modulo((i-1), self%n_waves)
 			!print*, "setup u, v for chebychev", i, self%u(i), self%v(i)
 		enddo
-		self%diag(:) = 1.d0
+		self%diag = check_uv(self%u, self%v) & 
+					 * (  self%u**2 * box(self%jxyz) / box(self%ixyz) & 
+						+ self%v**2 * box(self%ixyz) / box(self%jxyz))
     class is (intrinsic_surface_real)
 		!Numbers between -qm and +qm
 		do i=1,self%n_waves2
@@ -538,7 +540,7 @@ subroutine update_real_surface(self, points)
 					j, points(j,self%ixyz), points(j,self%jxyz), surf(j) , points(j,self%normal), &
                      surf(j)-points(j,self%normal)
         enddo
-
+        !stop "DEBUG STOP - update_real_surface"
     endif
 
 end subroutine update_real_surface
@@ -761,7 +763,7 @@ subroutine get_chebychev_surface(self, points, elevation, include_zeromode, qu)
     elevation = 0.d0
 	do j=1,self%n_waves2
 		elevation(:) = elevation(:) + self%coeff(j)*fuv(:,j)
-        print*, "get_Cheby", j, self%u(j), self%v(j), self%coeff(j), fuv(1,j), elevation(1)
+        !print*, "get_Cheby", j, self%u(j), self%v(j), self%coeff(j), fuv(1,j), elevation(1)
 	enddo
 
 	if (present(include_zeromode)) then
@@ -1589,6 +1591,7 @@ end subroutine get_flat_crossings
 !=========================================
 !=========================================
 !   Adapted from pytim surface code
+!  Fits complex form of Fourier series
 !=========================================
 !=========================================
 
@@ -2131,104 +2134,104 @@ end subroutine get_initial_pivots
 
 
 
-subroutine update_pivots(points, ISR, pivots, tau, new_pivots)
-    use librarymod, only : Qsort
-    implicit none
+!subroutine update_pivots(points, ISR, pivots, tau, new_pivots)
+!    use librarymod, only : Qsort
+!    implicit none
 
-	class(intrinsic_surface_real), intent(in) :: ISR	! declare an instance
-    integer, intent(in), dimension(:), allocatable ::  pivots
-    double precision, intent(in) :: tau
-    double precision, intent(in), dimension(:,:), allocatable ::  points
-    integer, intent(out), dimension(:), allocatable ::  new_pivots
+!	class(intrinsic_surface_real), intent(in) :: ISR	! declare an instance
+!    integer, intent(in), dimension(:), allocatable ::  pivots
+!    double precision, intent(in) :: tau
+!    double precision, intent(in), dimension(:,:), allocatable ::  points
+!    integer, intent(out), dimension(:), allocatable ::  new_pivots
 
-    logical :: found_range
-    integer :: i, n, ixyz, jxyz, ind, nPivots, sp, qm, qu
-    double precision :: z_max, z_min, area
-    integer, dimension(:), allocatable :: candidates, updated_pivots, indices
-    double precision, dimension(:), allocatable :: z, surf
-    double precision, dimension(:,:), allocatable :: candidates_pos, pivot_pos
+!    logical :: found_range
+!    integer :: i, n, ixyz, jxyz, ind, nPivots, sp, qm, qu
+!    double precision :: z_max, z_min, area
+!    integer, dimension(:), allocatable :: candidates, updated_pivots, indices
+!    double precision, dimension(:), allocatable :: z, surf
+!    double precision, dimension(:,:), allocatable :: candidates_pos, pivot_pos
 
-    ! Searches for points within a distance tau from the
-    ! interface.
-    sp = size(pivots,1)
-    allocate(pivot_pos(sp,3)) 
-    do i =1, sp
-        pivot_pos(i,:) = points(pivots(i),:)
-    enddo
-    z_max = maxval(pivot_pos(:,ISR%normal)) + ISR%alpha * 2.d0
-    z_min = minval(pivot_pos(:,ISR%normal)) - ISR%alpha * 2.d0
+!    ! Searches for points within a distance tau from the
+!    ! interface.
+!    sp = size(pivots,1)
+!    allocate(pivot_pos(sp,3)) 
+!    do i =1, sp
+!        pivot_pos(i,:) = points(pivots(i),:)
+!    enddo
+!    z_max = maxval(pivot_pos(:,ISR%normal)) + ISR%alpha * 2.d0
+!    z_min = minval(pivot_pos(:,ISR%normal)) - ISR%alpha * 2.d0
 
-    z = points(:, ISR%normal)
-    allocate(indices(size(points,1))) 
-    do ind = 1, size(indices,1)
-        indices(ind) = ind
-    enddo
-    call Qsort(z, indices)
-    n = 0; found_range=.false.
-    allocate(candidates(size(points,1))) 
-    if (ISR%topbot .eq. 1) then
-        do i = size(z,1), 1, -1
-            if ((z(i) > z_min) .and. (z(i) < z_max)) then
-                n = n + 1
-                candidates(n) = indices(i)
-                found_range = .true.
-                !print*, "values", i, n, z_min, z(i), z_max, candidates(n)
-            else if (found_range) then
-                !If z is sorted and we've been inside the range,
-                !once we leave, no point looping anymore
-                exit
-            endif
+!    z = points(:, ISR%normal)
+!    allocate(indices(size(points,1))) 
+!    do ind = 1, size(indices,1)
+!        indices(ind) = ind
+!    enddo
+!    call Qsort(z, indices)
+!    n = 0; found_range=.false.
+!    allocate(candidates(size(points,1))) 
+!    if (ISR%topbot .eq. 1) then
+!        do i = size(z,1), 1, -1
+!            if ((z(i) > z_min) .and. (z(i) < z_max)) then
+!                n = n + 1
+!                candidates(n) = indices(i)
+!                found_range = .true.
+!                !print*, "values", i, n, z_min, z(i), z_max, candidates(n)
+!            else if (found_range) then
+!                !If z is sorted and we've been inside the range,
+!                !once we leave, no point looping anymore
+!                exit
+!            endif
 
-        enddo
-    elseif (ISR%topbot .eq. 2) then
-        do i = 1, size(z,1)
-            if ((z(i) > z_min) .and. (z(i) < z_max)) then
-                n = n + 1
-                candidates(n) = indices(i)
-                found_range = .true.
-                !print*, "values", i, n, z_min, z(i), z_max, candidates(n)
-            else if (found_range) then
-                !If z is sorted and we've been inside the range,
-                !once we leave, no point looping anymore
-                exit
-            endif
+!        enddo
+!    elseif (ISR%topbot .eq. 2) then
+!        do i = 1, size(z,1)
+!            if ((z(i) > z_min) .and. (z(i) < z_max)) then
+!                n = n + 1
+!                candidates(n) = indices(i)
+!                found_range = .true.
+!                !print*, "values", i, n, z_min, z(i), z_max, candidates(n)
+!            else if (found_range) then
+!                !If z is sorted and we've been inside the range,
+!                !once we leave, no point looping anymore
+!                exit
+!            endif
 
-        enddo
-    endif 
+!        enddo
+!    endif 
 
-    !Get positions from indices
-    allocate(candidates_pos(n,3))
-    do i =1, n
-        !print*, "values", i, n, candidates(i), points(candidates(i),:)
-        candidates_pos(i,:) = points(candidates(i),:)
-    enddo
+!    !Get positions from indices
+!    allocate(candidates_pos(n,3))
+!    do i =1, n
+!        !print*, "values", i, n, candidates(i), points(candidates(i),:)
+!        candidates_pos(i,:) = points(candidates(i),:)
+!    enddo
 
-    !Recalculate surface at candidate pivot locations
-    select type (ISR)
-    type is (intrinsic_surface_chebychev)
-        call get_chebychev_surface(ISR, candidates_pos, surf)
-    class is (intrinsic_surface_real)
-        call get_real_surface(ISR, candidates_pos, surf)
-    end select
+!    !Recalculate surface at candidate pivot locations
+!    select type (ISR)
+!    type is (intrinsic_surface_chebychev)
+!        call get_chebychev_surface(ISR, candidates_pos, surf)
+!    class is (intrinsic_surface_real)
+!        call get_real_surface(ISR, candidates_pos, surf)
+!    end select
 
-    nPivots = 0
-    allocate(updated_pivots(n))
-    do i =1,n
-        if ((surf(i)-candidates_pos(i,ISR%normal))**2 .lt. tau**2) then
-            nPivots = nPivots + 1
-            updated_pivots(nPivots) = candidates(i)
-        endif
-    enddo
-    allocate(new_pivots(nPivots))
-    new_pivots = updated_pivots(1:nPivots)
+!    nPivots = 0
+!    allocate(updated_pivots(n))
+!    do i =1,n
+!        if ((surf(i)-candidates_pos(i,ISR%normal))**2 .lt. tau**2) then
+!            nPivots = nPivots + 1
+!            updated_pivots(nPivots) = candidates(i)
+!        endif
+!    enddo
+!    allocate(new_pivots(nPivots))
+!    new_pivots = updated_pivots(1:nPivots)
 
-    !allocate(new_pivots(nPivots+sp))
-    !new_pivots(1:sp) = pivots(:)
-    !new_pivots(sp+1:) = updated_pivots(:nPivots)
+!    !allocate(new_pivots(nPivots+sp))
+!    !new_pivots(1:sp) = pivots(:)
+!    !new_pivots(sp+1:) = updated_pivots(:nPivots)
 
-    !print*, new_pivots 
+!    !print*, new_pivots 
 
-end subroutine update_pivots
+!end subroutine update_pivots
 
 
 !An alternative way of updating pivots using a surface which 

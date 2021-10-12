@@ -1127,7 +1127,7 @@ subroutine get_CFD_velocity(lbl, &
             j = jb+wallbinbottom
 		    u_CFD(lbl(1):lbl(2),jb,lbl(5):lbl(6),1) = Utemp(j)
             if (mod(iter,100) .eq. 0) then
-    		    write(8000+iter/100,'(a,2i8,2f18.12)'), 'uvel', jb,j, Utemp(j),u_CFD(3,jb,3,1)
+    		    write(8000+iter/100,'(a,2i8,2f18.12)') 'uvel', jb,j, Utemp(j),u_CFD(3,jb,3,1)
             endif
 	    enddo
     end select
@@ -1332,7 +1332,7 @@ subroutine get_CFD_stresses_fluxes(lbl, &
 		    CFD_stress(lbl(1):lbl(2),jb,lbl(5):lbl(6),1,2) = tautemp(j)	    !Top
 		    CFD_stress(lbl(1):lbl(2),jb,lbl(5):lbl(6),1,5) = tautemp(j-1)	!Bottom
             if (mod(iter,100) .eq. 0) then
-    		    write(6000+iter/100,'(a,2i8,4f18.12)'), 'Stress', &
+    		    write(6000+iter/100,'(a,2i8,4f18.12)') 'Stress', &
                 jb,j, tautemp(j),tautemp(j-1),CFD_stress(3,jb,3,1,2),&
                 CFD_stress(3,jb,3,1,5)
             endif
