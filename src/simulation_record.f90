@@ -8310,6 +8310,7 @@ contains
 				!DEBUG - write surface out
 				if (CA_generate_xyz .eq. 1) then
                     if (CA_generate_xyz_res .gt. 0) then
+                        !If resolution is specified, then also created obj files
     					call ISR%sample_surface(vertices, nbins=(/1, CA_generate_xyz_res, CA_generate_xyz_res/), &
                                                 writeiter=writeiter)
                         !Default size writes bilinear as well
