@@ -2982,7 +2982,9 @@ subroutine fit_intrinsic_surface_bilinear(self, points, tau, ns, pivots)
     double precision, intent(in) :: tau, ns
     double precision, intent(in), dimension(:,:), allocatable ::  points
 
-    call self%intrinsic_surface_real%fit_intrinsic_surface(points, tau, ns, pivots)
+    call fit_intrinsic_surface_modes(self, points, tau, ns, pivots)
+    !call self%fit_intrinsic_surface(points, tau, ns, pivots)
+    !call self%intrinsic_surface_real%fit_intrinsic_surface_modes(points, tau, ns, pivots)
 
 	!print*, "DEBUG in fit_intrinsic_surface_bilinear, setting coeff to zero"
 	!self%coeff = 0.d0
