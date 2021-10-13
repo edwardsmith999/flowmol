@@ -467,20 +467,16 @@ subroutine get_A_b_chebychev(self, points, A, b)
     double precision, intent(out), dimension(:,:), allocatable :: A
 
     integer :: j
-    double precision, dimension(:,:), allocatable :: xy, fuv
+    double precision, dimension(:,:), allocatable :: fuv
 
     allocate(A(self%n_waves2, self%n_waves2))
     allocate(b(self%n_waves2))
     allocate(fuv(size(points,1), self%n_waves2))
-    allocate(xy(size(points,1),2))
+
     A = 0.d0
     b = 0.d0
-
-    xy(:,1) = 2.d0 * points(:,self%ixyz) /  self%box(self%ixyz)
-    xy(:,2) = 2.d0 * points(:,self%jxyz) /  self%box(self%jxyz)
-    xy(:,2) = 2*xy(:,2)**2-1
-	fuv = chebyshev_function(xy(:,1), self%u(:), 2.d0) & 
-		 *chebyshev_function(xy(:,2), self%v(:), 2.d0)
+	fuv = chebyshev_function(points(:,self%ixyz), self%u(:), self%box(self%ixyz)) & 
+		 *chebyshev_function(points(:,self%jxyz), self%v(:), self%box(self%jxyz))
     do j =1, self%n_waves2
 		b(j) = b(j) + sum(points(:,self%normal) * fuv(:,j))
 	enddo
@@ -746,21 +742,17 @@ subroutine get_chebychev_surface(self, points, elevation, include_zeromode, qu)
     integer :: j, ui, vi, qu_
     double precision :: zeromode
 
-    double precision, dimension(:,:), allocatable :: xy, fuv
+    double precision, dimension(:,:), allocatable :: fuv
 
-    allocate(xy(size(points,1), 2))
     allocate(fuv(size(points,1), self%n_waves2))
-
+	
     if (present(qu)) then
         stop "Error in get_chebychev_surface, optional qu not supported"
     endif
 
     !Get array of chebychev terms per point
-    xy(:,1) = 2.d0 * points(:,self%ixyz) /  self%box(self%ixyz)
-    xy(:,2) = 2.d0 * points(:,self%jxyz) /  self%box(self%jxyz)
-    xy(:,2) = 2*xy(:,2)**2-1
-	fuv = chebyshev_function(xy(:,1), self%u(:), 2.d0) & 
-		 *chebyshev_function(xy(:,2), self%v(:), 2.d0)
+	fuv = chebyshev_function(points(:,self%ixyz), self%u(:), self%box(self%ixyz)) & 
+		 *chebyshev_function(points(:,self%jxyz), self%v(:), self%box(self%jxyz))
 
     !Get elevation at point from sum of modes
     allocate(elevation(size(points,1)))
