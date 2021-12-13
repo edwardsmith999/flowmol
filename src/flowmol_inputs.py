@@ -1079,6 +1079,19 @@ class MyFrame(wx.Frame):
                 pathtoinput = inputfile.replace(self.srcdir,'')
                 inputfile = inputfile.split("/")[-1]
                 basedir = self.inputfilename.replace(inputfile,"")
+            else:
+                #If absolute path to different directory
+                inputfile = inputfile.split("/")[-1]
+                pathtoinput = self.inputfilename.replace(inputfile,'')
+                basedir = pathtoinput
+
+            if (not os.path.isfile(basedir+"/"+self.executable)):
+                msgbx = wx.MessageBox("Directory "+basedir+
+                                      "does not have a copy of executable " + self.executable,
+                                      "Copy one from srcdir? "+ self.srcdir,
+                                       wx.ICON_QUESTION | wx.NO | wx.YES )
+                if  msgbx == wx.YES:
+                    shutil.copy(self.srcdir+"/"+self.executable, basedir+"/"+self.executable)
 
             restartfile = self.restartfilename
             if restartfile and (self.srcdir in restartfile or
@@ -1327,7 +1340,14 @@ class MyFrame(wx.Frame):
                   restartfile = restartfile,
                   dryrun=False, minimalcopy=True)                
 
-        self.run.setup()
+        try:
+            self.run.setup()
+        except FileNotFoundError as e:
+            msgbx = wx.MessageDialog(self, str(e),
+                                     style=wx.OK|wx.ICON_ERROR)
+            msgbx.ShowModal()
+            msgbx.Destroy()
+
         self.run.execute(print_output=False, out_to_file=False, blocking=False)
         self.Bind(wx.EVT_IDLE, self.OnIdleSetup)
 
