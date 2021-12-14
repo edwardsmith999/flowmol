@@ -56,6 +56,8 @@ subroutine simulation_move_particles_lfv
 										  F_ext_limits(1),F_ext_limits(2), & 
 										  F_ext_limits(3),F_ext_limits(4), & 
 										  F_ext_limits(5),F_ext_limits(6))
+	case(3)
+        call point_sphere_cylinder(F_ext_centre, F_ext, 1, F_ext_ixyz)
 	case default
 		call error_abort("Error - incorrectly specified external_force_flag")
 	end select
