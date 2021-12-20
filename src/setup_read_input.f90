@@ -1047,10 +1047,10 @@ subroutine setup_read_input
 	! # Apply external force to region of space
 	! # 0 - off
 	! # 1 - apply to all molecules, requires
-	! # 		- F_ext direction x=1,y=2,z=3
+	! # 	- F_ext direction x=1,y=2,z=3
 	! #		- F_ext magnitude
 	! # 2 - apply only to specified region
-	! # 		- F_ext direction x=1,y=2,z=3
+	! # 	- F_ext direction x=1,y=2,z=3
 	! #		- F_ext magnitude
 	! #		- xmin - minimum x coordinate in global system 
 	! #		- xmax - maximum x coordinate in global system 
@@ -1061,6 +1061,12 @@ subroutine setup_read_input
 	! #		NOTE : min/max of globaldomain and specified extent is used
 	! # 			   so simply specifiy large numbers if you want
 	! #			   region to extend to edge of globaldomain
+	! # 3 - apply in a spherical (0) or cylinderical (1,2 or 3) location
+	! # 	- F_ext direction sphere=0 or cylinder along x=1,y=2,z=3
+	! #		- Radius of sphere or cylinder
+	! #		- F_ext_centre in x
+	! #		- F_ext_centre in y
+	! #		- F_ext_centre in z
 	! # -----------------------------------------------------------------------
 	call locate(1,'EXTERNAL_FORCE',.false.,found_in_input)
 	if (found_in_input) then
@@ -1076,6 +1082,10 @@ subroutine setup_read_input
 				read(1,*) F_ext_limits(4)
 				read(1,*) F_ext_limits(5)
 				read(1,*) F_ext_limits(6)
+            else if (external_force_flag .eq. 3) then
+			    read(1,*) F_ext_centre(1)
+			    read(1,*) F_ext_centre(2)
+			    read(1,*) F_ext_centre(3)
 			endif
         else
             external_force_flag = 0
