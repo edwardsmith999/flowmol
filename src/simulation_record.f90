@@ -8148,7 +8148,8 @@ contains
                                                II_normal, II_alpha, II_tau, II_eps, II_ns, II_topbot, &
                                                mflux_outflag, Nsurfevo_outflag, nhb, & 
                                                CA_generate_xyz, CA_generate_xyz_res, &
-											   mflux_outflag, vflux_outflag, CV_conserve
+											   mflux_outflag, vflux_outflag, CV_conserve, &
+                                               periodic
         use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, & 
 								write_wave_xyz, write_waveobj, write_grid
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
@@ -8224,8 +8225,10 @@ contains
 					ISR => ISR_c
 					ISR_mdt => ISR_mdt_c
 				endif
-                call ISR%initialise(globaldomain, normal, alpha, eps, nbins, nhb, topbot)   ! initialise
-                call ISR_mdt%initialise(globaldomain, normal, alpha, eps, nbins, nhb, topbot)   ! initialise
+                call ISR%initialise(globaldomain, normal, alpha, eps, & 
+                                    nbins, nhb, topbot, periodic)   ! initialise
+                call ISR_mdt%initialise(globaldomain, normal, alpha, eps, & 
+                                     nbins, nhb, topbot, periodic)  ! initialise
                 first_time = .false.
 			!else
 				!do i=1,np
