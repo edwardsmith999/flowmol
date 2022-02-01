@@ -850,13 +850,30 @@ subroutine setup_read_input
 	endif
 
 
+	! #########################################################################
+	! # Add a small random nudge to molecule velocities in restart file 
+	! # to give a diverging trajectories
+	! # [1] 0 - Off
+	! # [1] 1 - On
+	! # [2] float - magnitude (default 1e-8)
+	! # -----------------------------------------------------------------------
+    call locate(1,'NUDGE_RESTART',.false.,found_in_input)
+	if (found_in_input) then
+	    read(1,*) nudge_restart
+	    read(1,*,iostat=ios) nudge_magnitude
+		if (ios .ne. 0) nudge_magnitude = 1e-8
+	else
+		nudge_restart = 0
+		nudge_magnitude = 0.d0
+	endif
+
 	! ########################################################################
 	! ## NEWPAGE - BOUNDARY CONDITIONS
 	! ########################################################################
 	call locate(1,'NEWPAGE_BOUNDARY_CONDITIONS',.false.,found_in_input)
 	if (found_in_input) then
 		!read(1,*) newpage
-		print*, "The keyword OUTPUT does nothing, "
+		print*, "The keyword NEWPAGE_BOUNDARY_CONDITIONS does nothing, "
 		print*, "it is used to denote start of output section flowmol_inputs" 
 	endif
 

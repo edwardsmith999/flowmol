@@ -117,7 +117,8 @@ module computational_constants_MD
 
     !Misc flags
     integer :: global_numbering         !Enforce global molecular numbering
-    integer :: reset_tags_on_restart !Reset tags on restart
+    integer :: reset_tags_on_restart 	!Reset tags on restart
+	integer :: nudge_restart 			!Add a negligable random amount to every velocity values on restart  
 
 	!Initial configuration selection
 	integer           	:: initial_config_flag
@@ -136,6 +137,7 @@ module computational_constants_MD
 	character(len=128)	:: velocity_special_case
 	character(len=128)	:: DNS_filename
 	integer           	:: DNS_ngx,DNS_ngy,DNS_ngz
+	real(kind(0.d0))	:: nudge_magnitude
 
 
 	!Write a separate file for each timestep

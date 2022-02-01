@@ -135,7 +135,7 @@ subroutine setup_initialise_microstate()
 
     !This should be included in every case?
     if (mie_potential .eq. 1) then
-        call setup_moltypes_wall                   !Setup type of molecules
+        call setup_moltypes_wall()	                !Setup type of molecules
     endif
 
     !Choose initial molecular velocities using velocity flag
