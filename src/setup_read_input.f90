@@ -1086,6 +1086,8 @@ subroutine setup_read_input
 			    read(1,*) F_ext_centre(1)
 			    read(1,*) F_ext_centre(2)
 			    read(1,*) F_ext_centre(3)
+				read(1,*,iostat=ios) F_ext_radial
+				if (ios .ne. 0) F_ext_radial = 10.d0
 			endif
         else
             external_force_flag = 0

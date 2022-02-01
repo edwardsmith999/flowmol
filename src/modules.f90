@@ -55,7 +55,8 @@ module computational_constants_MD
 	integer                 	  :: tether_flag     	 !True if there exists 
 	integer                 	  :: external_force_flag !Apply external forces?
 	integer                 	  :: F_ext_ixyz			 !Direction of external forces
-	real(kind(0.d0))        	  :: F_ext				 !Magnitude of external forces
+	real(kind(0.d0))        	  :: F_ext				 !Magnitude of external forces or radius (if radial force)
+	real(kind(0.d0))        	  :: F_ext_radial   	 !Magnitude of radial forces
     real(kind(0.d0)),dimension(2) :: eij_wall            !Interaction potential strength for substrate wall
 	real(kind(0.d0)),dimension(3) :: F_ext_centre		 !Centre of sphere/cylinder for force
 	real(kind(0.d0)),dimension(6) :: F_ext_limits		 !Limits of region external forces applied to
