@@ -1,13 +1,27 @@
 # flowmol
 A molecular dynamics solver for molecular fluid dynamics simulation.
 
-You only need a Fortran compiler. Assuming you have gfortran installed (from gcc), build it by going to the src directory and calling
+You only need a Fortran compiler and MPI (tested with [MPICH](https://www.mpich.org/)). Assuming you have gfortran installed (from gcc), build it by going to the src directory and calling
 
     make PLATFORM=gfortran p
     
-Intel or other specialised supercomputer architectures are supported, check the platform file (and adding new ones is fairly straightforward). 
+The Intel compliers also work, and the code has been tested on a range of specialised supercomputer architectures are supported, check the platform file (and adding new ones is fairly straightforward). There is an assembly language version of the Heaviside function used for efficiency, which might cause problems on some platform. This can be disabled using
 
-An experimental user interface is provided in python,
+    make NO_ASSMBLY_HEAVISIDES=1 p
+    
+Simulations can then be run using,
+
+    mpiexec -n 1 ./parallel_md.exe -i default.in
+    
+where default.in is an example input file to run a simple NVE case starting from an FCC lattice. 
+You can change simulation parameters by changing the input file, which uses a keyword lookup system with a word in capitals describing the input variable to change and the following numbers being the values you want to set. For example, to make the simulation bigger you would change the following part,
+
+    INITIALNUNITS
+    8
+    8
+    8
+    
+where the default is 8 FCC units by 8 by 8. For documentation on the different inputs, please see `setup_read_inputs.f90` which includes notes on the form of inputs and what they do. This input file is then parsed to create documentation in flowmol_input, an experimental user interface provided in python,
 
     python3 flowmol_input.py
 
