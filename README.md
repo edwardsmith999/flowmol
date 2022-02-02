@@ -15,9 +15,7 @@ Which allows the user to tweak input files, run multiple cases (started in subpr
 
 ![image](https://user-images.githubusercontent.com/13366737/133908501-c3cbe270-0df5-4396-8bd0-ade8b5fa389c.png)
 
-I will write up install instructions soon, but it requires Python3, wxPython, matplotlib, Numpy as well as inclusion of visualisation software [PyDataView](https://github.com/edwardsmith999/pyDataView) and thread running software [SimWrapLib](https://github.com/edwardsmith999/SimWrapPy).  
-You will also have to have a working version of Flowmol compiled.
+It requires Python3, wxPython, matplotlib, Numpy as well as an inclusion of visualisation software [PyDataView](https://github.com/edwardsmith999/pyDataView) and thread running software [SimWrapLib](https://github.com/edwardsmith999/SimWrapPy). You will also have to have a working version of Flowmol compiled to run cases.
 
-Please see my website for more information on the Flowmol code, including verification/validation and features
-
+For more information on the Flowmol code, including verification/validation and features, please see
 http://www.edwardsmith.co.uk/content/flowmol/MD_coding.html
