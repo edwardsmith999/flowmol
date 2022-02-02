@@ -39,13 +39,7 @@
 !
 
 module messenger
-
-	use physical_constants_MD
 	use computational_constants_MD
-	use linked_list
-	use polymer_info_MD	
-	use shear_info_MD
-
 
 	integer :: MD_COMM                     	! global communicator
 	integer :: myid                         ! my process rank
@@ -56,33 +50,146 @@ module messenger
 	integer, allocatable :: icoord(:,:)     ! proc grid coordinates
 	integer				 :: icomm_xyz(3)	! Directional subcomms
 
+	integer						:: plane_comm(3)! Directional "plane" subcomms
+	integer						:: plane_nproc(3)!Number of proc in plane subcomm
+	integer, dimension(8,2) 	:: proc_topology_corners
+	integer, dimension(4,3,2) 	:: proc_topology_edge
+
+	integer :: planerank(3)
+
+	logical :: Lperiodic(3)
+
+	real(kind(0.d0)) wallTime
+
+
+	!Various Globalise/localise
+	interface globalise
+		module procedure globalise_component, globalise_single, globalise_array
+	end interface
+
+    private globalise_component, globalise_single, globalise_array
+
+	interface localise
+		module procedure localise_component,localise_single, localise_array
+	end interface
+
+    private localise_component, localise_single, localise_array
+
 contains
 
 	!=============================================================================
-	! DUMMY local position on processor from molecule's global position.
+	! Get 1 component of a molecule's global position from local processor position.
 	!-----------------------------------------------------------------------------
+	function globalise_component(rloc,ixyz) result(rglob)
+		implicit none
+		
+		integer,intent(in)			  :: ixyz
+		real(kind(0.d0)), intent(in)  :: rloc
 
-	function globalise(rloc) result(rglob)
+		integer						  :: block(3), npxyz(3)
+		real(kind(0.d0))              :: rglob
+
+	end function globalise_component
+
+	function localise_component(rglob,ixyz) result(rloc)
+		implicit none
+		
+		integer,intent(in)			  :: ixyz
+		real(kind(0.d0)), intent(in)  :: rglob
+		integer						  :: block(3), npxyz(3)
+		real(kind(0.d0))              :: rloc
+
+	end function localise_component 
+
+	!=============================================================================
+	! Get molecule's global position from position local to processor.
+	!-----------------------------------------------------------------------------
+	function globalise_single(rloc) result(rglob)
 		implicit none
 		
 		real(kind(0.d0)), intent(in)  :: rloc(3)
 		real(kind(0.d0))              :: rglob(3)
 
-		rglob = rloc
+		rglob(1) = rloc(1)
+		rglob(2) = rloc(2)
+		rglob(3) = rloc(3)
 
-	end function globalise
+	end function globalise_single
 
-	function localise(rglob) result(rloc)
+	function localise_single(rglob) result(rloc)
 		implicit none
 		
 		real(kind(0.d0)), intent(in)  :: rglob(3)
 		real(kind(0.d0))              :: rloc(3)
 
-		rloc = rglob
+		rloc(1) = rglob(1)
+		rloc(2) = rglob(2)
+		rloc(3) = rglob(3)
 
-	end function localise 
+	end function localise_single 
 
-end module
+	!=============================================================================
+	! Get array of molecules' global position from position local to processor.
+	!-----------------------------------------------------------------------------
+	function globalise_array(rloc) result(rglob)
+		implicit none
+		
+		real(kind(0.d0)),allocatable,intent(in)  :: rloc(:,:)
+		real(kind(0.d0)),allocatable             :: rglob(:,:)
+
+		allocate(rglob(3,size(rloc,2)))
+
+		rglob(1,:) = rloc(1,:)
+		rglob(2,:) = rloc(2,:)
+		rglob(3,:) = rloc(3,:)
+
+	end function globalise_array
+
+	function localise_array(rglob) result(rloc)
+		implicit none
+		
+		real(kind(0.d0)),allocatable, intent(in)  :: rglob(:,:)
+		real(kind(0.d0)),allocatable              :: rloc(:,:)
+
+		allocate(rloc(3,size(rglob,2)))
+
+		rloc(1,:) = rglob(1,:)
+		rloc(2,:) = rglob(2,:)
+		rloc(3,:) = rglob(3,:)
+
+	end function localise_array 
+
+
+	!=============================================================================
+	! Get bin's global position from local to processor.
+	!-----------------------------------------------------------------------------
+	function globalise_bin(rloc) result(rglob)
+        use calculated_properties_MD, only : nbins
+		implicit none
+		
+		integer, intent(in)  :: rloc(3)
+		integer              :: rglob(3)
+
+		rglob(1) = rloc(1)
+		rglob(2) = rloc(2)
+		rglob(3) = rloc(3)
+
+	end function globalise_bin
+
+	function localise_bin(rglob) result(rloc)
+        use calculated_properties_MD, only : nbins
+		implicit none
+		
+		integer, intent(in)  :: rglob(3)
+		integer              :: rloc(3)
+
+		rloc(1) = rglob(1)
+		rloc(2) = rglob(2)
+		rloc(3) = rglob(3)
+
+	end function localise_bin
+
+end module messenger
 
 !======================================================================
 !			Key Messenger Subroutines                     =
@@ -90,10 +197,10 @@ end module
 subroutine messenger_invoke()
 	use messenger
 
-        npx = 1; npy = 1;  npz = 1;  nproc = 1
-	print*, 'Serial version of parallel code'
+    npx = 1; npy = 1;  npz = 1;  nproc = 1
+    print*, 'Serial version of parallel code'
 
-	return
+    return
 end
 
 
@@ -102,7 +209,7 @@ subroutine messenger_init()
 	use messenger
 	implicit none
 
-	if (nproc .ne. 1) call error_abort( "Serial code - Param.inc should be 1x1x1")
+	if (nproc .ne. 1) call error_abort( "Serial code -PROCESSORS should be 1x1x1")
 
 	irank  = 1
 	iblock = 1
@@ -130,6 +237,11 @@ subroutine messenger_syncall()
 
 	return
 end
+
+subroutine messenger_lasterrorcheck
+	use messenger
+
+end subroutine messenger_lasterrorcheck
 
 subroutine messenger_free()
 	use messenger
@@ -988,9 +1100,319 @@ subroutine send_VA_interaction(Rfbin_halo,intercbin)
 
 	return
 end
+
+
+
+
+
+
 !======================================================================
 !                       Data gathering subroutines                    =
 !======================================================================
+
+module messenger_data_exchange
+
+	interface globalSum
+		module procedure globalSumdp, globalSumInt, globalSumVectReal, &
+                         globalSumdpVect, globalSumIntVect, globalSumTwoDim, &
+                         globalSumIntTwoDim
+	end interface
+
+    private globalSumdp, globalSumInt, globalSumVectReal, &
+            globalSumdpVect, globalSumIntVect, globalSumTwoDim, &
+            globalSumIntTwoDim
+
+	interface PlaneSum
+		module procedure PlaneSumdp, PlaneSumIntVect, PlaneSumVect
+	end interface
+
+    private PlaneSumdp, PlaneSumIntVect, PlaneSumVect
+
+
+
+contains
+
+subroutine globalSumdp(A)
+	use messenger
+	implicit none
+
+	real(kind(0.d0)) :: A
+
+	A = A
+
+	return
+end subroutine globalSumdp
+
+
+
+subroutine globalSumInt(A)
+	use messenger
+	implicit none
+
+	integer :: A
+
+    A = A
+
+	return
+end subroutine globalSumInt
+
+
+
+subroutine globalSumVectReal(A, na)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na
+	real, intent(inout) ::  A(na)
+
+    A = A
+
+	return
+end subroutine globalSumVectReal
+
+subroutine globalSumdpVect(A, na)
+	use messenger
+	!include "mpif.h"
+	implicit none
+
+	integer, intent(in) :: na
+	real(kind(0.d0)), intent(inout) :: A(na)
+
+    A = A
+
+	return
+end subroutine globalSumdpVect
+
+
+subroutine globalSumIntVect(A, na)
+	use messenger
+	implicit none
+
+    integer, intent(in) :: na
+	integer, intent(inout) :: A(na)
+
+    A = A
+
+	return
+end subroutine globalSumIntVect
+
+subroutine globalSumTwoDim(A,na1,na2)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na1,na2
+	real(kind(0.d0)), intent(inout) :: A(na1,na2)
+
+    A = A
+
+	return
+end subroutine globalSumTwoDim
+
+subroutine globalSumIntTwoDim(A,na1,na2)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na1,na2
+	integer, intent(inout) :: A(na1,na2)
+
+    A = A
+
+	return
+end subroutine globalSumIntTwoDim
+
+
+subroutine PlaneSumdp(A, ixyz)
+    use messenger
+    implicit none
+
+    integer, intent(in) :: ixyz
+	real(kind(0.d0)), intent(inout) :: A
+
+    A = A
+
+end subroutine PlaneSumdp
+
+subroutine PlaneSumIntVect(A, na, ixyz)
+	use messenger
+	implicit none
+
+    integer, intent(in) :: na
+	integer, intent(in) :: ixyz
+	integer, intent(inout) :: A(na)
+
+    A = A
+
+	return
+
+end subroutine PlaneSumIntVect
+
+subroutine PlaneSumVect(A, na, ixyz)
+	use messenger
+	implicit none
+
+    integer, intent(in) :: na
+	integer, intent(in) :: ixyz
+	real(kind(0.d0)), intent(inout) :: A(na)
+
+    A = A 
+
+	return
+end subroutine PlaneSumVect
+
+subroutine globalGatherv(A,na,B,nb,rdisps)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na,nb(nproc),rdisps(nproc)
+
+	real(kind(0.d0)), intent(in) :: A(na)
+	real(kind(0.d0)), intent(out):: B(na)
+
+    B = A
+
+end subroutine globalGatherv
+
+subroutine planeGatherv(A,na,B,nb,rdisps,ixyz)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na,ixyz
+    integer, intent(in) :: nb(1), rdisps(1)
+
+	real(kind(0.d0)), intent(in) :: A(na)
+	real(kind(0.d0)), intent(out):: B(na)
+
+    B = A
+
+end subroutine planeGatherv
+
+end module messenger_data_exchange
+
+
+
+!This is currently included as a hack because routines
+!in the module file need it and are built first
+subroutine globalSum_(A)
+	use messenger
+	implicit none
+
+	real(kind(0.d0)) A
+
+	A = A
+
+	return
+end subroutine globalSum_
+
+
+subroutine globalMax(A)
+	use messenger
+	implicit none
+
+	real(kind(0.d0)) :: A
+
+    A = A
+	return
+
+end subroutine globalMax
+
+
+subroutine globalMaxInt(A, na)
+	use messenger
+	implicit none
+
+    integer na
+	integer A(na)
+
+	A = A
+
+	return
+end subroutine globalMaxInt
+
+subroutine globalMaxVect(A, na)
+	use messenger
+	implicit none
+
+    integer na
+	real(kind(0.d0)) A(na)
+
+	A = A
+
+	return
+end subroutine globalMaxVect
+
+subroutine globalMaxIntVect(A, na)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na
+	integer, intent(inout) :: A(na)
+
+    A = A
+
+	return
+end subroutine globalMaxIntVect
+
+subroutine globalMinInt(A)
+	use messenger
+	implicit none
+
+	integer :: A
+
+	A = A
+
+	return
+end subroutine globalMinInt
+
+subroutine globalMinVect(A, na)
+	use messenger
+	implicit none
+
+    integer na
+	real(kind(0.d0)) A(na)
+
+	A = A
+
+	return
+end
+
+subroutine globalAverage(A, na)
+	use messenger
+	implicit none
+
+    integer na
+	real(kind(0.d0)) A(na)
+
+	A = A
+
+	return
+end
+
+subroutine globalbroadcastInt(A,na,broadprocid)
+	use messenger
+	implicit none
+
+	integer				:: na, broadprocid
+	integer         	:: A(na)
+
+	A=A
+
+	return
+
+end subroutine globalbroadcastInt
+
+subroutine globalbroadcast(A,na,broadprocid)
+	use messenger
+	implicit none
+
+	integer				:: na, broadprocid
+	real(kind(0.d0))	:: A(na)
+
+	A = A
+
+	return
+end subroutine globalbroadcast
+
+
 
 subroutine globalbroadcast(A,na,broadprocid)
 	use messenger
@@ -1017,171 +1439,70 @@ subroutine globalsyncreduce(A, na, meanA, maxA, minA)
 	minA = A
 
 	return
-end
+end globalsyncreduce
 
-subroutine globalSum(A)
+subroutine globalGather(A,B,na)
 	use messenger
-	
-	real(kind(0.d0)) A
-
-	A = A
-
-	return
-end
-
-subroutine globalSumInt(A)
-	use messenger
-	
-	integer A
-
-	A = A
-
-	return
-end
-
-subroutine globalMax(A)
-	use messenger
-
-	real(kind(0.d0)) :: A
-
-	A = A
-
-	return
-end
-
-subroutine globalMaxInt(A)
-	use messenger
-	
-	integer A
-
-	A = A
-
-	return
-end
-
-subroutine globalSumVectReal(A, na)
-	use messenger
+	implicit none
 
 	integer, intent(in) :: na
-	real :: A(na)
 
-	A = A
+	integer, intent(in) :: A(na)
+	integer, intent(out):: B(na,1)
 
-	return
-end
+    B(:,1) = A(:)
 
-subroutine globalSumVect(A, na)
-	use messenger
-	
-	integer na
-	real(kind(0.d0)) A(na)
+end subroutine globalGather
 
-	A = A
-
-	return
-end
-
-subroutine globalSumTwoDim(A,na1,na2)
-	use messenger
-
-	integer, intent(in) :: na1,na2
-	real(kind(0.d0)) A(na1,na2)
-	
-	A = A
-
-	return
-end
-
-subroutine globalSumIntTwoDim(A,na1,na2)
-	use messenger
-
-	integer, intent(in) :: na1,na2
-	integer A(na1,na2)
-	
-	A = A
-
-	return
-end
-
-subroutine globalSumIntVect(A, na)
-	use messenger
-	
-        integer na
-	integer A(na)
-
-	A = A
-
-	return
-end
-
-
-subroutine globalMaxIntVect(A, na)
-	use messenger
-	
-        integer na
-	integer A(na)
-
-	A = A
-
-	return
-end
-
-subroutine globalMaxVect(A, na)
-	use messenger
-	
-        integer na
-	real(kind(0.d0)) A(na)
-
-	A = A
-
-	return
-end
-
-subroutine globalMinVect(A, na)
-	use messenger
-	
-        integer na
-	real(kind(0.d0)) A(na)
-
-	A = A
-
-	return
-end
-
-subroutine globalAverage(A, na)
-	use messenger
-	
-        integer na
-	real(kind(0.d0)) A(na)
-
-	A = A
-
-	return
-end
 
 subroutine globalGathernp()
-	use physical_constants_MD
-	use messenger
-	
-	globalnp = np
+	implicit none
 
 	return
-end
+end subroutine globalGathernp
 
-subroutine globalGathertethernp()
-	use physical_constants_MD
+subroutine planeGatherInt(A,B,na,ixyz)
 	use messenger
+	implicit none
+
+	integer, intent(in) :: na
+	integer, intent(in) :: ixyz
+	integer, intent(in) :: A(na)
+	integer, intent(out):: B(na,1)
+
+    B(:,1) = A(:)
+
+end subroutine planeGatherInt
+
+!----Sum routines over global sub communitcators
+subroutine SubcommGather(A,B,na,ixyz,npixyz)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: na, ixyz, npixyz
+	integer, intent(in) :: A(na)
+	integer, intent(out):: B(na,1)
+
+    B(:,1) = A(:)
 	
-	tethernp = tethernp
+end subroutine SubcommGather
+
+subroutine SubcommSum(A, ixyz)
+	use messenger
+	implicit none
+
+	integer, intent(in) :: ixyz !Direction of sub-comm
+	real(kind(0.d0))	A
 
 	return
-end
+end subroutine SubcommSum
+
+
 
 !----Sum routines over global sub communitcators
 
 subroutine SubcommSumInt(A, ixyz)
 	use messenger
-	!include "mpif.h"
 
         integer, intent(in) :: ixyz !Direction of sub-comm
 	integer	A
@@ -1194,7 +1515,6 @@ end
 
 subroutine SubcommSumVect(A, na, ixyz)
 	use messenger
-	!include "mpif.h"
 
         integer, intent(in) :: na, ixyz !Direction of sub-comm
 	real(kind(0.d0)) A(na)
@@ -1207,7 +1527,6 @@ end
 
 subroutine SubcommSumIntVect(A, na, ixyz)
 	use messenger
-	!include "mpif.h"
 
         integer, intent(in) :: na, ixyz !Direction of sub-comm
 	integer	A(na)
