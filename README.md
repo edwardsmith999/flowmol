@@ -1,7 +1,7 @@
 # flowmol
 A molecular dynamics solver for molecular fluid dynamics simulation.
 
-You only need a Fortran compiler. Assuming you have gfortran installed (from gcc), build it but going to the src directory and calling
+You only need a Fortran compiler. Assuming you have gfortran installed (from gcc), build it by going to the src directory and calling
 
     make PLATFORM=gfortran p
     
