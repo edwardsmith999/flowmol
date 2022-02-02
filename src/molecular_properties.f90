@@ -1279,7 +1279,7 @@ contains
 		! Set default parameters: see pg. 986 of JCP reference for figures of
 		! optimal values 
 		maxiter = 200
-		dSmax   = 0.1*(density**-1.5)
+		dSmax   = 0.1*(density**(-1.5))
 		dS	  = dSmax
 		Uovlp   = 10.0**4.0
 		tol	 = 0.001 

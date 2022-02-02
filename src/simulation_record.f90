@@ -77,7 +77,6 @@ module module_record
 
 #endif
 	real(kind(0.d0)) :: vel
-    integer :: qm, qu
 	class(intrinsic_surface_real), pointer :: ISR, ISR_mdt
 	type(intrinsic_surface_real), target		:: ISR_r, ISR_mdt_r	! declare an instance
 	type(intrinsic_surface_bilinear), target		:: ISR_b, ISR_mdt_b	! declare an instance

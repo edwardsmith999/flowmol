@@ -46,7 +46,8 @@ module intrinsic_module
 
     type :: intrinsic_surface_real
 
-        integer      :: normal, ixyz, jxyz, topbot, n_waves, n_waves2, qm
+        integer      :: normal, ixyz, jxyz, topbot, n_waves2
+		integer, dimension(2)  :: n_waves, qm
 		integer, dimension(3)  :: nbins, nhb, periodic
 
         integer, dimension(:), allocatable     :: u, v
@@ -381,9 +382,11 @@ subroutine initialise(self, box, normal, alpha, eps, &
         print*, "WARNING -only square domain coded so intrinsic resolution is higher in smaller tangential direction"
     endif
     self%area = box(self%ixyz)*box(self%jxyz)
-    self%qm = int(sqrt(self%area)/alpha)
-    self%n_waves = 2*self%qm+1
-    self%n_waves2 = self%n_waves**2
+    self%qm(1) = int(box(self%ixyz)/alpha)
+    self%qm(2) = int(box(self%jxyz)/alpha)
+    self%n_waves(1) = 2*self%qm(1)+1
+    self%n_waves(2) = 2*self%qm(2)+1
+    self%n_waves2 = self%n_waves(1)*self%n_waves(2)
 
     !print*, "initialise intrinsic function", box, normal, alpha, eps, & 
     !        nbins, nhb, topbot, self%qm, self%n_waves
@@ -402,22 +405,23 @@ subroutine initialise(self, box, normal, alpha, eps, &
 		!Chebychev 
 		do i=1,self%n_waves2
             if (self%periodic(self%ixyz) .eq. 1) then
-			    self%u(i) = (i-1) / self%n_waves - self%qm
+			    self%u(i) = (i-1) / self%n_waves(2) - self%qm(1)
             else
-    			self%u(i) = (i-1) / self%n_waves
+    			self%u(i) = (i-1) / self%n_waves(2)
             endif
             if (self%periodic(self%jxyz) .eq. 1) then
-			    self%v(i) = modulo((i-1), self%n_waves) - self%qm
+			    self%v(i) = modulo((i-1), self%n_waves(2)) - self%qm(2)
             else
-    			self%v(i) = modulo((i-1), self%n_waves)
+    			self%v(i) = modulo((i-1), self%n_waves(2))
             endif
 			!print*, "setup u, v for chebychev", i, self%u(i), self%v(i)
 		enddo
     class is (intrinsic_surface_real)
 		!Numbers between -qm and +qm
 		do i=1,self%n_waves2
-			self%u(i) = (i-1) / self%n_waves - self%qm
-			self%v(i) = modulo((i-1), self%n_waves) - self%qm
+			self%u(i) = (i-1) / self%n_waves(2) - self%qm(1)
+			self%v(i) = modulo((i-1), self%n_waves(2)) - self%qm(2)
+			!print*, "setup u, v for Fourier", i, self%u(i), self%v(i)
 		enddo
 	end select
 
@@ -428,10 +432,10 @@ subroutine initialise(self, box, normal, alpha, eps, &
 				 * (  self%u**2 * box(self%jxyz) / box(self%ixyz) & 
 					+ self%v**2 * box(self%ixyz) / box(self%jxyz))
 	
-    allocate(self%diag_matrix(size(self%diag,1),size(self%diag,1)))
+    allocate(self%diag_matrix(self%n_waves2,self%n_waves2))
     self%diag_matrix = 0.d0
-    do i=1,size(self%diag,1)
-    do j=1,size(self%diag,1)
+    do i=1,self%n_waves2
+    do j=1,self%n_waves2
         if (i .eq. j) then
             self%diag_matrix(i,j) = 4.d0 * pi**2 * eps * self%diag(i)
         endif
@@ -685,9 +689,10 @@ subroutine get_real_surface(self, points, elevation, include_zeromode, qu)
     double precision, intent(out), dimension(:), allocatable :: elevation
 
 	logical, intent(in), optional :: include_zeromode
-    double precision, intent(in), optional ::  qu
+    integer, intent(in), dimension(2), optional ::  qu
 
-    integer :: j, ui, vi, qu_
+    integer :: j, ui, vi
+    integer, dimension(2) :: qu_
     double precision :: zeromode
 	
 	integer,save :: tcount
@@ -705,9 +710,11 @@ subroutine get_real_surface(self, points, elevation, include_zeromode, qu)
     !Get elevation at point from sum of modes
     allocate(elevation(size(points,1)))
     elevation = 0.d0
-    do ui = -qu_, qu_
-    do vi = -qu_, qu_
-        j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
+    do ui = -qu_(1), qu_(1)
+    do vi = -qu_(2), qu_(2)
+        !j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
+        j = (2*self%qm(2) + 1) * (ui + self%qm(1)) + (vi + self%qm(2)) + 1
+        !print*, "get_real_surface", ui, vi, j, qu_, self%n_waves, self%n_waves2
         elevation = elevation + self%coeff(j) &
                      * wave_function(points(:,self%ixyz), ui, self%box(self%ixyz)) &
                      * wave_function(points(:,self%jxyz), vi, self%box(self%jxyz))
@@ -719,7 +726,7 @@ subroutine get_real_surface(self, points, elevation, include_zeromode, qu)
 			elevation = elevation - zeromode
 		endif
 	endif
-
+    !stop "STOP in get_real_surface"
 	!call cpu_time(t2)
 	!timing = timing + (t2 - t1)/size(points,1)
 	!tcount = tcount + 1
@@ -739,10 +746,12 @@ subroutine get_real_surface_binwidth(self, points, elevation, include_zeromode, 
 
 	logical, intent(in), optional :: include_zeromode
     double precision, intent(in), dimension(:,:), allocatable ::  points
-    double precision, intent(in), optional ::  qu, maprange
+    double precision, intent(in), optional ::  maprange
+    integer, intent(in), dimension(2), optional ::  qu
     double precision, intent(out), dimension(:), allocatable :: elevation
 
-    integer :: i, j, ui, vi, qu_
+    integer :: i, j, ui, vi
+    integer, dimension(2) :: qu_
 	double precision :: surface_location,  transition
 	double precision :: intrinsic_shift_window_bot, intrinsic_shift_window_top
 	double precision :: intrinsic_shift_total_bot, intrinsic_shift_total_top
@@ -783,9 +792,9 @@ subroutine get_real_surface_binwidth(self, points, elevation, include_zeromode, 
 		endif
 		
 		!Get elevation at point from sum of modes
-		do ui = -qu_, qu_
-		do vi = -qu_, qu_
-			j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
+        do ui = -qu_(1), qu_(1)
+        do vi = -qu_(2), qu_(2)
+            j = (self%qm(1) + self%qm(2) + 1) * (ui + self%qm(1)) + (vi + self%qm(2)) + 1
 			elevation(i) = elevation(i) + self%coeff(j) & 
 						* wave_function(points(i,self%ixyz), ui, self%box(self%ixyz)) & 
 						* wave_function(points(i,self%jxyz), vi, self%box(self%jxyz)) 
@@ -824,10 +833,11 @@ subroutine get_real_surface_derivative(self, points, dSdr, qu)
 	class(intrinsic_surface_real) :: self
 
     double precision, intent(in), dimension(:,:), allocatable ::  points
-    double precision, intent(in), optional ::  qu
+    integer, intent(in), dimension(2), optional ::  qu
     double precision, intent(out), dimension(:,:), allocatable :: dSdr
 
-    integer :: j, ui, vi, qu_
+    integer :: j, ui, vi
+    integer, dimension(2) :: qu_
 
     if (present(qu)) then
         qu_ = qu
@@ -837,9 +847,10 @@ subroutine get_real_surface_derivative(self, points, dSdr, qu)
 
     allocate(dSdr(size(points,1),2))
     dSdr = 0.d0
-    do ui = -qu_, qu_
-    do vi = -qu_, qu_
-        j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
+    do ui = -qu_(1), qu_(1)
+    do vi = -qu_(2), qu_(2)
+        j = (2*self%qm(2) + 1) * (ui + self%qm(1)) + (vi + self%qm(2)) + 1
+        !j = (2 * self%qm + 1) * (ui + self%qm) + (vi + self%qm) + 1
         dSdr(:,1) = dSdr(:,1) + self%coeff(j) & 
                    * derivative_wave_function(points(:,self%ixyz), ui, & 
                                               self%box(self%ixyz)) & 
@@ -941,7 +952,7 @@ subroutine get_bilinear_surface(self, points, elevation, include_zeromode, qu)
     double precision, intent(out), dimension(:), allocatable :: elevation
 
 	logical, intent(in), optional :: include_zeromode
-    double precision, intent(in), optional ::  qu
+    integer, dimension(2), intent(in), optional ::  qu
 
 	integer :: i, j, k, n, bins(2)
     double precision, dimension(:), allocatable :: e
@@ -987,7 +998,7 @@ subroutine get_bilinear_surface_derivative(self, points, dSdr, qu)
 	class(intrinsic_surface_bilinear) :: self
 
     double precision, intent(in), dimension(:,:), allocatable ::  points
-    double precision, intent(in), optional ::  qu
+    integer, dimension(2), intent(in), optional ::  qu
     double precision, intent(out), dimension(:,:), allocatable :: dSdr
 
 	integer :: i, j, k, n, bins(2)
@@ -1190,7 +1201,7 @@ subroutine get_zero_mode(self, zeromode)
     integer :: j
     real(kind(0.d0)) :: zeromode
 
-    j = (2 * self%qm + 1) * self%qm + self%qm + 1
+    j = (self%qm(1) + self%qm(2) + 1) * self%qm(1) + self%qm(2) + 1
     zeromode = self%coeff(j)
 
 end subroutine get_zero_mode
@@ -2148,7 +2159,7 @@ subroutine sample_intrinsic_surface(self, vertices, nbins, writeiter)
 
     logical          :: debug=.false., writeobj=.false.
     logical, save    :: first_time = .true.
-    integer          :: i, j, k, n, v, ixyz, jxyz, fileno, qm, qu
+    integer          :: i, j, k, n, v, ixyz, jxyz, fileno
     real(kind(0.d0)) :: vert(4), area
     real(kind(0.d0)), dimension(:), allocatable :: elevation
     real(kind(0.d0)), dimension(:,:), allocatable :: points
@@ -2695,7 +2706,7 @@ subroutine fit_intrinsic_surface_modes(self, points, tau, ns, pivots)
     double precision, intent(in), dimension(:,:), allocatable ::  points
     integer, dimension(:), allocatable, intent(inout) :: pivots
 
-    integer :: i, j, ixyz, jxyz, sp, ntarget, try, maxtry=100, qm, qu
+    integer :: i, j, ixyz, jxyz, sp, ntarget, try, maxtry=100
     integer, dimension(2) :: modes_shape
     integer, dimension(:), allocatable :: indices, new_pivots, initial_pivots
     !integer, dimension(:), allocatable, save :: pivots
