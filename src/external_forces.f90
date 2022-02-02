@@ -2746,7 +2746,7 @@ end subroutine CFD_cells_to_MD_compute_cells
 
 
 
-subroutine point_sphere_cylinder(centre,targetradius,start_iter,rdim)
+subroutine point_sphere_cylinder(centre,targetradius,start_iter,rdim, magnitude)
 	use arrays_MD, only : r,a
 	use physical_constants_MD, only : np, pi
 	use computational_constants_MD, only : iter
@@ -2754,11 +2754,11 @@ subroutine point_sphere_cylinder(centre,targetradius,start_iter,rdim)
 	implicit none
 
 	integer,optional,intent(in)			        :: start_iter, rdim
-	real(kind(0.d0)), intent(in)			    :: targetradius
+	real(kind(0.d0)), intent(in)			    :: targetradius, magnitude
 	real(kind(0.d0)), dimension(3), intent(in)	:: centre
 
 	integer						    :: n, start
-	real(kind(0.d0)) 				:: radius, radius2, Fapplied, magnitude
+	real(kind(0.d0)) 				:: radius, radius2, Fapplied
 	real(kind(0.d0)) 				:: rspherical,rspherical2
 	real(kind(0.d0)), dimension(3)	:: rmapped
 
@@ -2769,14 +2769,13 @@ subroutine point_sphere_cylinder(centre,targetradius,start_iter,rdim)
 		start = 1
 	endif
 	radius = min((iter-start)/1000.d0,targetradius)
-	magnitude = 10.d0
 
 	!Define square of radius
 	radius2 = radius**2
 
 	! Loop through all molecules
 	do n=1,np
-		rmapped = globalise(r(:,n)-centre) !Map to origin of sphere
+		rmapped = globalise(r(:,n))-centre !Map to origin of sphere
         !If cylinder no force along dimension rdim, 
         if (present(rdim) .and. rdim .ne. 0) then
             rmapped(rdim) = 0.d0

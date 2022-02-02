@@ -1013,9 +1013,11 @@ subroutine setup_restart_microstate()
     integer(kind=MPI_OFFSET_KIND)                :: disp, procdisp
     integer, dimension(:), allocatable           :: bufsize
     real(kind(0.d0))                             :: tagtemp, moltypetemp, globnotemp
-    real(kind(0.d0)), dimension (nd)             :: rtemp,vtemp,rtruetemp,rtethertemp
+    real(kind(0.d0)), dimension (nd)             :: rtemp,vtemp,rtruetemp,rtethertemp, vsum_after
     real(kind(0.d0)), dimension (nsdmi)          :: monomertemp
     real(kind(0.d0)), dimension (:), allocatable :: buf !Temporary variable
+    real(kind(0.d0)), dimension (:,:), allocatable :: rand 
+
 
     allocate(bufsize(nproc))
     bufsize = 0
@@ -1294,6 +1296,22 @@ subroutine setup_restart_microstate()
     case default
         call error_abort('Unidentified initial velocity flag')  
     end select
+
+	! Add a small random number to velocity of every molecule
+	! and subtract any resultant component after
+	if (nudge_restart .eq. 1) then
+		allocate(rand(3,np))
+		call random_number(rand)
+		vtemp(:) = sum(v,2)
+		do n=1,np
+			!print*, nudge_magnitude*rand(:,n)
+			v(:,n) = v(:,n) + nudge_magnitude*rand(:,n)
+		enddo
+		vsum_after(:) = sum(v,2)
+		v(:,n) = v(:,n) - (vsum_after - vtemp)
+		print*, "Applying nudge mad=", nudge_magnitude, "vsum before=", vtemp, "nudge vsum=", &
+				(vsum_after - vtemp), " vsum after=", sum(v,2)
+	endif
 
 end subroutine setup_restart_microstate
 

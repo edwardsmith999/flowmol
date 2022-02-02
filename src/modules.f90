@@ -55,7 +55,8 @@ module computational_constants_MD
 	integer                 	  :: tether_flag     	 !True if there exists 
 	integer                 	  :: external_force_flag !Apply external forces?
 	integer                 	  :: F_ext_ixyz			 !Direction of external forces
-	real(kind(0.d0))        	  :: F_ext				 !Magnitude of external forces
+	real(kind(0.d0))        	  :: F_ext				 !Magnitude of external forces or radius (if radial force)
+	real(kind(0.d0))        	  :: F_ext_radial   	 !Magnitude of radial forces
     real(kind(0.d0)),dimension(2) :: eij_wall            !Interaction potential strength for substrate wall
 	real(kind(0.d0)),dimension(3) :: F_ext_centre		 !Centre of sphere/cylinder for force
 	real(kind(0.d0)),dimension(6) :: F_ext_limits		 !Limits of region external forces applied to
@@ -116,7 +117,8 @@ module computational_constants_MD
 
     !Misc flags
     integer :: global_numbering         !Enforce global molecular numbering
-    integer :: reset_tags_on_restart !Reset tags on restart
+    integer :: reset_tags_on_restart 	!Reset tags on restart
+	integer :: nudge_restart 			!Add a negligable random amount to every velocity values on restart  
 
 	!Initial configuration selection
 	integer           	:: initial_config_flag
@@ -135,6 +137,7 @@ module computational_constants_MD
 	character(len=128)	:: velocity_special_case
 	character(len=128)	:: DNS_filename
 	integer           	:: DNS_ngx,DNS_ngy,DNS_ngz
+	real(kind(0.d0))	:: nudge_magnitude
 
 
 	!Write a separate file for each timestep
