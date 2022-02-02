@@ -1327,8 +1327,8 @@ subroutine setup_initialise_polymer_brush
     ! Connect all the chains we can, bonds to be removed later 
     ! Store maximum number of chains
     solid_density = density
-    call setup_initialise_lattice
-    call initialise_info
+    call setup_initialise_lattice()
+    call initialise_info()
 
     ! Remove chains to get target grafting density (as close as possible) 
     if (jblock .eq. 1) then
@@ -1359,24 +1359,18 @@ subroutine setup_initialise_polymer_brush
             call error_abort('Aborting') 
         end if
 
-
         proc_units_xz = initialnunits(1)*initialnunits(3)/(npx*npz) 
         grafting_density = real(proc_chains(irank))/real(proc_units_xz)
         if (irank .eq. 1) then
             print('(a,f10.5)'), 'Actual grafting density: ', grafting_density 
         end if
 
-
         ! Shift the y-positions of chain monomers so that they are all separated
         ! by their equilibrium distance.
-        call contract_chains_to_equil_sep
-
-
+        call contract_chains_to_equil_sep()
     else
-
         maxchainID = 0
         proc_chains(irank) = 0
-
     end if
 
 
@@ -1387,8 +1381,6 @@ subroutine setup_initialise_polymer_brush
     nmolsremove = nint(real(np - np_poly)*(1.d0 - density_ratio))
     call remove_solvent_mols(nmolsremove)
     proc_nps(irank) = np
-
-
 
     ! Relabel chainIDs globally
     call globalSum(proc_chains,nproc)
