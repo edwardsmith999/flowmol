@@ -21,16 +21,17 @@ class final_state:
     def read_header(self, verbose=False):
 
         #Assume 14 doubles and work out integers
-        ndbls = 14; ntrlint=4
-        noints = int((len(self.binaryheader) - ndbls*8)/4)-ntrlint
-        self.fmtstr = str(noints) + "i"+str(ndbls) +"d"+ str(ntrlint) + "i"
+        self.ndbls = 14; self.ntrlint=4
+        self.noints = int((len(self.binaryheader) - self.ndbls*8)/4)-self.ntrlint
+        self.fmtstr = str(self.noints) + "i"+str(self.ndbls) +"d"+ str(self.ntrlint) + "i"
+        print(self.fmtstr)
         self.hdata = list(struct.unpack(self.fmtstr, self.binaryheader))
         self.htypes = ["globalnp", "initialunits1", 
                       "initialunits2", "initialunits3", 
                       "Nsteps", "tplot", "seed1", "seed2",
                       "periodic1", "periodic2", "periodic3",
                       "potential_flag","rtrue_flag","solvent_flag",
-                      "nmonomers","npx","xpy","npz"]
+                      "nmonomers","npx","npy","npz"]
 
         nproc = int(self.hdata[15])*int(self.hdata[16])*int(self.hdata[17])
         self.nproc = nproc
@@ -47,6 +48,8 @@ class final_state:
 
         self.headerDict = {}
         for i in range(len(self.hdata)):
+            if verbose:
+                print(i, self.htypes[i], self.hdata[i])
             self.headerDict[self.htypes[i]]=self.hdata[i]
 
         if verbose:
@@ -245,14 +248,29 @@ class final_state:
             for p in range(self.nproc):
                 proctethernp += h["proctethernp"+str(p)]
             h["proctethernp0"] = proctethernp
+            delindx = []
+
         #Update hdata
         for i in range(len(self.hdata)):
             if (verbose or self.hdata[i] != self.headerDict[self.htypes[i]]):
                     print("UPDATE", i, self.htypes[i], "before=", self.hdata[i], 
                           "after=", self.headerDict[self.htypes[i]])
             self.hdata[i] = self.headerDict[self.htypes[i]]
+            if self.molecules_deleted:
+                if (   ("procnp" in self.htypes[i] and self.htypes[i] != "procnp0")
+                    or ("proctethernp" in self.htypes[i] and self.htypes[i] != "proctethernp0")):
+                    print("Flagged for Delete", i, self.htypes[i], self.hdata[i]) 
+                    delindx.append(i)
+
+        #Delete all other processor tallies if molecules removed
+        if self.molecules_deleted:
+            for indx in sorted(delindx, reverse=True):
+                print("Deleting", self.htypes[indx], self.hdata[indx]) 
+                del self.htypes[indx]
+                del self.hdata[indx]
 
         #Update binaryheader
+        self.fmtstr = str(self.noints-len(delindx)) + "i"+str(self.ndbls) +"d"+ str(self.ntrlint) + "i"
         binaryheader = struct.pack(self.fmtstr, *self.hdata)
 
         #Write header at end of file
@@ -269,15 +287,23 @@ if __name__ == "__main__":
     ax.append(fig.add_subplot(1,2,1,projection='3d'))
     ax.append(fig.add_subplot(1,2,2,projection='3d'))
 
-    fs = final_state("./final_state", verbose=False)
+    #Create a final state object
+    fs = final_state("./final_state", verbose=True)
+
+    #read the data
     tag, r, v = fs.read_moldata()
+    #Plot it
     fs.plot_molecules(ax[0])
     
+    #Remove molecules   (currently this is based on a similar setup to the external force)
+    # where inputs are position [x,y,z], radius and then direction (x=0, y=1, z=2).
     fs.remove_molecules([0.,0.,0.],4,0)
-    fs.write_moldata("./final_state_hole", verbose=False)
 
+    #write a new initial_state file
+    fs.write_moldata("./final_state_hole", verbose=True)
+
+    #read the new initial_state file and plot
     fst = final_state("./final_state_hole", verbose=True)
     tag, r, v = fst.read_moldata()
-
     fst.plot_molecules(ax[1])
     plt.show()
