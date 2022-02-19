@@ -877,11 +877,12 @@ subroutine setup_restart_inputs()
         
             !Read 2 other global domain values followed by density and check they match
             do ixyz = 1,nd
-                if (checkdp .ne. globaldomain(ixyz)) then
-                    print*, 'Discrepancy between globaldomain(', ixyz, ')', globaldomain(ixyz), checkdp, &
-                            'in input & restart file - restart file will be used'
-                    globaldomain(ixyz) = checkdp
-                endif
+                globaldomain(ixyz) = checkdp
+                !if (checkdp .ne. globaldomain(ixyz)) then
+                !    print*, 'Discrepancy between globaldomain(', ixyz, ')', globaldomain(ixyz), checkdp, &
+                !            'in input & restart file - restart file will be used'
+                !    globaldomain(ixyz) = checkdp
+                !endif
                 call MPI_File_read(restartfileid,checkdp         ,1,MPI_DOUBLE_PRECISION,MPI_STATUS_IGNORE,ierr)
             end do
             if (checkdp .ne. density) then
@@ -1116,7 +1117,7 @@ subroutine setup_restart_microstate()
             !Create global number if not present in restart file
             elseif (global_numbering .eq. 2) then
                 glob_no(nl) = nl + sum(procnp(1:irank-1))
-                write(2530,*) nl, glob_no(nl)
+                !write(2530,*) nl, glob_no(nl)
             endif
             if (potential_flag.eq.1) then
                 !Read monomer data
@@ -1305,7 +1306,7 @@ subroutine setup_restart_microstate()
 		vtemp(:) = sum(v,2)
 		do n=1,np
 			!print*, nudge_magnitude*rand(:,n)
-			v(:,n) = v(:,n) + nudge_magnitude*rand(:,n)
+			v(:,n) = v(:,n) + nudge_magnitude*(2.d0*rand(:,n)-1.d0)
 		enddo
 		vsum_after(:) = sum(v,2)
 		v(:,n) = v(:,n) - (vsum_after - vtemp)
