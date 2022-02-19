@@ -77,8 +77,8 @@ module module_record
 
 #endif
 	real(kind(0.d0)) :: vel
-	class(intrinsic_surface_real), pointer :: ISR, ISR_mdt
-	type(intrinsic_surface_real), target		:: ISR_r, ISR_mdt_r	! declare an instance
+	class(intrinsic_surface_real), pointer          :: ISR, ISR_mdt
+	type(intrinsic_surface_real), target		    :: ISR_r, ISR_mdt_r	! declare an instance
 	type(intrinsic_surface_bilinear), target		:: ISR_b, ISR_mdt_b	! declare an instance
 	type(intrinsic_surface_chebychev), target		:: ISR_c, ISR_mdt_c	! declare an instance
 
@@ -1466,7 +1466,7 @@ subroutine velocity_PDF_averaging(ixyz)
     integer,intent(in)      :: ixyz
 
 	integer                 :: n, i,j,k, jxyz,kxyz
-	integer, save		    :: sample_count=-1
+	integer, save		    :: sample_count=0
 
 	integer,dimension(3)	:: cbin
 	integer,dimension(:,:),allocatable          :: pdfx,pdfy,pdfz
@@ -2381,7 +2381,7 @@ subroutine mass_averaging(ixyz)
 	implicit none
 
 	integer							:: ixyz
-	integer, save					:: sample_count = -1
+	integer, save					:: sample_count = 0
 
 	sample_count = sample_count + 1
 	call cumulative_mass(ixyz)
@@ -2550,7 +2550,7 @@ subroutine momentum_averaging(ixyz)
 
 	integer				:: ixyz, n
 	integer,dimension(3):: ib
-	integer, save		:: sample_count = -1
+	integer, save		:: sample_count = 0
 	real(kind(0.d0)),dimension(3) 	:: Vbinsize
 
 	sample_count = sample_count + 1
@@ -2763,7 +2763,7 @@ subroutine temperature_averaging(ixyz)
 	implicit none
 
 	integer				:: ixyz
-	integer, save		:: sample_count = -1
+	integer, save		:: sample_count = 0
 	
 	sample_count = sample_count + 1
 	call cumulative_temperature(ixyz)
@@ -2932,7 +2932,7 @@ subroutine energy_averaging(ixyz)
 	implicit none
 
 	integer				:: ixyz
-	integer, save		:: sample_count = -1
+	integer, save		:: sample_count = 0
 	
 	sample_count = sample_count + 1
 	call cumulative_energy(ixyz)
@@ -3025,7 +3025,7 @@ subroutine centre_of_mass_averaging(ixyz)
 
 	integer				            :: ixyz
 	integer,dimension(3)            :: ib
-	integer, save		            :: sample_count = -1
+	integer, save		            :: sample_count = 0
 	real(kind(0.d0)),dimension(3) 	:: Vbinsize
 
 	sample_count = sample_count + 1
@@ -4595,7 +4595,7 @@ subroutine heatflux_averaging(ixyz)
 	implicit none
 
 	integer			:: ixyz
-	integer, save	:: sample_count = -1
+	integer, save	:: sample_count = 0
 
 	sample_count = sample_count + 1
 	call cumulative_heatflux(ixyz,sample_count)
@@ -4719,7 +4719,7 @@ subroutine bforce_pdf_stats
     use statistics_io, only: bforce_pdf_write
     implicit none
 
-	integer, save		:: sample_count=-1
+	integer, save		:: sample_count=0
 
     sample_count = sample_count + 1
     call collect_bforce_pdf_data
@@ -8213,32 +8213,6 @@ contains
             ns =  II_ns !0.8d0
             topbot = II_topbot
 
-            if (first_time) then
-				if (intrinsic_interface_outflag .eq. 1) then
-					ISR => ISR_r
-					ISR_mdt => ISR_mdt_r
-				elseif (intrinsic_interface_outflag .eq. 2) then
-					ISR => ISR_b
-					ISR_mdt => ISR_mdt_b
-				elseif (intrinsic_interface_outflag .eq. 3) then
-					ISR => ISR_c
-					ISR_mdt => ISR_mdt_c
-				endif
-                call ISR%initialise(globaldomain, normal, alpha, eps, & 
-                                    nbins, nhb, topbot, periodic)   ! initialise
-                call ISR_mdt%initialise(globaldomain, normal, alpha, eps, & 
-                                     nbins, nhb, topbot, periodic)  ! initialise
-                first_time = .false.
-			!else
-				!do i=1,np
-					!print*, i, r(:,i), get_bin(r(:,i)), get_bin_molno(i)
-					!if (any(get_bin(r(:,i)) .ne. get_bin_molno(i))) then 
-					!	print*, "Error in ISR%get_bin",i,r(:,i), get_bin(r(:,i)), get_bin_molno(i)
-					!endif
-				!enddo
-
-            endif
-
             !Only recheck external molecules of cluster every tplot timesteps
             if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 
@@ -8255,19 +8229,42 @@ contains
                     points(i,3) = rnp(3,i)
                 enddo
 
-				!Copy previous object before updating
-				!if (.not. first_time_coeff) then
-				!ISR%coeff = 0.d0
-				ISR_mdt%coeff = ISR%coeff
-				if (any(intrinsic_interface_outflag .eq. (/ 2, 3 /))) then
-					ISR_mdt%Abilinear = ISR%Abilinear
-					ISR_mdt%intrnsc_smple = ISR%intrnsc_smple
-				endif
-				!endif
+                if (first_time) then
+				    if (intrinsic_interface_outflag .eq. 1) then
+					    ISR => ISR_r
+					    ISR_mdt => ISR_mdt_r
+				    elseif (intrinsic_interface_outflag .eq. 2) then
+					    ISR => ISR_b
+					    ISR_mdt => ISR_mdt_b
+				    elseif (intrinsic_interface_outflag .eq. 3) then
+					    ISR => ISR_c
+					    ISR_mdt => ISR_mdt_c
+				    endif
+                    call ISR%initialise(globaldomain, normal, alpha, eps, & 
+                                        nbins, nhb, topbot, periodic)   ! initialise
+                    call ISR_mdt%initialise(globaldomain, normal, alpha, eps, & 
+                                         nbins, nhb, topbot, periodic)  ! initialise
+                    
+                    !Fit the surface at time minus dt if first time
+				    call ISR_mdt%fit_intrinsic_surface(points, tau, ns, pivots)
+                    first_time = .false.
+
+                else
+				    !Copy previous surface object before updating
+                    !This would ideally be handled by a copy
+                    !overloading of the object 
+                    !     generic :: assignment(=) => copy
+                    !but this seems to be buggy in Fortran
+				    ISR_mdt%coeff = ISR%coeff
+				    if (any(intrinsic_interface_outflag .eq. (/ 2, 3 /))) then
+					    ISR_mdt%Abilinear = ISR%Abilinear
+					    ISR_mdt%intrnsc_smple = ISR%intrnsc_smple
+				    endif
+
+                endif
 
                 !Get surface in terms of modes
-				call ISR%fit_intrinsic_surface(points, tau, ns, pivots)
-
+			    call ISR%fit_intrinsic_surface(points, tau, ns, pivots)
 
                 !print*, "Area = ", ISR%area, ISR%intrinsic_area(), ISR_b%intrinsic_area_bilinear()
  				
