@@ -2062,23 +2062,50 @@ end subroutine write_wave_xyz
 
 
 !Really simple, just dump all middle of grid values
-subroutine write_grid(vertices)
+subroutine write_grid(vertices, get_midpoint)
     implicit none
 
     real(kind(0.d0)), dimension(:,:,:), intent(in), allocatable :: vertices
+    logical, intent(in), optional :: get_midpoint
 
     logical, save    :: first_time = .true.
-    integer          :: v, i, fileno
+    logical          :: mid
+    integer          :: v, i, fileno, offset
+    integer, save    :: writecnt
     character(200)   :: filename
-    
-    filename = "./surface.grid"
-    if (first_time) then
-        open(fileno, file=trim(filename), status='replace')
-        first_time = .false.
+
+    if (present(get_midpoint)) then
+        !Average all 4 vertices to get a single midpoint
+        mid = get_midpoint
     else
-        open(fileno, file=trim(filename),access='append')
+        !Write out all vertices (note 4 times data and repeated but better for plotting)
+        mid = .true.
     endif
-    write(fileno,*) 0.25d0*(vertices(:,1,1)+vertices(:,2,1)+vertices(:,3,1)+vertices(:,4,1))
+    
+    filename = "./results/surface.grid"
+    if (first_time) then
+        open(fileno,file=trim(filename),status="replace", action="write", &
+              access='stream', form='unformatted')
+        first_time = .false.
+        !First write y and z locations of vertices in a header
+        if (mid) then
+            write(fileno) 0.25d0*(vertices(:,1,2)+vertices(:,2,2)+vertices(:,3,2)+vertices(:,4,2))
+            write(fileno) 0.25d0*(vertices(:,1,3)+vertices(:,2,3)+vertices(:,3,3)+vertices(:,4,3))
+        else
+            write(fileno) vertices(:,:,2)
+            write(fileno) vertices(:,:,3)
+        endif
+    else
+        open(fileno, file=trim(filename), status="old", action="write", & 
+             access='stream', form='unformatted' ,position='append')
+    endif
+
+    !Write data each time at offset
+    if (mid) then
+        write(fileno) 0.25d0*(vertices(:,1,1)+vertices(:,2,1)+vertices(:,3,1)+vertices(:,4,1))
+    else
+        write(fileno) vertices(:,:,1)
+    endif
     close(fileno)
 
 end subroutine write_grid
