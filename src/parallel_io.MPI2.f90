@@ -809,8 +809,9 @@ subroutine setup_restart_inputs()
 
         procnp = 0; proc_reorder = 0;   prev_nproc = 1
         !Small debugging run (nproc<27) - if proc mismatch use serial reordering (all read everything and discard)
-        if(npx .le. 3 .and. npy .le. 3 .and. npz .le. 3) then
-            error_message = 'Small debug run (less than 3 x 3 x 3 processors). &
+        !if(npx .le. 3 .and. npy .le. 3 .and. npz .le. 3) then
+        if(npx*npy*npz .le. 1024) then
+            error_message = 'Small debug run (less than 1024 processors). &
                             &Molecules will be assigned to correct processors - all read everything and discard'
             call MPI_File_read(restartfileid,checkint        ,1,MPI_INTEGER,MPI_STATUS_IGNORE,ierr)
             if (checkint .ne. npx)  proc_reorder = 1; prev_nproc = prev_nproc*checkint
