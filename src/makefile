@@ -78,10 +78,16 @@ O_MD_P = $(addprefix obj/,$(F90_MD_FILES_P:.f90=.o))
 ifndef NO_ASSMBLY_HEAVISIDES
   O_ASSEMBLY_FILES = $(addprefix obj/,$(ASSEMBLY_FILES:.s=.o))
 endif
+
 ifdef USE_LAPACK
   O_LAPACK_FILES = $(addprefix obj/,$(LAPACK_FILES:lapack.f90=.o))
   LDFLAGS=-llapack -lblas  #system libraries
   #LDFLAGS=lapack-3.8.0/lib* #local build
+endif
+
+ifdef PROFILE
+  FFLAGS += -pg
+  LDFLAGS += -pg
 endif
 
 # If coupled, link to static library coupler.a
@@ -93,6 +99,7 @@ ifeq ($(strip $(USE_COUPLER)),yes)
   FFLAGS  += -I$(CPL_INC_DIR) # Object generation flags
   LDFLAGS += -L$(CPL_LIB_DIR) -Wl,-rpath=$(CPL_LIB_DIR) -lcpl
 endif
+
 
 CU = nvcc
 .SUFFIXES: .exe .o .f90 .cu .inc
@@ -135,7 +142,7 @@ profile_s:
 memprofile_s:
 	@make serial_md.exe "FFLAGS = -O3 -g"; valgrind --tool=cachegrind ./md.exe
 profile_p:
-	@make $(MD_EXE) "FFLAGS = -O3 -g -pg -cpp -DUSE_COUPLER=0 -O3 -funroll-loops -Jobj -cpp -DUSE_COUPLER=0 -fno-underscoring"
+	@make $(MD_EXE) "FFLAGS = -O3 -pg -funroll-loops -Jobj -fno-underscoring -cpp -DUSE_LAPACK=1 -fPIC" "LDFLAGS=-llapack -lblas"
 version:
 	@echo "function version()" > version.f90
 	@echo "   character(100) :: version" >> version.f90
