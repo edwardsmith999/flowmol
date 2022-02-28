@@ -194,9 +194,6 @@ subroutine reformat_dcd
 			read(17) Xbuf(starti:endi)
 			read(17) Ybuf(starti:endi)
 			read(17) Zbuf(starti:endi)
-			!read(18) Xbuf(globalnp*(i-1)+1:globalnp*i)
-			!read(18) Ybuf(globalnp*(i-1)+1:globalnp*i)
-			!read(18) Zbuf(globalnp*(i-1)+1:globalnp*i)
 			if (mod(i,plot_mod) .eq. 0) then
 				call progress(100*i/NSET)
 			end if
@@ -217,9 +214,6 @@ subroutine reformat_dcd
 			write(3) Xbuf(starti:endi)
 			write(3) Ybuf(starti:endi)
 			write(3) Zbuf(starti:endi)
-			!write(4) Xbuf((i-1)*globalnp+1:i*globalnp)
-			!write(4) Ybuf((i-1)*globalnp+1:i*globalnp)
-			!write(4) Zbuf((i-1)*globalnp+1:i*globalnp)
 			if (mod(i,plot_mod) .eq. 0) then
 				call progress(100*i/NSET)
 			end if

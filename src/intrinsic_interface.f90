@@ -93,7 +93,7 @@ module intrinsic_module
 			procedure :: get_crossings => get_crossings_bilinear
 
 			!New specialist routines
-    		procedure :: update_sampled_surface => update_sampled_surface
+    		procedure :: update_sampled_surface => update_sampled_surface!_opt
 			procedure :: get_surface_bilinear => get_surface_bilinear
 			procedure :: paramterise_bilinear_surface => paramterise_bilinear_surface
 			procedure :: get_surface_derivative_from_bilinear => get_surface_derivative_from_bilinear
@@ -377,10 +377,6 @@ subroutine initialise(self, box, normal, alpha, eps, &
     self%topbot = topbot
     self%periodic = periodic
 
-    !Assume domain is square and nwaves same in both tangential directions
-    if (abs(box(self%ixyz)-box(self%jxyz)) .gt. 1e-1) then
-        print*, "WARNING -only square domain coded so intrinsic resolution is higher in smaller tangential direction"
-    endif
     self%area = box(self%ixyz)*box(self%jxyz)
     self%qm(1) = int(box(self%ixyz)/alpha)
     self%qm(2) = int(box(self%jxyz)/alpha)
@@ -390,6 +386,13 @@ subroutine initialise(self, box, normal, alpha, eps, &
 
     !print*, "initialise intrinsic function", box, normal, alpha, eps, & 
     !        nbins, nhb, topbot, self%qm, self%n_waves
+
+    !Assume domain is square and nwaves same in both tangential directions
+    if (abs(box(self%ixyz)-box(self%jxyz)) .gt. 1e-1) then
+        print'(a,2(i6,a,f10.5))', "Intrinsic Inteface - Domain not square, using ", & 
+            self%n_waves(1), " modes with sidelength ", box(self%ixyz), &
+            self%n_waves(2), " modes with sidelength ", box(self%jxyz)
+    endif
 
     allocate(self%u(self%n_waves2), self%v(self%n_waves2))
 	allocate(self%coeff(self%n_waves2))
@@ -2299,13 +2302,11 @@ subroutine update_sampled_surface(self, nbins, nhb)
 		call self%paramterise_bilinear_surface(points, A)
 		self%Abilinear(:,:,j,k) = A(:,:)
 
+		!DEBUG
 		!call self%get_surface_bilinear(points, self%Abilinear(:,:,j,k), elevationtest)
 		!if (elevationtest(1) .ne. self%intrnsc_smple(j,k)) then
 		!	print'(a,2i6,5f10.5)', "intrnsc_smple != surface_bilinear", j,k,elevationtest, self%intrnsc_smple(j,k)
 		!endif
-
-
-		!DEBUG
 		!call self%get_surface_bilinear(points, A, elevationtest)
         !print*, elevation - elevationtest
 		!print'(a,2i4,16f10.5)', "sampled_surf", j, k, points(:,self%normal)-elevationtest, & 
@@ -2315,6 +2316,7 @@ subroutine update_sampled_surface(self, nbins, nhb)
     enddo
 	
 end subroutine update_sampled_surface
+
 
 
 subroutine get_sampled_surface(self, r, points)
@@ -2846,12 +2848,12 @@ subroutine fit_intrinsic_surface_modes(self, points, tau, ns, pivots)
 
 	!This was handled by defining a constructor which called the parent
 	!constructor but then type is parent
-	select type (self)
-	class is (intrinsic_surface_bilinear)
+	!select type (self)
+	!class is (intrinsic_surface_bilinear)
 		!Update the saved surface at locations to use for quick surface 
 		!interaction calculations 
-		call self%update_sampled_surface(self%nbins, self%nhb)
-	end select
+	!	call self%update_sampled_surface(self%nbins, self%nhb)
+	!end select
 
     !Plot updated surface error
     !DEBUG DEBUG DEBUG DEBUG
@@ -3312,4 +3314,79 @@ end module intrinsic_module
 !                   
 
 !end program test
+
+
+
+!subroutine update_sampled_surface_opt(self, nbins, nhb)
+!    implicit none
+
+!	class(intrinsic_surface_bilinear) :: self
+
+!    integer,intent(in),dimension(3), optional :: nbins, nhb
+
+!    logical          :: debug=.false., writeobj=.false.
+!    logical, save    :: first_time = .true.
+!    integer          :: n, j, k, Allbins
+!    real(kind(0.d0)) :: v(4), binsize(3), A(2,2)
+!    real(kind(0.d0)), dimension(:), allocatable :: elevation
+!    real(kind(0.d0)), dimension(:,:), allocatable :: points, lpoints
+
+!    integer,dimension(3) 	:: nbins_, nhb_
+! 	
+!    print*, "update_sampled_surface_opt"
+
+!	if (present(nbins) .and. present(nhb)) then
+!		binsize = self%box/float(nbins)
+!		nbins_ = nbins
+!		nhb_ = nhb
+!	else
+!		binsize = self%binsize
+!		nhb_ = self%nhb
+!		nbins_ = self%nbins
+!	endif
+
+!    Allbins =  (self%nbins(self%ixyz)+2*self%nhb(self%ixyz)) &
+!	          *(self%nbins(self%jxyz)+2*self%nhb(self%jxyz))
+!	allocate(points(4*Allbins,3))
+!	allocate(lpoints(4,3))
+!    n = 0
+!    do j = 1,self%nbins(self%ixyz)+2*self%nhb(self%ixyz)
+!    do k = 1,self%nbins(self%jxyz)+2*self%nhb(self%jxyz)
+
+!		v = self%index_to_vertex(j,k)
+!		points(n+1,self%ixyz) = v(1); points(n+1,self%jxyz) = v(2) !Bottom left
+!		points(n+2,self%ixyz) = v(3); points(n+2,self%jxyz) = v(2) !Bottom right
+!		points(n+3,self%ixyz) = v(1); points(n+3,self%jxyz) = v(4) !Top left
+!		points(n+4,self%ixyz) = v(3); points(n+4,self%jxyz) = v(4) !Top right
+!        n = n + 4
+
+!    enddo
+!    enddo
+
+!    !Get all points in one go, might be more efficient
+!    select type (self)
+!    type is (intrinsic_surface_chebychev)
+!        call get_chebychev_surface(self, points, elevation, include_zeromode=.true.)
+!    class is (intrinsic_surface_bilinear)
+!        call get_real_surface(self, points, elevation, include_zeromode=.true.)
+!    end select
+
+!    n = 0
+!    do j = 1,self%nbins(self%ixyz)+2*self%nhb(self%ixyz)
+!    do k = 1,self%nbins(self%jxyz)+2*self%nhb(self%jxyz)
+
+!		lpoints(:,self%normal) = elevation(n+1:n+4)
+!        self%intrnsc_smple( j ,  k ) = elevation(n+1)
+!        self%intrnsc_smple(j+1,  k ) = elevation(n+2)
+!        self%intrnsc_smple(j  , k+1) = elevation(n+3)
+!        self%intrnsc_smple(j+1, k+1) = elevation(n+4)
+
+!		call self%paramterise_bilinear_surface(lpoints, A)
+!		self%Abilinear(:,:,j,k) = A(:,:)
+!        n = n + 4
+
+!    enddo
+!    enddo
+
+!end subroutine update_sampled_surface_opt
 

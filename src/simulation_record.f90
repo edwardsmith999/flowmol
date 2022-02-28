@@ -115,6 +115,10 @@ contains
 
         bin = ceiling((r+halfdomain)/binsize)+nhb
 
+        !bin(1) = ceiling((r(1)+halfdomain(1)+0.5d0*binsize(1))/binsize(1))+nhb(1)
+        !bin(2) = ceiling((r(2)+halfdomain(2))/binsize(2))+nhb(2)
+        !bin(3) = ceiling((r(3)+halfdomain(3))/binsize(3))+nhb(3)
+
     end function bin_from_integer_division
 
     function bin_molno_from_integer_division(n) result(bin)
@@ -126,7 +130,7 @@ contains
         integer,intent(in)       :: n
 	    integer,dimension(3) 	 :: bin
 
-        bin = ceiling((r(:,n)+halfdomain)/binsize)+nhb
+        bin = bin_from_integer_division(r(:,n))
 
     end function bin_molno_from_integer_division
 
@@ -4940,6 +4944,7 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR, surface_flux, st
  
 end subroutine cumulative_flux_opt
 
+! ----------------------------------------------------------------------------------
 
 subroutine cumulative_mass_flux_opt()
 	use module_record, only : cluster_analysis_outflag, np, r, v, & 
@@ -4987,11 +4992,12 @@ subroutine cumulative_mass_flux_opt()
 
 end subroutine cumulative_mass_flux_opt
 
+! ----------------------------------------------------------------------------------
+
 subroutine cumulative_momentum_flux_opt(r_,v_,momentum_flux_,notcrossing)
 	use module_record, only : cluster_analysis_outflag, np, & 
                              delta_t, intrinsic_interface_outflag, &
 							 ISR_mdt, momentum_surface_flux
-   use module_set_parameters, only : mass
    implicit none
 
 	real(kind(0.d0)),dimension(:,:),allocatable,intent(in) 			:: r_,v_
@@ -5021,9 +5027,9 @@ subroutine cumulative_momentum_flux_opt(r_,v_,momentum_flux_,notcrossing)
    allocate(quantity(3))
 
 	do n = 1,np
-		ri1(:) = r_(:,n) 							!Molecule i at time t
-		ri2(:) = r_(:,n)	- delta_t*v_(:,n)			!Molecule i at time t-dt
-       quantity(:) = v_(:,n)
+        ri1(:) = r_(:,n) 							!Molecule i at time t
+        ri2(:) = r_(:,n) - delta_t*v_(:,n)			!Molecule i at time t-dt
+        quantity(:) = v_(:,n)
 		if (use_bilinear) then
 			call cumulative_flux_opt(ri1, ri2, momentum_flux_, quantity, & 
                                      ISR_mdt, momentum_surface_flux)
@@ -5035,6 +5041,117 @@ subroutine cumulative_momentum_flux_opt(r_,v_,momentum_flux_,notcrossing)
    enddo
 
 end subroutine cumulative_momentum_flux_opt
+
+
+! ----------------------------------------------------------------------------------
+
+subroutine cumulative_surface_density_opt
+	use module_record, only : cluster_analysis_outflag, np, r, v, & 
+                              delta_t, intrinsic_interface_outflag, & 
+							  ISR_mdt, surface_density
+    use module_set_parameters, only : mass
+    implicit none
+
+    logical                         :: use_bilinear
+
+    integer :: i,j, n
+    real(kind(0.d0)),dimension(3)	:: ri1, ri2
+	real(kind(0.d0)),dimension(:), allocatable :: quantity
+	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable	:: temp
+
+   if (cluster_analysis_outflag .eq. 1 .and.  & 
+       any(intrinsic_interface_outflag .eq. (/1,2,3/))) then
+       use_bilinear = .true.
+   else
+       use_bilinear = .false.
+   endif
+
+    allocate(quantity(3))
+    allocate(temp(size(surface_density,1),    size(surface_density,2), & 
+                  size(surface_density,3), 3, size(surface_density,4)))
+    temp = 0.d0
+	do n = 1,np
+		ri1(:) = r(:,n) 							!Molecule i at time t
+		ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
+        quantity(:) = mass(n)/v(:,n)   !Quantity is mass / velocity
+		if (use_bilinear) then
+			call cumulative_flux_opt(ri1, ri2, temp, quantity, ISR_mdt)
+		else
+			call cumulative_flux_opt(ri1, ri2, temp, quantity)
+		endif
+    enddo
+
+	!Add 1/v to surface with normal same direction as velocity component, 
+    !e.g. for the x surface we add x velocity, for y surface y velocity, etc.
+    !To do this using cumulative_flux_opt we use 3 components and keep only the 
+    !ones along the right direction to get surface density
+    do i=1,3
+        surface_density(:,:,:,i  ) = surface_density(:,:,:,i  ) + temp(:,:,:,i,i  )
+        surface_density(:,:,:,i+3) = surface_density(:,:,:,i+3) + temp(:,:,:,i,i+3)
+    enddo
+    deallocate(temp)
+
+end subroutine cumulative_surface_density_opt
+
+
+! ----------------------------------------------------------------------------------
+
+subroutine cumulative_energy_flux_opt()
+	use module_record, only : cluster_analysis_outflag, np, r, v, a, & 
+                              delta_t, intrinsic_interface_outflag, & 
+							  energy_flux, ISR_mdt, energy_surface_flux, &
+                              potenergymol
+    use module_set_parameters, only : mass
+    implicit none
+
+    logical                         :: use_bilinear
+
+    integer :: n
+    real(kind(0.d0))            	:: energy
+    real(kind(0.d0)),dimension(3)	:: ri1, ri2, velvect
+	real(kind(0.d0)),dimension(:), allocatable :: quantity
+	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable	:: fluxes, surface_flux
+
+    if (cluster_analysis_outflag .eq. 1 .and.  & 
+        any(intrinsic_interface_outflag .eq. (/1,2,3/))) then
+        use_bilinear = .true.
+        if (.not. allocated(energy_surface_flux)) stop "energy_surface_flux not allocated, switch SURF_EVO_OUTFLAG on"
+		allocate(surface_flux(size(energy_surface_flux,1),    size(energy_surface_flux,2), & 
+							  size(energy_surface_flux,3), 1, size(energy_surface_flux,4)))
+		surface_flux(:,:,:,1,:) = energy_surface_flux(:,:,:,:)
+    else
+        use_bilinear = .false.
+    endif
+
+    allocate(quantity(1))
+
+
+    allocate(fluxes(size(energy_flux,1),    size(energy_flux,2), & 
+                    size(energy_flux,3), 1, size(energy_flux,4)))
+    fluxes(:,:,:,1,:) = energy_flux(:,:,:,:)
+
+	do n = 1,np
+		ri1(:) = r(:,n) 							!Molecule i at time t
+		ri2(:) = r(:,n)	- delta_t*v(:,n)			!Molecule i at time t-dt
+		!Calculate velocity at time of intersection
+		velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
+		energy = 0.5d0 * ( mass(n)*dot_product(velvect,velvect) + potenergymol(n))
+
+		!Change in velocity at time of crossing is not needed as velocity assumed constant 
+		!for timestep and changes when forces are applied.
+        quantity(1) = energy
+		if (use_bilinear) then
+			call cumulative_flux_opt(ri1, ri2, fluxes, quantity, &
+                                     ISR_mdt, surface_flux)
+		else
+			call cumulative_flux_opt(ri1, ri2, fluxes, quantity)
+		endif
+    enddo
+    energy_flux(:,:,:,:) = fluxes(:,:,:,1,:)
+    if (use_bilinear) energy_surface_flux(:,:,:,:) = surface_flux(:,:,:,1,:)
+
+end subroutine cumulative_energy_flux_opt
+
 
 
 end module flux_opt
@@ -5064,6 +5181,9 @@ subroutine control_volume_stresses_opt(fij, ri, rj)
 	quantity(:) = 2.d0*fij(:)
 	if (cluster_analysis_outflag .eq. 1 .and.  & 
 	   any(intrinsic_interface_outflag .eq. (/1,2,3/))) then
+        !We add momentum_surface_flux here so extra curvature
+        !terms can be put in the y and z direction of the moving
+        ! surface momentum_surface_flux term
 		call cumulative_flux_opt(ri, rj, Pxyface, quantity, & 
                                  ISR, momentum_surface_flux, .true.)
 	else
@@ -5076,6 +5196,61 @@ subroutine control_volume_stresses_opt(fij, ri, rj)
 	endif
 
 end subroutine control_volume_stresses_opt
+
+
+!===================================================================================
+! Power over each of the six surfaces of the cuboid
+
+subroutine control_volume_power_opt(fij, ri, rj, vi_t)
+    use module_record, only : ISR, Pxyvface, void, initialstep, &
+							  cluster_analysis_outflag, &
+							  intrinsic_interface_outflag, &
+                              energy_surface_flux
+	use flux_opt, only : cumulative_flux_opt
+    implicit none
+
+	real(kind(0.d0)),intent(in),dimension(3)	:: ri, rj, fij, vi_t
+
+    logical                         :: use_bilinear
+	real(kind(0.d0)),dimension(:), allocatable :: quantity
+	real(kind(0.d0)),dimension(:,:,:,:,:), allocatable	:: fluxes, surface_flux
+
+    if (cluster_analysis_outflag .eq. 1 .and.  & 
+        any(intrinsic_interface_outflag .eq. (/1,2,3/))) then
+        use_bilinear = .true.
+        if (.not. allocated(energy_surface_flux)) stop "energy_surface_flux not allocated, switch SURF_EVO_OUTFLAG on"
+		allocate(surface_flux(size(energy_surface_flux,1),    size(energy_surface_flux,2), & 
+							  size(energy_surface_flux,3), 1, size(energy_surface_flux,4)))
+		surface_flux(:,:,:,1,:) = energy_surface_flux(:,:,:,:)
+    else
+        use_bilinear = .false.
+    endif
+
+    allocate(fluxes(size(Pxyvface,1),    size(Pxyvface,2), & 
+                    size(Pxyvface,3), 1, size(Pxyvface,4)))
+    fluxes(:,:,:,1,:) = Pxyvface(:,:,:,:)
+
+
+	!Stress work acting on face over volume - add current value 
+    ! to use in trapizium rule later 
+	allocate(quantity(1))
+	quantity(1) = 2.d0 * dot_product(fij,vi_t)
+
+	if (cluster_analysis_outflag .eq. 1 .and.  & 
+	   any(intrinsic_interface_outflag .eq. (/1,2,3/))) then
+        !We add energy_surface_flux here so extra curvature
+        !terms can be put in the y and z direction of the moving
+        ! surface energy_surface_flux term
+		call cumulative_flux_opt(ri, rj, fluxes, quantity, ISR, surface_flux, .true.)
+	else
+		call cumulative_flux_opt(ri, rj, fluxes, quantity)
+	endif
+
+    Pxyvface(:,:,:,:) = fluxes(:,:,:,1,:)
+    if (use_bilinear) energy_surface_flux(:,:,:,:) = surface_flux(:,:,:,1,:)
+
+
+end subroutine control_volume_power_opt
 
 !-----------------------------------------------------------------------------------
 ! Control Volume mass continuity
@@ -5491,10 +5666,8 @@ subroutine momentum_snapshot
 	integer		,dimension(3)						:: ibin
 	real(kind(0.d0)) ,dimension(:,:,:)  ,allocatable		:: volume_mass_temp
 	real(kind(0.d0))								:: binvolume
-	real(kind(0.d0)),dimension(3)					:: mbinsize
 	real(kind(0.d0)),dimension(:,:,:,:),allocatable :: volume_momentum_temp
 
-	mbinsize(:) = domain(:) / nbins(:)
 
 	!Allocate temporary array for mass and momentum in volume
 	allocate(volume_mass_temp(nbinso(1),nbinso(2),nbinso(3)))
@@ -5506,7 +5679,6 @@ subroutine momentum_snapshot
 	do n = 1,np
 		!Add up current volume momentum densities
         ibin(:) =  get_bin_molno(n)
-		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb
 
 		volume_mass_temp(ibin(1),ibin(2),ibin(3)) = & 
             volume_mass_temp(ibin(1),ibin(2),ibin(3)) + mass(n)
@@ -5679,6 +5851,7 @@ subroutine energy_flux_averaging(flag)
 	use module_record
 	use CV_objects, only :  CVcheck_energy
 	use cumulative_energy_flux_mod, only : cumulative_energy_flux
+	use flux_opt, only : cumulative_energy_flux_opt
     use boundary_MD, only : specular_wall
 	implicit none
 
@@ -5697,7 +5870,7 @@ subroutine energy_flux_averaging(flag)
 	!call simulation_compute_power(1,nbins(1)+2*nhb(1), & 
     !                              1,nbins(2)+2*nhb(2), & 
 
-	call simulation_compute_power!(1+nhb(1), nbins(1)+nhb(1), & 
+	call simulation_compute_power()!(1+nhb(1), nbins(1)+nhb(1), & 
                                  ! 1+nhb(2), nbins(2)+nhb(2), & 
                                  ! 1+nhb(3), nbins(3)+nhb(3))
 
@@ -5706,7 +5879,8 @@ subroutine energy_flux_averaging(flag)
 	Pxyvface_mdt = Pxyvface
 	Pxyvface = 0.d0
 
-	call cumulative_energy_flux(r,v,energy_flux)
+	!call cumulative_energy_flux(r,v,energy_flux)
+	call cumulative_energy_flux_opt()
 	sample_count = sample_count + 1
 	if (sample_count .eq. Neflux_ave) then
 
@@ -5737,7 +5911,7 @@ subroutine energy_flux_averaging(flag)
 	!Write forces out at time t before snapshot/final fluxes
 	!as both use velocity at v(t-dt/2)
 	if (sample_count .eq. Neflux_ave-1) then
-		call surface_power_io
+		call surface_power_io()
         Pxyvface_integrated = 0.d0
 
 		!Debug flag to check CV conservation in code
@@ -5773,10 +5947,8 @@ subroutine energy_snapshot
 	integer											:: n
 	integer		,dimension(3)						:: ibin
 	real(kind(0.d0))								:: binvolume, energy
-	real(kind(0.d0)),dimension(3)					:: mbinsize,velvect
+	real(kind(0.d0)),dimension(3)					:: velvect
 	real(kind(0.d0)),dimension(:,:,:),allocatable 	:: volume_energy_temp
-
-	mbinsize(:) = domain(:) / nbins(:)
 
 	!Allocate temporary array for energy in volume
 	allocate(volume_energy_temp(nbinso(1),nbinso(2),nbinso(3)))
@@ -5786,7 +5958,6 @@ subroutine energy_snapshot
 	do n = 1,np
 		!Add up current volume momentum densities
         ibin(:) = get_bin_molno(n)
-		!ibin(:) = ceiling((r(:,n)+halfdomain(:))/mbinsize(:)) + nhb(:)
 		velvect(:) = v(:,n) + 0.5d0*a(:,n)*delta_t
 		energy = 0.5d0 * ( mass(n)*dot_product(velvect,velvect) + potenergymol(n))
 
@@ -5815,6 +5986,7 @@ end subroutine energy_snapshot
 
 subroutine surface_density_averaging(flag)
 	!use field_io, only : mass_flux_io
+	use flux_opt, only : cumulative_surface_density_opt
 	use module_record
 	implicit none
 
@@ -5825,7 +5997,8 @@ subroutine surface_density_averaging(flag)
 	!Only average if mass averaging turned on
 	if (flag .eq. 0) return
 
-	call cumulative_surface_density()
+	!call cumulative_surface_density()
+	call cumulative_surface_density_opt()
 	sample_count = sample_count + 1
 	if (sample_count .eq. Nsurfm_ave) then
 		call surface_density_io()
@@ -5867,7 +6040,7 @@ subroutine cumulative_surface_density
         ibin1(:) =  get_bin(ri1)
         ibin2(:) =  get_bin(ri2)
 
-!		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:)
+!		ibin1(:) = ceiling((ri1+halfdomain(:))/mbinsize(:)) + nhb(:) 
 !		ibin2(:) = ceiling((ri2+halfdomain(:))/mbinsize(:)) + nhb(:)
 
 		!Replace Signum function with this functions which gives a
@@ -5927,6 +6100,12 @@ subroutine cumulative_surface_density
 
 	enddo
 
+	!do i = 7,13
+	!do j = 3,7
+    !    print'(a,2i5,6f10.5)', "cumulative_surface_density", i,j, surface_density(i,j,3,:)
+    !enddo
+    !enddo
+
 end subroutine cumulative_surface_density
 
 
@@ -5954,11 +6133,6 @@ subroutine pressure_tensor_forces(molno, rij, accijmag)
 	enddo
 
 end subroutine pressure_tensor_forces
-
-
-
-
-
 
 
 !===================================================================================
@@ -8140,17 +8314,63 @@ contains
     end subroutine fit_surface
 
 
+    subroutine write_intrinsic_surface()
+        use computational_constants_MD, only : iter, CA_generate_xyz, CA_generate_xyz_res
+        use module_record, only : Abilinear, ISR, ISR_mdt
+        use librarymod, only :  write_wave_xyz, write_waveobj, write_grid
+
+        integer, save :: writeiter=0
+
+        double precision,dimension(:,:,:),allocatable :: vertices
+
+		!DEBUG - write surface out
+		if (CA_generate_xyz .eq. 1) then
+            if (CA_generate_xyz_res .gt. 0) then
+                !If resolution is specified, then also created obj files
+				call ISR%sample_surface(vertices, nbins=(/1, CA_generate_xyz_res, CA_generate_xyz_res/), &
+                                        writeiter=writeiter)
+                !Default size writes bilinear as well
+				call ISR%sample_surface(vertices, writeiter=writeiter)
+                writeiter = writeiter + 1
+            else
+				call ISR%sample_surface(vertices)!, writeiter=writeiter)
+                !writeiter = writeiter + 1
+            endif
+			call write_wave_xyz(vertices)
+		elseif (CA_generate_xyz .eq. 2) then
+            if (CA_generate_xyz_res .gt. 0) then
+				call ISR%sample_surface(vertices, (/1, CA_generate_xyz_res, CA_generate_xyz_res/))
+            else
+				call ISR%sample_surface(vertices)
+            endif
+			call write_waveobj(vertices, iter)
+
+		elseif (CA_generate_xyz .eq. 3) then
+            if (CA_generate_xyz_res .gt. 0) then
+				call ISR%sample_surface(vertices, (/1, CA_generate_xyz_res, CA_generate_xyz_res/))
+            else
+				call ISR%sample_surface(vertices)
+            endif
+			call write_grid(vertices)
+		elseif (CA_generate_xyz .eq. 4) then
+			!Write out surface modes to file
+			call ISR%write_modes(iter)
+		endif
+
+    end subroutine write_intrinsic_surface
+
+
+
     subroutine get_cluster_properties(self, rd, min_ngbr)
         use physical_constants_MD, only : np, nd, tethereddisttop, tethereddistbottom
-        use computational_constants_MD, only : iter, tplot, thermo_tags, thermo, &
+        use computational_constants_MD, only : iter, initialstep, tplot, thermo_tags, thermo, &
                                                free, globaldomain, intrinsic_interface_outflag, &
                                                II_normal, II_alpha, II_tau, II_eps, II_ns, II_topbot, &
                                                mflux_outflag, Nsurfevo_outflag, nhb, & 
                                                CA_generate_xyz, CA_generate_xyz_res, &
 											   mflux_outflag, vflux_outflag, CV_conserve, &
                                                periodic
-        use librarymod, only : imaxloc, get_Timestep_FileName, least_squares, get_new_fileunit, & 
-								write_wave_xyz, write_waveobj, write_grid
+        use librarymod, only : imaxloc
         use minpack_fit_funcs_mod, only : fn, cubic_fn, curve_fit
         use arrays_MD, only : tag, r, intnscshift, glob_no
 #if ASSMBLY_HEAVISIDES
@@ -8159,6 +8379,7 @@ contains
     use librarymod, only : heaviside
 #endif
         use intrinsic_module, only : fit_intrinsic_surface_bilinear, fit_intrinsic_surface_modes
+        !use intrinsic_module, only : intrinsic_surface_chebychev, intrinsic_surface_bilinear, intrinsic_surface_real
         use calculated_properties_MD, only : nbins, nbinso, binsize, mass_surface_flux
         use module_record, only : Abilinear, ISR, ISR_mdt, ISR_r, ISR_mdt_r, & 
                                              ISR_b, ISR_mdt_b, ISR_c, ISR_mdt_c
@@ -8187,12 +8408,9 @@ contains
         double precision,dimension(:,:),allocatable :: rnp, extents_grid
         double precision,dimension(:,:),allocatable :: molnos, clustmolnos
         double precision,dimension(:,:),allocatable, save :: points
-        double precision,dimension(:,:,:),allocatable :: vertices
 
         double precision,dimension(:,:),allocatable,save :: intrnsc_smplemdt
         double precision,dimension(:,:,:,:),allocatable,save :: Abilinearmdt
-
-        integer, save :: writeiter=0
 
         clustNo = imaxloc(self%Nlist)
 
@@ -8214,7 +8432,13 @@ contains
             topbot = II_topbot
 
             !Only recheck external molecules of cluster every tplot timesteps
-            if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
+            !or every step if CV_conserve.
+            !Note we need to ALSO trigger rebuild one before tplot to ensure
+            !ISR_mdt is current for measurements
+            if (CV_conserve .eq. 1 &
+                .or. mod(iter,tplot) .eq. 0 &
+                .or. mod(iter+1,tplot) .eq. 0 &
+                .or. iter .eq. initialstep) then
 
                 !Get cluster data into array
                 call cluster_to_array(self, clustNo, r, min_ngbr, rnp)
@@ -8245,7 +8469,6 @@ contains
                     call ISR_mdt%initialise(globaldomain, normal, alpha, eps, & 
                                          nbins, nhb, topbot, periodic)  ! initialise
                     
-                    !Fit the surface at time minus dt if first time
 				    call ISR_mdt%fit_intrinsic_surface(points, tau, ns, pivots)
                     first_time = .false.
 
@@ -8263,8 +8486,19 @@ contains
 
                 endif
 
+                !Fit the surface at time minus dt if first time
+!                select type (ISR)
+!                type is (intrinsic_surface_chebychev)
+!                    print*, "intrinsic_surface_chebychev"
+!                type is (intrinsic_surface_bilinear)
+!                    print*, "intrinsic_surface_bilinear"
+!                type is (intrinsic_surface_real)
+!                    print*, "intrinsic_surface_real"
+!                end select
+
                 !Get surface in terms of modes
 			    call ISR%fit_intrinsic_surface(points, tau, ns, pivots)
+
 
                 !print*, "Area = ", ISR%area, ISR%intrinsic_area(), ISR_b%intrinsic_area_bilinear()
  				
@@ -8282,6 +8516,11 @@ contains
 				!else
 					!print*, "DEBUG in get_cluster_properties, setting coeff to zero"
 					!ISR%coeff = 0.d0
+				    !ISR%Abilinear = 0.d0
+				    !ISR%intrnsc_smple = 0.d0
+					!ISR_mdt%coeff = 0.d0
+				    !ISR_mdt%Abilinear = 0.d0
+				    !ISR_mdt%intrnsc_smple = 0.d0
 					! print*, "DEBUG in get_cluster_properties, setting coeff to intial"
 					! ISR%coeff(:)=coeffmdt(:)
 					! !ISR%coeff(313)=ISR%coeff(313)+ 1.0*sin((iter-100000)/100.d0) !shift from sin(0) mode
@@ -8306,43 +8545,16 @@ contains
 					call surface_evolution(ISR, ISR_mdt, .false.)
 				endif
 
-				!DEBUG - write surface out
-				if (CA_generate_xyz .eq. 1) then
-                    if (CA_generate_xyz_res .gt. 0) then
-                        !If resolution is specified, then also created obj files
-    					call ISR%sample_surface(vertices, nbins=(/1, CA_generate_xyz_res, CA_generate_xyz_res/), &
-                                                writeiter=writeiter)
-                        !Default size writes bilinear as well
-    					call ISR%sample_surface(vertices, writeiter=writeiter)
-                        writeiter = writeiter + 1
-                    else
-    					call ISR%sample_surface(vertices)!, writeiter=writeiter)
-                        !writeiter = writeiter + 1
-                    endif
-					call write_wave_xyz(vertices)
-					!Store pivots in intrinsic surface to plot
-					if (allocated(ISR%pivots)) deallocate(ISR%pivots)
-					allocate(ISR%pivots(size(pivots,1)))
-					ISR%pivots = pivots
-				elseif (CA_generate_xyz .eq. 2) then
-                    if (CA_generate_xyz_res .gt. 0) then
-    					call ISR%sample_surface(vertices, (/1, CA_generate_xyz_res, CA_generate_xyz_res/))
-                    else
-    					call ISR%sample_surface(vertices)
-                    endif
-					call write_waveobj(vertices, iter)
+			    !Store pivots in intrinsic surface to plot
+			    if (allocated(ISR%pivots)) deallocate(ISR%pivots)
+			    allocate(ISR%pivots(size(pivots,1)))
+			    ISR%pivots = pivots
 
-				elseif (CA_generate_xyz .eq. 3) then
-                    if (CA_generate_xyz_res .gt. 0) then
-    					call ISR%sample_surface(vertices, (/1, CA_generate_xyz_res, CA_generate_xyz_res/))
-                    else
-    					call ISR%sample_surface(vertices)
-                    endif
-					call write_grid(vertices)
-				elseif (CA_generate_xyz .eq. 4) then
-					!Write out surface modes to file
-					call ISR%write_modes(iter)
-				endif
+                !Write various forms of intrinsic surface
+                !outputs (xyz, obj or binary format)
+                if (mod(iter,tplot) .eq. 0) then
+                    call write_intrinsic_surface()
+                endif
 
 				!Get shift for intrinsic surface for each molecule
 				deallocate(points)
@@ -8859,8 +9071,8 @@ contains
             momentum_surface_flux = 0.d0
 		endif
 		if (eflux_outflag .ne. 0 .and. countenergy .eq. Neflux_ave) then
-			stop "surface_evolution - energy not developed"
-			!call surface_evolution_energy_flux_io()
+			!stop "surface_evolution - energy not developed"
+			call surface_evolution_energy_flux_io()
             countenergy = 0
             energy_surface_flux = 0.d0
 		endif
@@ -10026,7 +10238,8 @@ subroutine get_interface_from_clusters()
                                  destroy_clusters
     use linked_list, only : cluster
     use computational_constants_MD, only : CA_rd, CA_min_nghbr, CA_generate_xyz, & 
-                                           iter, tplot, intrinsic_interface_outflag, &
+                                           iter, initialstep, tplot, & 
+                                           intrinsic_interface_outflag, &
                                            CV_conserve
     implicit none
 
@@ -10035,7 +10248,8 @@ subroutine get_interface_from_clusters()
 
     min_ngbr = CA_min_nghbr !1000000
     rd = CA_rd !1.5d0
-    if (mod(iter,tplot) .eq. 0 .or. CV_conserve .eq. 1) then
+    if (mod(iter,tplot) .eq. 0 .or. CV_conserve .eq. 1 .or. &
+        iter .eq. initialstep) then
         call build_clusters(cluster, rd)
         if (any(intrinsic_interface_outflag .eq. (/1,2,3/))) then
             call get_cluster_properties(cluster, rd, min_ngbr)

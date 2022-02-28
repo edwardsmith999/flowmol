@@ -586,7 +586,7 @@ subroutine simulation_compute_forces_LJ_neigbr
 				if (vflux_outflag .eq. 4 .or. eflux_outflag.eq.4) then
 					if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 						fij(:) = accijmag*rij(:)
-						call control_volume_stresses(fij,ri,rj)
+						call Control_Volume_stresses_opt(fij,ri,rj)
 					endif
 				endif
 
@@ -669,11 +669,11 @@ subroutine simulation_compute_forces_LJ_neigbr_halfint
 					if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 						if (molnoj .gt. np .or. molnoi .gt. np) then
 							fij = accijmag*rij(:)
-							call control_volume_stresses(fij,ri,rj)
+							call Control_Volume_stresses_opt(fij,ri,rj)
 						    !call CV_sphere_momentum%Add_spherical_CV_forces(fij,ri,rj)
 						else
 							fij = 2.d0*accijmag*rij(:)
-							call control_volume_stresses(fij,ri,rj)
+							call Control_Volume_stresses_opt(fij,ri,rj)
 							!call CV_sphere_momentum%Add_spherical_CV_forces(fij,ri,rj)
 						endif
 					endif
@@ -760,7 +760,7 @@ subroutine simulation_compute_forces_poly()
 			if (vflux_outflag.eq.4) then
 				if (CV_conserve .eq. 1 .or. mod(iter,tplot) .eq. 0) then
 					fij = accijmag*rij(:)
-					call control_volume_stresses(fij, ri, rj)
+					call Control_Volume_stresses_opt(fij, ri, rj)
 				endif
 			endif
 
@@ -971,7 +971,7 @@ end subroutine simulation_compute_forces_Soddemann_neigbr_halfint
 !========================================================================
 ! If molecule is between two others, 
 ! maybe there is an angular force. Maybe not.
-! Get for i and add this force only to i and k
+! Get for j and add this force only to i and k
 !          j
 !      o   o   o   o
 !     / \ / \ / \ / \
@@ -1069,6 +1069,8 @@ subroutine simulation_compute_power!(imin, imax, jmin, jmax, kmin, kmax)
 
 	real(kind(0.d0)),dimension(3)	:: vi_t, cellsperbin
 
+    print*, "simulation_compute_power"
+
     potenergymol_LJ = 0.d0
     potenergymol = 0.d0
 
@@ -1154,7 +1156,7 @@ subroutine simulation_compute_power!(imin, imax, jmin, jmax, kmin, kmax)
                         ! ( This is the reason we need to do this after
                         !   the force calculation so we know a(t)      )
                         vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
-						call control_volume_power(fij, ri, rj, vi_t)
+						call control_volume_power_opt(fij, ri, rj, vi_t)
 
 					endif
 				enddo
@@ -1215,7 +1217,7 @@ contains
                 ! ( This is the reason we need to do this after
                 !   the force calculation so we know a(t)      )
                 vi_t(:) = v(:,molnoi) + 0.5d0*delta_t*a(:,molnoi)
-				call control_volume_power(fij,ri,rj,vi_t)
+				call control_volume_power_opt(fij,ri,rj,vi_t)
 
             enddo	
         enddo

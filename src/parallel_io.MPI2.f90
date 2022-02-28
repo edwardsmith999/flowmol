@@ -1011,9 +1011,9 @@ subroutine setup_restart_microstate()
     logical                                      :: tag_off=.false.
     integer                                      :: i,n,nl,procassign
     integer                                      :: pos
-    integer                                      :: dp_datasize
+    integer                                      :: dp_datasize, tvalue(8)
     integer(kind=MPI_OFFSET_KIND)                :: disp, procdisp
-    integer, dimension(:), allocatable           :: bufsize
+    integer, dimension(:), allocatable           :: bufsize, newrandseed
     real(kind(0.d0))                             :: tagtemp, moltypetemp, globnotemp
     real(kind(0.d0)), dimension (nd)             :: rtemp,vtemp,rtruetemp,rtethertemp, vsum_after
     real(kind(0.d0)), dimension (nsdmi)          :: monomertemp
@@ -1303,7 +1303,19 @@ subroutine setup_restart_microstate()
 	! and subtract any resultant component after
 	if (nudge_restart .eq. 1) then
 		allocate(rand(3,np))
+
+        !Assign date and time seed to random number generator
+        !to ensure nudge is random for each case
+        call date_and_time(values=tvalue)
+        allocate(newrandseed(size(seed,1)))
+        newrandseed=IEOR(tvalue(8),seed)
+        call random_seed(put=newrandseed)
+        !Get a set of random numbers to use for nudge
 		call random_number(rand)
+        !Restore original random seed 
+        !(which might be controlled for repeatability)
+        call random_seed(put=seed)
+
 		vtemp(:) = sum(v,2)
 		do n=1,np
 			!print*, nudge_magnitude*rand(:,n)
@@ -1311,8 +1323,10 @@ subroutine setup_restart_microstate()
 		enddo
 		vsum_after(:) = sum(v,2)
 		v(:,n) = v(:,n) - (vsum_after - vtemp)
-		print*, "Applying nudge mad=", nudge_magnitude, "vsum before=", vtemp, "nudge vsum=", &
-				(vsum_after - vtemp), " vsum after=", sum(v,2)
+		print*, "Applying nudge mag=", nudge_magnitude, & 
+                "vsum before=", vtemp, &
+				" vsum after=", sum(v,2), &
+                "Difference=", abs(sum(vtemp-sum(v,2)))
 	endif
 
 end subroutine setup_restart_microstate
@@ -4425,6 +4439,62 @@ subroutine surface_evolution_momentum_flux_io()
     deallocate(temp)
 
 end subroutine surface_evolution_momentum_flux_io
+
+
+
+
+
+
+subroutine surface_evolution_energy_flux_io()
+    use module_parallel_io
+    use CV_objects, only : CVcheck_energy, CV_debug
+    use messenger_bin_handler, only : swaphalos
+    use computational_constants_MD, only : II_normal
+    implicit none
+
+    integer             :: m,nresults
+    character(41)       :: filename, outfile
+	real(kind(0.d0)),dimension(:,:,:,:), allocatable	:: surface_flux
+
+    !Work out correct filename for i/o type
+    filename='results/dsurf_eflux'
+    outfile = trim(prefix_dir)//filename
+
+    !Include halo surface fluxes to get correct values for all cells
+    nresults = 6
+    call swaphalos(energy_surface_flux,nbinso(1),nbinso(2),nbinso(3),nresults)
+
+    !Store energy flux value in CV data object
+    if (CV_debug .ne. 0) then
+        !Surface evo stores other components in top and bottom so
+        !will ruin conservation, extract just normal for tests
+        if (Nsurfevo_outflag .eq. 2) then
+            allocate(surface_flux(size(energy_flux,1), size(energy_flux,2), & 
+                                  size(energy_flux,3), size(energy_flux,4)))
+            surface_flux = 0.d0
+            surface_flux(:,:,:,II_normal) = energy_surface_flux(:,:,:,II_normal)
+            surface_flux(:,:,:,II_normal+3) = energy_surface_flux(:,:,:,II_normal+3)
+            call CVcheck_energy%update_surface(surface_flux)
+            deallocate(surface_flux)
+        else
+            call CVcheck_energy%update_surface(energy_surface_flux)
+        endif
+    endif
+
+    !Calculate record number timestep
+    select case(CV_conserve)
+    case(0)
+        m = get_iter()/(tplot*Neflux_ave)+1
+    case(1)
+        m = get_iter()/(Neflux_ave)+1
+    case default
+        call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
+    end select
+
+    !Write energy to file
+    call write_arrays(energy_surface_flux, nresults, outfile, m)
+
+end subroutine surface_evolution_energy_flux_io
 
 
 !---------------------------------------------------------------------------------

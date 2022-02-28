@@ -75,6 +75,7 @@ type :: check_CV_energy
 		procedure :: initialise  => initialise_energy
 		procedure :: update_dXdt => update_dXdt_energy
 		procedure :: update_flux => update_flux_energy
+		procedure :: update_surface => update_surface_energy
 		procedure :: update_Pxy  => update_Pxyv
 		procedure :: update_F_ext=> update_Fv_ext
 		procedure :: check_error => check_error_energy
@@ -643,6 +644,8 @@ contains
 		allocate(self%Pxyv(nb(1),nb(2),nb(3),6))
 		allocate(self%Pxyv_minus_t(nb(1),nb(2),nb(3),6))
 		allocate(self%dXdt(nb(1),nb(2),nb(3)))
+		allocate(self%surf(nb(1),nb(2),nb(3),6))
+		allocate(self%surf_mdt(nb(1),nb(2),nb(3),6))
 		allocate(self%X(nb(1),nb(2),nb(3)))
 		allocate(self%X_minus_t(nb(1),nb(2),nb(3)))
 		allocate(self%Fv_ext(nb(1),nb(2),nb(3)))
@@ -659,6 +662,8 @@ contains
 		self%Fv_ext		= 0.d0
 		self%totalflux  = 0.d0
 		self%totalpower = 0.d0
+		self%surf       = 0
+		self%surf_mdt   = 0
 		!self%X_minus_2t = 0.d0
 
 	end subroutine initialise_energy
@@ -703,6 +708,19 @@ contains
 		self%flux = X
 
 	end subroutine update_flux_energy
+
+	!Update time evolution and store previous two values
+	subroutine update_surface_energy(self, X)
+		implicit none
+		! initialize shape objects
+		class(check_CV_energy) :: self
+
+		real(kind(0.d0)),dimension(:,:,:,:),allocatable,intent(in) :: X
+
+		self%surf_mdt = self%surf
+		self%surf = X
+
+	end subroutine update_surface_energy
 
 	!Update time evolution and store previous two values
 	subroutine update_Pxyv(self, X)
