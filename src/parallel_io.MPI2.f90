@@ -3883,10 +3883,16 @@ subroutine momentum_flux_io()
     ! Swap Halos
     nresults = 18
     allocate(momentum_flux_temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults))
-    momentum_flux_temp = reshape(momentum_flux, & 
-                        (/ size(momentum_flux,1), & 
-                           size(momentum_flux,2), & 
-                           size(momentum_flux,3),nresults /))
+    do m=1,6
+    do ixyz=1,3
+        momentum_flux_temp(:,:,:,3*(m-1)+ixyz) = momentum_flux(:,:,:,ixyz,m)
+    enddo
+    enddo
+
+    !momentum_flux_temp = reshape(momentum_flux, & 
+    !                    (/ size(momentum_flux,1), & 
+    !                       size(momentum_flux,2), & 
+    !                       size(momentum_flux,3),nresults /))
     call swaphalos(momentum_flux_temp,nbinso(1),nbinso(2),nbinso(3),nresults)
     momentum_flux = reshape(momentum_flux_temp,(/ size(momentum_flux,1), & 
                                                   size(momentum_flux,2), & 
@@ -3923,9 +3929,14 @@ subroutine momentum_flux_io()
     end select
 
     !allocate(momentum_flux_temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults))
-    momentum_flux_temp = reshape(momentum_flux,(/ size(momentum_flux,1), & 
-												  size(momentum_flux,2), & 
-											      size(momentum_flux,3),nresults /))
+    !momentum_flux_temp = reshape(momentum_flux,(/ size(momentum_flux,1), & 
+	!											  size(momentum_flux,2), & 
+	!										      size(momentum_flux,3),nresults /))
+    do m=1,6
+    do ixyz=1,3
+        momentum_flux(:,:,:,ixyz,m) = momentum_flux_temp(:,:,:,3*(m-1)+ixyz) 
+    enddo
+    enddo
     call write_arrays(momentum_flux_temp,nresults,trim(prefix_dir)//'results/vflux',m)
     deallocate(momentum_flux_temp)
 
@@ -4035,9 +4046,19 @@ subroutine surface_stress_io()
     ! Swap Halos
     nresults = 18
     allocate(Pxyface_temp(size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults))
-    Pxyface_temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
+    do m=1,6
+    do ixyz=1,3
+        Pxyface_temp(:,:,:,3*(m-1)+ixyz) = Pxyface(:,:,:,ixyz,m)
+    enddo
+    enddo
+    !Pxyface_temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
     call swaphalos(Pxyface_temp,nbinso(1),nbinso(2),nbinso(3),nresults)
-    Pxyface = reshape(Pxyface_temp,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),3,6 /))
+    do m=1,6
+    do ixyz=1,3
+        Pxyface(:,:,:,ixyz,m) = Pxyface_temp(:,:,:,3*(m-1)+ixyz)
+    enddo
+    enddo
+    !Pxyface = reshape(Pxyface_temp,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),3,6 /))
     !deallocate(Pxyface_temp)
 
     !Divide by size of bin face to give flux per unit area
@@ -4080,7 +4101,12 @@ subroutine surface_stress_io()
     if (m .eq. 0) return
 
     !Write surface pressures to file
-    Pxyface_temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
+    do m=1,6
+    do ixyz=1,3
+        Pxyface_temp(:,:,:,3*(m-1)+ixyz) = Pxyface(:,:,:,ixyz,m)
+    enddo
+    enddo
+    !Pxyface_temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
     call write_arrays(Pxyface_temp,nresults,trim(prefix_dir)//'results/psurface',m)
     deallocate(Pxyface_temp)
 

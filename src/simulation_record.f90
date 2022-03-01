@@ -6280,11 +6280,11 @@ subroutine control_volume_stresses(fij, ri, rj)
 		endif
 
 		!Force applied to volume
-		fsurface(:) = 0.d0
-		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onface(1) - onface(4))
-		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onface(2) - onface(5))
-		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onface(3) - onface(6))
-		volume_force(cbin(1),cbin(2),cbin(3),:,1) = volume_force(cbin(1),cbin(2),cbin(3),:,1) + fsurface*delta_t
+!		fsurface(:) = 0.d0
+!		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onface(1) - onface(4))
+!		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onface(2) - onface(5))
+!		fsurface(:) = fsurface(:) + 0.25d0*fij(:)*dble(onface(3) - onface(6))
+!		volume_force(cbin(1),cbin(2),cbin(3),:,1) = volume_force(cbin(1),cbin(2),cbin(3),:,1) + fsurface*delta_t
 
 	enddo
 	enddo

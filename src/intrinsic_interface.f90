@@ -504,36 +504,30 @@ subroutine get_A_b_fourier(self, points, A, b)
 end subroutine get_A_b_fourier
 
 
-function get_fuv(self, points) result(fuv)
+subroutine get_fuv(self, points, fuv)
     implicit none
 
 	class(intrinsic_surface_chebychev) :: self
 
     double precision, intent(in), dimension(:,:), allocatable ::  points
+    double precision, intent(out), dimension(:,:), allocatable :: fuv
 
-    double precision, dimension(:,:), allocatable :: fu, fv, fuv
-
-    allocate(fu(size(points,1), self%n_waves2))
-    allocate(fv(size(points,1), self%n_waves2))
     allocate(fuv(size(points,1), self%n_waves2))
 
-	!fuv = chebyshev_function(points(:,self%ixyz), self%u(:), self%box(self%ixyz)) & 
-	!	  *chebyshev_function(points(:,self%jxyz), self%v(:), self%box(self%jxyz))
-
+    !Tensor product of two surfaces
+    !fuv = fu * fv
     if (self%periodic(self%ixyz) .eq. 1) then
-    	fu = wave_function(points(:,self%ixyz), self%u(:), self%box(self%ixyz))
+    	fuv = wave_function(points(:,self%ixyz), self%u(:), self%box(self%ixyz))
     else
-    	fu = chebyshev_function(points(:,self%ixyz), self%u(:), self%box(self%ixyz))
+    	fuv = chebyshev_function(points(:,self%ixyz), self%u(:), self%box(self%ixyz))
     endif
     if (self%periodic(self%jxyz) .eq. 1) then
-	    fv = wave_function(points(:,self%jxyz), self%v(:), self%box(self%jxyz))
+	    fuv = fuv*wave_function(points(:,self%jxyz), self%v(:), self%box(self%jxyz))
     else
-	    fv = chebyshev_function(points(:,self%jxyz), self%v(:), self%box(self%jxyz))
+	    fuv = fuv*chebyshev_function(points(:,self%jxyz), self%v(:), self%box(self%jxyz))
     endif
-    !Tensor product of two surfaces
-    fuv = fu * fv
 
-end function get_fuv
+end subroutine get_fuv
 
 subroutine get_A_b_chebychev(self, points, A, b)
 #if USE_LAPACK
@@ -559,7 +553,7 @@ subroutine get_A_b_chebychev(self, points, A, b)
 
     A = 0.d0
     b = 0.d0
-    fuv = self%get_fuv(points)
+    call self%get_fuv(points, fuv)
 	!fuv = chebyshev_function(points(:,self%ixyz), self%u(:), self%box(self%ixyz)) & 
 	!	 *chebyshev_function(points(:,self%jxyz), self%v(:), self%box(self%jxyz))
     do j =1, self%n_waves2
@@ -598,11 +592,10 @@ subroutine get_A_b_mixed(self, points, A, b)
 
     allocate(A(self%n_waves2, self%n_waves2))
     allocate(b(self%n_waves2))
-    allocate(fuv(size(points,1), self%n_waves2))
 
     A = 0.d0
     b = 0.d0
-    fuv = self%get_fuv(points)
+    call self%get_fuv(points, fuv)
 !    if (self%periodic(ixyz)) then
 !    	fu = wave_function(points(:,self%ixyz), self%u(:), self%box(self%ixyz))
 !    else
@@ -887,14 +880,12 @@ subroutine get_chebychev_surface(self, points, elevation, include_zeromode, qu)
 
     double precision, dimension(:,:), allocatable :: fuv
 
-    allocate(fuv(size(points,1), self%n_waves2))
-	
     if (present(qu)) then
         stop "Error in get_chebychev_surface, optional qu not supported"
     endif
 
     !Get array of chebychev terms per point
-    fuv = self%get_fuv(points)
+    call self%get_fuv(points, fuv)
 	!fuv = chebyshev_function(points(:,self%ixyz), self%u(:), self%box(self%ixyz)) & 
 	!	 *chebyshev_function(points(:,self%jxyz), self%v(:), self%box(self%jxyz))
 

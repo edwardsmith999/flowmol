@@ -26,7 +26,7 @@ subroutine setup_initial_record
                            
     implicit none
 
-    integer                 :: i,n,missing_file_tolerance=5, intervalno, recno
+    integer                 :: i,n,missing_file_tolerance=5, intervalno, recno, mem
     integer, parameter      :: LongInt = selected_int_kind (16)
     integer, parameter      :: dpsize = 8
     integer(kind=LongInt)   :: est_filesize, output_steps
@@ -578,6 +578,11 @@ subroutine setup_initial_record
         case default
             call error_abort("Invalid mass surf output flag in input file")
         end select
+
+        !Profile memory use in setup
+        call system_mem_usage(mem)
+        print*, "Total Memory in use at end of setup process=", &
+             (mem)/1024, "Mb"
 
         !print*, 'Bins per Processor:', nbins
         !print*, 'Number of Bins on outer Surface of each processor', nsurfacebins

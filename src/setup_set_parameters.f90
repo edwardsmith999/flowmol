@@ -979,13 +979,13 @@ subroutine setup_set_parameters
 
 	!This has alreay been done in initialise for a coupled run
 #if (USE_COUPLER == 0)	
-   	call set_parameters_global_domain
-	call set_parameters_cells
+   	call set_parameters_global_domain()
+	call set_parameters_cells()
 #endif
 	!call set_parameters_setlimits
 
 	!Allocate array sizes for position, velocity and acceleration
-	call set_parameters_allocate
+	call set_parameters_allocate()
 
 	!Zero quantities and arrays
 	r = 0.d0
@@ -994,12 +994,12 @@ subroutine setup_set_parameters
 
 	halo_np = 0
 
-	call set_parameters_outputs
-	call setup_linklist
-	call establish_surface_bins
-	call establish_halo_bins
-	call establish_surface_cells
-	call establish_halo_cells
+	call set_parameters_outputs()
+	call setup_linklist()
+	call establish_surface_bins()
+	call establish_halo_bins()
+	call establish_surface_cells()
+	call establish_halo_cells()
 
 	nvalues = (/ min(ncells(1),nbins(1)), & 
 				 min(ncells(2),nbins(2)), & 
@@ -2127,7 +2127,7 @@ subroutine set_parameters_outputs
 
     !Profile memory use in setup
     call system_mem_usage(mem_end)
-    print*, "Memory allocated before CV=", (mem_end-mem_start)/1024, "Mb"
+    print*, "Memory allocated before momentum CV=", (mem_end-mem_start)/1024, "Mb"
 
 	!Allocate array for Stress Method of Planes and/or 
 	!allocate bins for control volume momentum fluxes and forces
@@ -2179,7 +2179,7 @@ subroutine set_parameters_outputs
 			if (.not.(allocated(volume_momentum))) 	allocate(volume_momentum(nbinso(1),nbinso(2),nbinso(3),3  ))
 			allocate( Pxyface(nbinso(1),nbinso(2),nbinso(3),3,6))
 			allocate(  momentum_flux(nbinso(1),nbinso(2),nbinso(3),3,6))
-			allocate(   volume_force(nbinso(1),nbinso(2),nbinso(3),3,2))
+			!allocate(   volume_force(nbinso(1),nbinso(2),nbinso(3),3,2))
 			if (external_force_flag .ne. 0 .or. &
 				ensemble .eq. tag_move .or.	 &
 				CVforce_flag .ne. VOID) then
@@ -2192,10 +2192,10 @@ subroutine set_parameters_outputs
 			endif
 			momentum_flux 	= 0.d0
 			volume_momentum = 0.d0
-			volume_force 	= 0.d0
+			!volume_force 	= 0.d0
             !Profile memory use in setup
             call system_mem_usage(mem_end)
-            print*, "Total Memory allocated before CV debug=", (mem_end-mem_start)/1024, "Mb"
+            print*, "Total Memory allocated after momentum CV=", (mem_end-mem_start)/1024, "Mb"
 
 			if (CV_debug .eq. 1) then
 				call CVcheck_mass%initialise(nbins,nhb,domain,delta_t,Nmflux_ave)   ! initialize CVcheck
@@ -2203,7 +2203,7 @@ subroutine set_parameters_outputs
 				call CV_constraint%initialise(nbins,nhb,domain,delta_t,Nvflux_ave)   ! initialize CV constraint object
 				call CVcheck_energy%initialise(nbins,nhb,domain,delta_t,Neflux_ave)   ! initialize CVcheck
             elseif (CV_debug .eq. 2) then
-                print*, 'bin', debug_CV,localise_bin(debug_CV)
+                print*, 'Bin(s) for CV Debugging:', debug_CV,localise_bin(debug_CV)
 				call CVcheck_mass%initialise(nbins,nhb,domain, & 
                                              delta_t,Nmflux_ave, & 
                                              localise_bin(debug_CV),debug_CV_range)     ! initialize CVcheck
@@ -2218,15 +2218,23 @@ subroutine set_parameters_outputs
 				!call CV_sphere_mass%initialise((/1,1,1/))	
 				!call CV_sphere_momentum%initialise_sphere((/1,1,1/),collect_spherical=.false.)	
 			endif
+
+            !Profile memory use in CV debug (this is very memory hungry)
+            if (CV_debug .ne. 0) then
+                call system_mem_usage(mem_end)
+                print*, "Total Memory allocated after CV Debugging=", (mem_end-mem_start)/1024, "Mb"
+            endif
+
+
 			!Allocate bins for control volume mass fluxes
-			if (.not.(allocated(volume_mass)))  allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)))
-			allocate(  mass_flux(nbinso(1),nbinso(2),nbinso(3),6))
+			!if (.not.(allocated(volume_mass)))  allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)))
+			!allocate(  mass_flux(nbinso(1),nbinso(2),nbinso(3),6))
+			!volume_mass = 0
+			!mass_flux   = 0
 			if (Nsurfevo_outflag .ne. 0) then
 				allocate(mass_surface_flux(nbinso(1),nbinso(2),nbinso(3),6))
 				mass_surface_flux = 0
 			endif
-			volume_mass = 0
-			mass_flux   = 0
 		case default
 			!Allocate bins for control volume mass fluxes
 			if (mflux_outflag .eq. 1) then
@@ -2267,10 +2275,13 @@ subroutine set_parameters_outputs
 			allocate(Fv_ext_bin(nbinso(1),nbinso(2),nbinso(3)))
 			Fv_ext_bin = 0.d0
 		endif
+        !Profile memory use in setup
+        call system_mem_usage(mem_end)
+        print*, "Total Memory allocated after energy CV=", (mem_end-mem_start)/1024, "Mb"
+
 	elseif (eflux_outflag .eq. 1 .or. eflux_outflag .eq. 2 .or. eflux_outflag .eq. 3) then
 		stop "Error - eflux MOP is not coded!"
 	endif
-
 
     if (msurf_outflag .eq. 1) then
         allocate(surface_density(nbinso(1),nbinso(2),nbinso(3),6))
