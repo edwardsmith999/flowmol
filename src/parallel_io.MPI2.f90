@@ -48,9 +48,9 @@ module module_parallel_io
 
     !Generic interface so write arrays can be used with both integers and reals
     interface write_arrays
-        module procedure iwrite_arrays_1, rwrite_arrays_1, iwrite_arrays, rwrite_arrays 
+        module procedure iwrite_arrays_1, rwrite_arrays_1, rwrite_arrays_2, iwrite_arrays, rwrite_arrays 
     end interface write_arrays
-    private  iwrite_arrays_1, rwrite_arrays_1, iwrite_arrays, rwrite_arrays
+    private  iwrite_arrays_1, rwrite_arrays_1, rwrite_arrays_2, iwrite_arrays, rwrite_arrays
     
     interface write_zplane 
         module procedure iwrite_zplane_1, iwrite_zplane, rwrite_zplane_1, rwrite_zplane
@@ -200,6 +200,22 @@ subroutine rwrite_arrays_1(temp,nresults,outfile,outstep)
     deallocate(some_array)
 
 end subroutine rwrite_arrays_1
+
+subroutine rwrite_arrays_2(temp,nresults,outfile,outstep)
+    implicit none
+
+    integer, intent(in)                             :: nresults,outstep
+    character(*),intent(in)                         :: outfile
+    real(kind(0.d0)), target, allocatable, intent(in)   :: temp(:,:,:,:,:)
+
+    real(kind(0.d0)),pointer, dimension(:,:,:,:)    :: some_array
+
+    !nresults = size(temp,4)*size(temp,5)
+    some_array(1:size(temp,1), 1:size(temp,2), 1:size(temp,3), 1:nresults) => temp(:,:,:,:,:)
+    call rwrite_arrays(some_array,nresults,outfile,outstep)
+
+end subroutine rwrite_arrays_2
+
 
 !   Main rwrite Routine
 subroutine rwrite_arrays(some_array,nresults,outfile,outstep)
@@ -3876,28 +3892,31 @@ subroutine momentum_flux_io()
     use messenger_bin_handler, only : swaphalos
     implicit none
 
-    integer                                         :: ixyz,m,nresults
+    integer                                         :: ixyz,face,m,nresults
     real(kind(0.d0))                                :: binface
     real(kind(0.d0)),allocatable,dimension(:,:,:,:) :: momentum_flux_temp
 
     ! Swap Halos
     nresults = 18
-    allocate(momentum_flux_temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults))
-    do m=1,6
-    do ixyz=1,3
-        momentum_flux_temp(:,:,:,3*(m-1)+ixyz) = momentum_flux(:,:,:,ixyz,m)
-    enddo
-    enddo
+    call swaphalos(momentum_flux)
 
-    !momentum_flux_temp = reshape(momentum_flux, & 
-    !                    (/ size(momentum_flux,1), & 
-    !                       size(momentum_flux,2), & 
-    !                       size(momentum_flux,3),nresults /))
-    call swaphalos(momentum_flux_temp,nbinso(1),nbinso(2),nbinso(3),nresults)
-    momentum_flux = reshape(momentum_flux_temp,(/ size(momentum_flux,1), & 
-                                                  size(momentum_flux,2), & 
-                                                  size(momentum_flux,3),3,6 /))
-    !deallocate(momentum_flux_temp)
+    !OLD CODE OLD CODE OLD CODE OLD CODE OLD CODE
+!    allocate(momentum_flux_temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults))
+!    do face=1,6
+!    do ixyz=1,3
+!        momentum_flux_temp(:,:,:,3*(face-1)+ixyz) = momentum_flux(:,:,:,ixyz,face)
+!    enddo
+!    enddo
+
+!    call swaphalos(momentum_flux_temp,nbinso(1),nbinso(2),nbinso(3),nresults)
+
+!    do face=1,6
+!    do ixyz=1,3
+!        momentum_flux(:,:,:,ixyz,face) = momentum_flux_temp(:,:,:,3*(face-1)+ixyz)
+!    enddo
+!    enddo
+    !OLD CODE OLD CODE OLD CODE OLD CODE OLD CODE
+
 
     !Divide by size of bin face to give flux per unit area
     do ixyz = 1,3
@@ -3927,18 +3946,17 @@ subroutine momentum_flux_io()
     case default
         call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
     end select
+    call write_arrays(momentum_flux,nresults,trim(prefix_dir)//'results/vflux',m)
 
-    !allocate(momentum_flux_temp(size(momentum_flux,1),size(momentum_flux,2),size(momentum_flux,3),nresults))
-    !momentum_flux_temp = reshape(momentum_flux,(/ size(momentum_flux,1), & 
-	!											  size(momentum_flux,2), & 
-	!										      size(momentum_flux,3),nresults /))
-    do m=1,6
-    do ixyz=1,3
-        momentum_flux(:,:,:,ixyz,m) = momentum_flux_temp(:,:,:,3*(m-1)+ixyz) 
-    enddo
-    enddo
-    call write_arrays(momentum_flux_temp,nresults,trim(prefix_dir)//'results/vflux',m)
-    deallocate(momentum_flux_temp)
+    !OLD CODE OLD CODE OLD CODE OLD CODE OLD CODE
+!    do face=1,6
+!    do ixyz=1,3
+!       momentum_flux_temp(:,:,:,3*(face-1)+ixyz) = momentum_flux(:,:,:,ixyz,face) 
+!    enddo
+!    enddo
+!    call write_arrays(momentum_flux_temp,nresults,trim(prefix_dir)//'results/vflux',m)
+!    deallocate(momentum_flux_temp)
+    !OLD CODE OLD CODE OLD CODE OLD CODE OLD CODE
 
 end subroutine momentum_flux_io
 
@@ -4039,27 +4057,30 @@ subroutine surface_stress_io()
     use messenger_bin_handler, only : swaphalos
     implicit none
 
-    integer                                             :: ixyz,m,nresults, i,j,k
+    integer                                             :: ixyz,face,m,nresults, i,j,k
     real(kind(0.d0))                                    :: binface
     real(kind(0.d0)),allocatable,dimension(:,:,:,:)     :: Pxyface_temp
 
     ! Swap Halos
     nresults = 18
-    allocate(Pxyface_temp(size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults))
-    do m=1,6
-    do ixyz=1,3
-        Pxyface_temp(:,:,:,3*(m-1)+ixyz) = Pxyface(:,:,:,ixyz,m)
-    enddo
-    enddo
-    !Pxyface_temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
-    call swaphalos(Pxyface_temp,nbinso(1),nbinso(2),nbinso(3),nresults)
-    do m=1,6
-    do ixyz=1,3
-        Pxyface(:,:,:,ixyz,m) = Pxyface_temp(:,:,:,3*(m-1)+ixyz)
-    enddo
-    enddo
-    !Pxyface = reshape(Pxyface_temp,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),3,6 /))
-    !deallocate(Pxyface_temp)
+    call swaphalos(Pxyface)
+
+    !OLD CODE OLD CODE OLD CODE OLD CODE OLD CODE
+!    allocate(Pxyface_temp(size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults))
+!    do face=1,6
+!    do ixyz=1,3
+!        Pxyface_temp(:,:,:,3*(face-1)+ixyz) = Pxyface(:,:,:,ixyz,face)
+!    enddo
+!    enddo
+!    !Pxyface_temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
+!    call swaphalos(Pxyface_temp,nbinso(1),nbinso(2),nbinso(3),nresults)
+!    do face=1,6
+!    do ixyz=1,3
+!        Pxyface(:,:,:,ixyz,face) = Pxyface_temp(:,:,:,3*(face-1)+ixyz)
+!    enddo
+!    enddo
+!   !Pxyface = reshape(Pxyface_temp,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),3,6 /))
+    !OLD CODE OLD CODE OLD CODE OLD CODE OLD CODE
 
     !Divide by size of bin face to give flux per unit area
     do ixyz = 1,3
@@ -4076,16 +4097,6 @@ subroutine surface_stress_io()
     !Store surface stress value in CV data object
     if (CV_debug .ne. 0) then
         call CVcheck_momentum%update_Pxy(Pxyface)
-
-		! do i =136,137
-		! do j =18,19
-		! do k =18,19
-			! print'(a,i8,3i5, 6f11.4)', "Pxyface ", iter, i, j, k, &
-						! Pxyface(i,j,k,1,:)
-		! enddo
-		! enddo
-		! enddo
-
     endif
 
     !Write surface pressures to file
@@ -4099,16 +4110,21 @@ subroutine surface_stress_io()
     end select
 
     if (m .eq. 0) return
+    call write_arrays(Pxyface,nresults,trim(prefix_dir)//'results/psurface',m)
 
     !Write surface pressures to file
-    do m=1,6
-    do ixyz=1,3
-        Pxyface_temp(:,:,:,3*(m-1)+ixyz) = Pxyface(:,:,:,ixyz,m)
-    enddo
-    enddo
-    !Pxyface_temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
-    call write_arrays(Pxyface_temp,nresults,trim(prefix_dir)//'results/psurface',m)
-    deallocate(Pxyface_temp)
+    !OLD CODE OLD CODE OLD CODE OLD CODE OLD CODE
+!   !Pxyface_temp = reshape(Pxyface,(/ size(Pxyface,1),size(Pxyface,2),size(Pxyface,3),nresults /))
+!    do face=1,6
+!    do ixyz=1,3
+!        Pxyface_temp(:,:,:,3*(face-1)+ixyz) = Pxyface(:,:,:,ixyz,face)
+!    enddo
+!    enddo
+!    call write_arrays(Pxyface_temp,nresults,trim(prefix_dir)//'results/psurface',m)
+!    deallocate(Pxyface_temp)
+    !OLD CODE OLD CODE OLD CODE OLD CODE OLD CODE
+
+
 
 end subroutine surface_stress_io
 
@@ -4404,16 +4420,18 @@ subroutine surface_evolution_momentum_flux_io()
 
     ! Swap Halos
     nresults = 18
-    allocate(temp(size(momentum_surface_flux,1),size(momentum_surface_flux,2),size(momentum_surface_flux,3),nresults))
-    temp = reshape(momentum_surface_flux, & 
-                        (/ size(momentum_surface_flux,1), & 
-                           size(momentum_surface_flux,2), & 
-                           size(momentum_surface_flux,3),nresults /))
-    call swaphalos(temp,nbinso(1),nbinso(2),nbinso(3),nresults)
-    momentum_surface_flux = reshape(temp,(/ size(momentum_flux,1), & 
-                                            size(momentum_flux,2), & 
-                                            size(momentum_flux,3),3,6 /))
-											
+    call swaphalos(momentum_surface_flux)
+    !OLD CODE OLD CODE OLD CODE OLD CODE OLD CODE
+!    allocate(temp(size(momentum_surface_flux,1),size(momentum_surface_flux,2),size(momentum_surface_flux,3),nresults))
+!    temp = reshape(momentum_surface_flux, & 
+!                        (/ size(momentum_surface_flux,1), & 
+!                           size(momentum_surface_flux,2), & 
+!                           size(momentum_surface_flux,3),nresults /))
+!    call swaphalos(temp,nbinso(1),nbinso(2),nbinso(3),nresults)
+!    momentum_surface_flux = reshape(temp,(/ size(momentum_flux,1), & 
+!                                            size(momentum_flux,2), & 
+!                                            size(momentum_flux,3),3,6 /))
+    !OLD CODE OLD CODE OLD CODE OLD CODE OLD CODE											
 											
 	!Divide by size of bin face to give flux per unit area
     do ixyz = 1,3
@@ -4457,12 +4475,15 @@ subroutine surface_evolution_momentum_flux_io()
         call error_abort('CV_conserve value used for flux averages is incorrectly defined - should be 0=off or 1=on')
     end select
 
-    !Write mass to file
-    temp = reshape(momentum_surface_flux,(/ size(momentum_surface_flux,1), & 
-											size(momentum_surface_flux,2), & 
-											size(momentum_surface_flux,3),nresults /))
-    call write_arrays(temp,nresults,trim(prefix_dir)//'results/dsurf_vflux',m)
-    deallocate(temp)
+    !Write momentum to file
+    call write_arrays(momentum_surface_flux,nresults,trim(prefix_dir)//'results/dsurf_vflux',m)
+    !OLD CODE OLD CODE OLD CODE OLD CODE OLD CODE
+!    temp = reshape(momentum_surface_flux,(/ size(momentum_surface_flux,1), & 
+!											size(momentum_surface_flux,2), & 
+!											size(momentum_surface_flux,3),nresults /))
+!    call write_arrays(temp,nresults,trim(prefix_dir)//'results/dsurf_vflux',m)
+!    deallocate(temp)
+    !OLD CODE OLD CODE OLD CODE OLD CODE OLD CODE
 
 end subroutine surface_evolution_momentum_flux_io
 

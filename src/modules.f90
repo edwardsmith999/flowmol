@@ -738,16 +738,6 @@ module calculated_properties_MD
 	integer,dimension(3) 					:: nbins,nbinso,gnbins  !Number of bins to store molecular properties
 	integer,dimension(:), allocatable       :: rdf_hist             !Array to keep tally of radial distribution
 	integer,dimension(:,:), allocatable	    :: rdf3d_hist           !Array to keep tally of radial distribution
-	real(kind(0.d0)),dimension(:), allocatable 		 :: slice_mass	    	!Array to keep tally of molecules in slice
-	real(kind(0.d0)),dimension(:,:,:), allocatable 	 :: slice_massbin 		!Recorded molecules in a bin
-	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: volume_mass			!Mass in a control volume at time t
-	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: volume_mass_s		!Solvnt mass in a control volume at time t
-	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: volume_mass_p		!Polymer mass in a control volume at time t
-	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: volume_mass_pdt		!Mass in a control volume at time t - dt
-	real(kind(0.d0)),dimension(:,:,:), allocatable	 :: dmdt				!Mass change in control volume from t-dt to t
-	real(kind(0.d0)),dimension(:,:,:,:), allocatable :: mass_flux  			!Flow of mass over a control volume surface
-	real(kind(0.d0)),dimension(:,:,:,:), allocatable :: mass_surface_flux   !Mass change due to surface movement
-	real(kind(0.d0)),dimension(:,:,:,:), allocatable :: surface_density  	!Mass located on a control volume surface
 
 	real(kind(0.d0)) :: 	&
 		binsize(3),			&		!Size of each bin
@@ -775,7 +765,8 @@ module calculated_properties_MD
 !		meandiffusion,		&		!Time averaged diffusion of molecules
 		Pxycorrel,			&     	!Sum of correlations of Pxy and Pxyzero
 		slice_temperature,	&		!Temperature in a domain slice
-		Pxyv_plane 	 				!Energy on plane for MOP
+		Pxyv_plane,	        & 		!Energy on plane for MOP
+        slice_mass	    	        !Array to keep tally of molecules in slice
 
 	real(kind(0.d0)), dimension(:,:), allocatable 	:: & 
 		ssf,                &       !Static structure factor
@@ -793,7 +784,13 @@ module calculated_properties_MD
 		zeta_array,			&		!Local Nose Hoover Thermostat strength
 		volume_temperature, &		!Temperature in a control volume at time t
 		volume_energy,      &       !Energy in a control volume at time t
-		Fv_ext_bin					!Power due to external forces in bins
+		Fv_ext_bin,         & 	    !Power due to external forces in bins
+        slice_massbin,      &  		!Recorded molecules in a bin
+        volume_mass,        &   	!Mass in a control volume at time t
+        volume_mass_s,      & 		!Solvnt mass in a control volume at time t
+        volume_mass_p,      & 		!Polymer mass in a control volume at time t
+        volume_mass_pdt,    & 		!Mass in a control volume at time t - dt
+        dmdt				        !Mass change in control volume from t-dt to t
 
 	real(kind(0.d0)), dimension(:,:,:,:), allocatable	:: &
 		volume_momentum,	& 		!Momentum in a control volume at time t
@@ -807,18 +804,23 @@ module calculated_properties_MD
 		Pxyvface_integrated,&		!Integrated form of Power
 		F_ext_bin,          &		!External Force per bin
 		evbin,              &  		!velocity energy per bin
-        heatfluxbin
+        heatfluxbin,        &
+        mass_flux,          &  		!Flow of mass over a control volume surface
+        mass_surface_flux,  &       !Mass change due to surface movement
+        surface_density      	    !Mass located on a control volume surface
 
 	real(kind(0.d0)), dimension(:,:,:,:,:), allocatable :: & 
 		volume_force,  			& 		!Force acting over control volume surface 
-		momentum_flux, 			&		!Flow of momentum over a control volume surface
-		momentum_surface_flux, 	&		!Change in momentum due to surface movement
 		rfbin, 					& 		!Position(x)Force tensor per bin
 		rfvbin,					& 		!Position(x)Force dot v per bin
 		vvbin, 					& 		!velocity(x)velocity tensor per bin
 		Pxybin, 				&		!Stress tensor per bin
-		Pxyface, 				&		!Stress tensor on bin face
 		Gxybins	    					!Parameter used in Nose Hoover stressostat
+
+	real(kind(0.d0)), dimension(:,:,:,:,:), allocatable, target :: & 
+		momentum_flux, 			&		!Flow of momentum over a control volume surface
+		momentum_surface_flux, 	&		!Change in momentum due to surface movement
+		Pxyface 						!Stress tensor on bin face
 
 	!real(kind(0.d0)),dimension(2,3,44)	:: shiftVAstress
 contains

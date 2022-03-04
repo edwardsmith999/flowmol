@@ -2239,9 +2239,13 @@ module messenger_bin_handler
 
 	!Generic interface so pack/unpack can be used with both integers and reals
 	interface swaphalos
-		module procedure iswaphalos, rswaphalos, iswaphalos3D, rswaphalos3D , iswaphalos5D, rswaphalos5D
+		module procedure iswaphalos, rswaphalos, iswaphalos3D, &
+                         rswaphalos3D , iswaphalos5D, rswaphalos5D, &
+                         rswaphalosP3D, rswaphalosP5D
 	end interface swaphalos
-	private iswaphalos, rswaphalos, iswaphalos3D, rswaphalos3D, iswaphalos5D, rswaphalos5D
+	private iswaphalos, rswaphalos, iswaphalos3D, &
+            rswaphalos3D, iswaphalos5D, rswaphalos5D, &
+            rswaphalosP3D, rswaphalosP5D
 
 	interface updatefaces
 		module procedure iupdatefaces, rupdatefaces
@@ -2758,6 +2762,20 @@ subroutine rswaphalos3D(A,n1,n2,n3)
 
 end subroutine rswaphalos3D
 
+
+subroutine rswaphalosP3D(A)
+
+	real(kind(0.d0)),allocatable, target, intent(inout)	:: A(:,:,:)
+
+    real(kind(0.d0)),pointer,dimension(:,:,:,:)     :: TEMP
+
+    TEMP(1:size(A,1), 1:size(A,2), 1:size(A,3), 1:1) => A(:,:,:)
+
+	call rswaphalos(TEMP,size(A,1),size(A,2),size(A,3),1)
+
+end subroutine rswaphalosP3D
+
+
 !Wrappers for 5D cases
 subroutine iswaphalos5D(A,n1,n2,n3)
 
@@ -2790,6 +2808,21 @@ subroutine rswaphalos5D(A,n1,n2,n3)
 	A = reshape(TEMP,(/ size(A,1),size(A,2),size(A,3),size(A,4),size(A,5) /))
 
 end subroutine rswaphalos5D
+
+!Pointer version which don't need array allocations (input must be target)
+subroutine rswaphalosP5D(A)
+
+	real(kind(0.d0)),allocatable, target, intent(inout)	:: A(:,:,:,:,:)
+
+    integer                                     :: nresults
+    real(kind(0.d0)),pointer,dimension(:,:,:,:)     :: TEMP
+
+    nresults = size(A,4)*size(A,5)
+    TEMP(1:size(A,1), 1:size(A,2), 1:size(A,3), 1:nresults) => A(:,:,:,:,:)
+
+	call rswaphalos(TEMP,size(A,1),size(A,2),size(A,3),nresults)
+
+end subroutine rswaphalosP5D
 
 end module messenger_bin_handler
 
