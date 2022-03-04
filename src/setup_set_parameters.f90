@@ -2129,6 +2129,28 @@ subroutine set_parameters_outputs
     call system_mem_usage(mem_end)
     print*, "Memory allocated before momentum CV=", (mem_end-mem_start)/1024, "Mb"
 
+	!Allocate bins for control volume mass fluxes
+	if (mflux_outflag .eq. 1) then
+		!if (.not. allocated(volume_mass)) &
+		!allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)  ))
+		allocate(  mass_flux(nbinso(1),nbinso(2),nbinso(3),6))
+		if (Nsurfevo_outflag .ne. 0) then
+			allocate(mass_surface_flux(nbinso(1),nbinso(2),nbinso(3),6))
+			mass_surface_flux = 0
+		endif
+		!volume_mass = 0
+		mass_flux   = 0
+		if (CV_debug .eq. 1) then
+			call CVcheck_mass%initialise(nbins,nhb,domain,delta_t,Nmflux_ave)   ! initialize CVcheck
+        elseif (CV_debug .eq. 2) then
+			call CVcheck_mass%initialise(nbins,nhb,domain, & 
+                                        delta_t,Nmflux_ave, & 
+                                        localise_bin(debug_CV),debug_CV_range)   ! initialize CVcheck
+		endif
+
+	endif
+
+
 	!Allocate array for Stress Method of Planes and/or 
 	!allocate bins for control volume momentum fluxes and forces
 	planespacing = cellsidelength(2)
@@ -2231,30 +2253,8 @@ subroutine set_parameters_outputs
 			!allocate(  mass_flux(nbinso(1),nbinso(2),nbinso(3),6))
 			!volume_mass = 0
 			!mass_flux   = 0
-			if (Nsurfevo_outflag .ne. 0) then
-				allocate(mass_surface_flux(nbinso(1),nbinso(2),nbinso(3),6))
-				mass_surface_flux = 0
-			endif
+
 		case default
-			!Allocate bins for control volume mass fluxes
-			if (mflux_outflag .eq. 1) then
-				if (.not. allocated(volume_mass)) &
-				allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)  ))
-				allocate(  mass_flux(nbinso(1),nbinso(2),nbinso(3),6))
-				if (Nsurfevo_outflag .ne. 0) then
-					allocate(mass_surface_flux(nbinso(1),nbinso(2),nbinso(3),6))
-					mass_surface_flux = 0
-				endif
-				volume_mass = 0
-				mass_flux   = 0
-				if (CV_debug .eq. 1) then
-					call CVcheck_mass%initialise(nbins,nhb,domain,delta_t,Nmflux_ave)   ! initialize CVcheck
-                elseif (CV_debug .eq. 2) then
-					call CVcheck_mass%initialise(nbins,nhb,domain, & 
-                                                delta_t,Nmflux_ave, & 
-                                                localise_bin(debug_CV),debug_CV_range)   ! initialize CVcheck
-				endif
-			endif
 	end select
 
 	!Allocate bins for control volume energy fluxes and forces*velocity

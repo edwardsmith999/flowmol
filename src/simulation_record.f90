@@ -4854,6 +4854,10 @@ subroutine cumulative_flux_opt(ri1, ri2, fluxes, quantity, ISR, surface_flux, st
                     denom = ri12(n1) - ri12(t1)*dSdr(i,1) - ri12(t2)*dSdr(i,2)
                     crossdir = sign(1.d0,denom)
 
+                    !Put out of domain crossings at the domain ends
+                    if (cbin(ixyz) .lt. 1) cbin(ixyz) = 1
+                    if (cbin(ixyz) .gt. size(fluxes,ixyz)) cbin(ixyz) = size(fluxes,1) 
+
                     !Save curvature terms in other 2 components of surface fluxes
                     if (Nsurfevo_outflag .eq. 2 .and. present(surface_flux)) then
 
