@@ -2469,7 +2469,7 @@ subroutine parallel_io_psf()
     use librarymod, only : get_new_fileunit
     implicit none
 
-    integer                 :: n, mt, unitno, startmol
+    integer                 :: n, mt, unitno, molno, startmol
     character(2)           :: nprocstr
     character(256)          :: filename, cmd
 
@@ -2506,12 +2506,19 @@ subroutine parallel_io_psf()
 
     do n = 1, np
         mt = moltype(n)
-        write(unitno,'(i8,a5,i5,3a5,f12.7,f12.5,i4)') &
-                 startmol + n, &            ! molno
+
+        if (global_numbering .eq. 1) then
+            molno = glob_no(n)
+        else
+            molno = startmol + n
+        endif
+
+        write(unitno,'(i8,a5,i5,a5,i5, a5,f12.7,f12.5,i4)') &
+                 molno, &                   ! molno
                  trim(moltype_names(mt)), & ! segment name
                   1,  &                     ! Residue ID
                  trim(moltype_names(mt)), & ! residue name
-                 trim(moltype_names(mt)), & ! atom name
+                 tag(n), &                  ! atom name (We replace with tag)
                  trim(moltype_names(mt)), & ! atom type
                  epsilon_lookup(mt,mt), &   ! charge
                  mass_lookup(mt), &         ! mass
@@ -2527,7 +2534,7 @@ subroutine parallel_io_psf()
 
     call MPI_Barrier(MD_COMM,ierr)
 
-    !This is a disgusting hack to concat each processors files on the commandline
+    !This is a hack to concat each processors files on the commandline
     if (irank .eq. iroot) then
         write(cmd,'(3a)') "cat ", trim(prefix_dir)//"results/vmd_out.psf.* > ", & 
                             trim(prefix_dir)//"results/vmd_out.psf"
@@ -4484,6 +4491,7 @@ subroutine surface_evolution_momentum_flux_io()
 !    call write_arrays(temp,nresults,trim(prefix_dir)//'results/dsurf_vflux',m)
 !    deallocate(temp)
     !OLD CODE OLD CODE OLD CODE OLD CODE OLD CODE
+
 
 end subroutine surface_evolution_momentum_flux_io
 
