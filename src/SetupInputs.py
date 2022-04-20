@@ -83,6 +83,9 @@ class SetupInputs():
                 keyword = re.split(',',item)[1].strip("'")
                 variables = []; located = True
             if (item.find('read(1') != -1 and located):
+                #Used to identify csv lists, not an input
+                if ("commacheckstr" in item):
+                    continue
                 variables.append(re.split('\*\\)|ios\\)',
                                  item)[-1].strip(' ').split('\t')[0].split("!")[0].strip(" "))
                 #print(item,keyword,variables)

@@ -35,7 +35,7 @@ subroutine setup_read_input
 	logical					:: found_in_input, already_read, error, empty
 	integer 				:: ios, ixyz, n, Nvmd_interval_size
 	double precision,dimension(1000) :: temp
-    character(256)          :: str
+    character(256)          :: commacheckstr
 
 	! Open input file
 	open(1,file=input_file)
@@ -1537,7 +1537,37 @@ subroutine setup_read_input
     !print*, "INTRINSIC_INTERFACE inputs", intrinsic_interface_outflag, II_normal, II_alpha, II_tau, II_eps, II_ns      
 
 
-	!Flag to determine if output is switched on
+    !#########################################################################
+    !# Output flag for visualisation in VMD:
+    !# [1] 0 - off, 
+    !# [1] 1 - homogeneous, 
+    !# [1] 2 - solid/liquid,
+    !# [1] 3 - homogeneous+halos, 
+    !# [1] 4 - "true" unwrapped positions
+    !# [2] 0 - Write all
+    !# [2] 1 - 1 interval specified as csv in next box
+    !# [2] 2 - 2 intervals specified as csv in next box
+    !# [2] 3 - 3 intervals specified as csv in next box
+    !# [2] 4 - 4 intervals specified as csv in next box
+    !# [2] 5 - 5 intervals specified as csv in next box
+    !# [2] 6 - 6 intervals specified as csv in next box
+    !# [2] 7 - 7 intervals specified as csv in next box
+    !# [2] 8 - 8 intervals specified as csv in next box
+    !# [2] 9 - 9 intervals specified as csv in next box
+    !# [2] 10 - 10 intervals specified as csv in next box
+    !# [2] 11 - 11 intervals specified as csv in next box
+    !# [2] 12 - 12 intervals specified as csv in next box
+    !# [2] 13 - 13 intervals specified as csv in next box
+    !# [2] 14 - 14 intervals specified as csv in next box
+    !# [2] 15 - 15 intervals specified as csv in next box
+    !# [2] 16 - 16 intervals specified as csv in next box
+    !# [2] 17 - 17 intervals specified as csv in next box
+    !# [2] 18 - 18 intervals specified as csv in next box
+    !# [2] 19 - 19 intervals specified as csv in next box
+    !# [2] 20 - 20 intervals specified as csv in next box
+    !# [3] list - Intervals: start, finish of interval as: start_1, finish_1, start_2, finish_2, etc, etc
+    !# [4] int - Number of intervals if csv list not used
+    !# -----------------------------------------------------------------------
 	call locate(1,'VMD_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) vmd_outflag
@@ -1552,9 +1582,9 @@ subroutine setup_read_input
 			else
 				allocate(vmd_intervals(2,Nvmd_intervals))
                 !Check if interval in form of comma seperated list of inputs
-                read(1,'(a)',iostat=ios) str
+                read(1,'(a)',iostat=ios) commacheckstr
                 backspace(1)
-                if (scan(str, ",").gt.0) then
+                if (scan(commacheckstr, ",").gt.0) then
                     read(1,*,iostat=ios) vmd_intervals
                 !Otherwise, use Nvmd_interval_size to specify linearly space records
                 else
@@ -1603,6 +1633,7 @@ subroutine setup_read_input
     else
         vmd_skip = 1
     end if
+
 
 	call locate(1,'SEPERATE_OUTFILES',.false.,found_in_input)
 	if (found_in_input) then
@@ -1789,6 +1820,28 @@ subroutine setup_read_input
 			read(1,*) Ncom_ave
 		endif
 	endif
+
+	! #########################################################################
+	! # Output flag for Pressure binning:
+	! #  Notes on Configurational Stress VA Splitting method
+	! #       0 is Harasima contour (half per bin)
+	! #       1 is Line length per bin trapizium rule
+	! #            (less accurate but more robust, requires number of segments
+	! #             specified on next line)
+	! #       2 is Line length per bin explicit calculation 
+	! #            (Perfectly accurate but horribly complicated and limited to
+	! #             cases where binsize > cellsize)
+	! # [1] 0 - Off
+	! # [1] 1 - virial
+	! # [1] 2 - Volume Averaged
+	! # [2] int - number of samples used for averaging
+	! # [3] 0 - Just output total pressure
+	! # [3] 1 - Split output into configurational and kinetic
+	! # [4] 0 - Harasima contour (half per bin)
+	! # [4] 1 - Line length per trapizium bin using discrete segments
+	! # [4] 2 - Exact calculation (note requires binsize > cellsize)
+	! # [5] int - Number of segments for line length (0 attempts to optimise)
+	! # -----------------------------------------------------------------------
 	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) pressure_outflag
@@ -1821,6 +1874,27 @@ subroutine setup_read_input
 		end if
 	endif
 
+	! #########################################################################
+	! # Output flag for heatflux binning:
+	! #  Notes on Configurational Stress VA Splitting method
+	! #       0 is Harasima contour (half per bin)
+	! #       1 is Line length per bin trapizium rule
+	! #            (less accurate but more robust, requires number of segments
+	! #             specified on next line)
+	! #       2 is Line length per bin explicit calculation 
+	! #            (Perfectly accurate but horribly complicated and limited to
+	! #             cases where binsize > cellsize)
+	! # [1] 0 - Off
+	! # [1] 1 - virial
+	! # [1] 2 - Volume Averaged
+	! # [2] int - number of samples used for averaging
+	! # [3] 0 - Just output total heatflux
+	! # [3] 1 - Split output into configurational heaflux and energy flux
+	! # [4] 0 - Harasima contour (half per bin)
+	! # [4] 1 - Line length per trapizium bin using discrete segments
+	! # [4] 2 - Exact calculation (note requires binsize > cellsize)
+	! # [5] int - Number of segments for line length (0 attempts to optimise)
+	! # -----------------------------------------------------------------------
 	call locate(1,'HEATFLUX_OUTFLAG',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) heatflux_outflag
@@ -1869,7 +1943,16 @@ subroutine setup_read_input
 	! #	in snapshots. Note, this increases computational cost somewhat
 	! #   Debug mode .true. or .false. can be used to enforce in code CV 
 	! #	conservation checking
-	! #
+	! # [1] 0 - Off
+	! # [1] 1 - On
+	! # [2] 0 - Debug off 
+	! # [2] 1 - Debug on 
+	! # [3] int - x index of first debug CV
+	! # [4] int - y index of first debug CV
+	! # [5] int - z index of first debug CV
+	! # [6] int - x number of debug CVs
+	! # [7] int - y number of debug CVs
+	! # [8] int - z number of debug CVs
 	! # -----------------------------------------------------------------------
 	call locate(1,'CV_CONSERVE',.false.,found_in_input)
 	cv_conserve = 0
@@ -1897,6 +1980,12 @@ subroutine setup_read_input
         endif
 	endif
 
+
+	! #########################################################################
+	! # Pass velocities in halos
+	! # [1] - Off
+	! # [1] - On
+	! # -----------------------------------------------------------------------
 	call locate(1,'PASS_VHALO',.false.,found_in_input)
 	if (found_in_input) then
 		read(1,*) pass_vhalo
@@ -2139,19 +2228,22 @@ subroutine setup_read_input
         cluster_analysis_outflag = 0
 	endif
 
-    !print*, "CLUSTER_ANALYSIS inputs", CA_rd, CA_min_nghbr
-
-    !#########################################################################
+	! ########################################################################
     !# Fit an intrinsic surface to the outside of the cluster
-    !#   flag   1 - Intrinsic sine/cosine  2 - sine/cosine with bilinear approx  
-    !#       - normal     Surface normal direction
-    !#       - alpha      Smallest wavelength
-    !#       - tau        Search radius around surface
-    !#       - omega      Weight for surface energy minimising constraint
-    !#       - ns         Target density of surface Npivots/Area
-    !#   flag       3  - Linear and cubic surfaces
-    !#       - No flags yet
-    !# -----------------------------------------------------------------------
+	! # [1] 0 - Intrinsic Interface Off 
+	! # [1] 1 - Intrinsic Sine and Cosine components
+	! # [1] 2 - Sine and Cosine using bilinear component
+	! # [1] 3 - Chebychev terms in non-periodic directions using bilinear
+	! # [2] 1 - x surface normal
+	! # [2] 2 - y surface normal
+	! # [2] 3 - z surface normal
+	! # [3] float - Smallest Wavelength
+	! # [4] float - Search radius around surface used to fit interface
+	! # [5] float - Weight for surface energy minimising constraint
+	! # [6] float - Target density of surface Npivots/Area
+	! # [7] 0 - Top of cluster
+	! # [7] 1 - Bottom of cluster
+	! # ----------------------------------------------------------------------
 	call locate(1,'INTRINSIC_INTERFACE',.false.,found_in_input)
 	if (found_in_input) then
         if (cluster_analysis_outflag .eq. 0) then

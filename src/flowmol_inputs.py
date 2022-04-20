@@ -796,7 +796,7 @@ class MyFrame(wx.Frame):
                         EnumDict[item[itemnum-1]]["names"].append(name)
                         EnumDict[item[itemnum-1]]["numbers"].append(val)
                     except IndexError:
-                        print("IndexError", e)
+                        print("Create_InputsDict IndexError", e)
                     #if (params != [] and str(params[-1]) in str(val)):
                     #    print(params[-1], val, itemnum, val, name)
                     #    EnumDict[item[itemnum-1]]["set"] = val
@@ -846,7 +846,7 @@ class MyFrame(wx.Frame):
 
                 #if kcheck in included:
                 k = Ik + " " + kcheck
-
+                #print(var)
                 try:
                     #Should be in form of nested dictonaries
                     if isinstance(var, dict):
@@ -862,6 +862,10 @@ class MyFrame(wx.Frame):
                         #Floats such as density of system
                         elif ("float" in var["numbers"][0]):
                             page.Append( wxpg.FloatProperty(kcheck, k, value=float(var["set"])) )
+                        elif ("list" in var["numbers"][0]):
+                            #print(kcheck, k, var["set"].split(","))
+                            page.Append( wxpg.ArrayStringProperty(kcheck, k, value=var["set"].split(",")) )
+
                         #Or a case with string based keywords 
                         #(so store a mapping to use enum list) 
                         elif isinstance(var["numbers"][0], str):
@@ -907,6 +911,7 @@ class MyFrame(wx.Frame):
                 except wx._core.wxAssertionError:
                     print("Trying to re add existing", Ik, k, var)
                 except IndexError:
+                    print("Create_Propertygrid IndexError", kcheck, var, k)
                     print("Possible missing argument definition in setup_read_input help string")
                     raise
 
@@ -1146,6 +1151,7 @@ class MyFrame(wx.Frame):
         #Create a panel associated with this run
         #self.plotupdate = 0
         if (len(self.auipanes.keys()) >= self.ncpus):
+            print("RUnning cases =", self.auipanes.keys(), " max cpus = ", self.ncpus )
             msgbx = wx.MessageDialog(self, 
                         "Running cases greater than number of cpus ",
                                     style=wx.OK|wx.ICON_ERROR)
