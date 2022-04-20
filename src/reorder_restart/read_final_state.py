@@ -169,14 +169,54 @@ class final_state:
             ax = fig.add_subplot(projection='3d')
         ax.scatter(self.r[:,0], self.r[:,1], self.r[:,2], c=self.tag[:])
 
-    def remove_molecules(self, rpos, radius, rdim=0):
+    def remove_molecules(self, rpos, radius, rdim=0, ends=None, targetdensity=0.):
 
         h = self.headerDict
         N = h["globalnp"]
 
+        #Get volume of cylinder/sphere
+        if ends==None:
+            ends = [-1e10,1e10]
+        elif (rdim != 3):
+            V = (ends[1] - ends[0]) * np.pi * radius**2
+        else:
+            V = (4./3.) * np.pi * radius**3
+    
+        if (targetdensity > 1e-6):
+            molsinV = 0
+            #Get density in space
+            rmapped = np.zeros(3)
+            for n in range(N):
+                rmapped[:] = self.r[n,:] - rpos[:]
+                #Set zero along direction
+                if (rdim != 3):
+                    rmapped[rdim] = 0.
+                #Spherical or cylindrical radius
+                rspherical2 = np.dot(rmapped,rmapped)    #Get position in spherical coordinates
+                rspherical = np.sqrt(rspherical2)
+
+                if (rspherical < radius and 
+                    self.delmol[n] != 1):
+                    #Ends of cylinder
+                    if (rdim != 3 and 
+                        (self.r[n,rdim] < ends[0] or
+                         self.r[n,rdim] > ends[1])):
+                        continue
+
+                    molsinV += 1
+            density = molsinV / V     
+            print("Density in removed region", density, "target=", targetdensity)
+        else:
+            density = 1.
+
+
+        deleteratio = targetdensity/density
+
+        #Get density in space
         rmapped = np.zeros(3)
         for n in range(N):
             rmapped[:] = self.r[n,:] - rpos[:]
+
             #Set zero along direction
             if (rdim != 3):
                 rmapped[rdim] = 0.
@@ -185,11 +225,22 @@ class final_state:
             rspherical = np.sqrt(rspherical2)
             #theta = np.acos(rmapped[2]/rspherical)
             #phi = np.atan(rmapped[1]/rmapped[0])
-            if (rspherical < radius and self.delmol[n] != 1):
-                print(n, self.Nnew, rspherical, radius)
-                self.delmol[n] = 1           
-                self.Nnew -= 1                   
-                self.molecules_deleted = True
+
+            if (rspherical < radius and
+                self.delmol[n] != 1):
+                #Ends of cylinder
+                #print(rmapped, rmapped[(rdim+1)%3], ends[0], rmapped[(rdim+2)%3], ends[1], 
+                if (rdim != 3 and 
+                    (self.r[n,rdim] < ends[0] or
+                     self.r[n,rdim] > ends[1])):
+                    continue
+
+                randno = np.random.random(1)
+                if (randno > deleteratio):
+                    print(n, self.Nnew, rspherical, radius)
+                    self.delmol[n] = 1           
+                    self.Nnew -= 1                   
+                    self.molecules_deleted = True
 
     def write_moldata(self, outfile=None, verbose=False):
 
@@ -297,7 +348,7 @@ if __name__ == "__main__":
     
     #Remove molecules   (currently this is based on a similar setup to the external force)
     # where inputs are position [x,y,z], radius and then direction (x=0, y=1, z=2).
-    fs.remove_molecules([0.,0.,0.],4,0)
+    fs.remove_molecules([0.,0.,0.],4,0,[-12,12], 0.01)
 
     #write a new initial_state file
     fs.write_moldata("./final_state_hole", verbose=True)
