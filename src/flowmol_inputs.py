@@ -167,6 +167,9 @@ class CanvasPanel(wx.Panel):
                                 self.axes.plot(rt[n:n+2,0], rt[n:n+2,1], rt[n:n+2,2], '-',
                                                c=cm.RdYlBu_r(moltypes[n]/maxmoltype), lw=2.)
 
+                except OSError as e:
+                    print("OSError ", e)
+                    pass
                 except IOError:
                     raise
             elif plottype == "v":
@@ -195,12 +198,11 @@ class CanvasPanel(wx.Panel):
             #    self.axisEqual3D(self.axes)
 
             if self.ft:
-
                 self.axes.view_init(90, -90)
                 self.ft=False
             else:
                 self.axes.view_init(elev, azim)
-
+        #self.axes.set_box_aspect(np.ptp(r[:,0]), np.ptp(r[:,1]), np.ptp(r[:,2]))
         self.canvas.draw()
 
     def wave_function(self, x, u):
@@ -506,7 +508,7 @@ class MyFrame(wx.Frame):
                 #Create associated pane
                 self.auipane = self.create_aui_pane(rundir)
                 self.auipanes[rundir] = self.auipane
-                filename = rundir + "/" + self.outputfile  
+                filename = rundir + os.sep + self.outputfile  
                 #Link all output files to pane
                 try:
                     self.auipanes[rundir].stdout = open(filename, "r")
@@ -1007,7 +1009,7 @@ class MyFrame(wx.Frame):
 
         self.ChangeDict[key] = changes
 
-        print("Changes = ", key, changes, self.ChangeDict)
+        print("New Change = ", key, changes, "\n Total unsaved changes = ", self.ChangeDict)
 
         # #Conditions are stored as 
         # # [[condition1, condition2, ... ], [dependent1, dependent2, ...]]
@@ -1082,26 +1084,35 @@ class MyFrame(wx.Frame):
             inputfile = self.inputfilename
             if self.srcdir in inputfile:
                 pathtoinput = inputfile.replace(self.srcdir,'')
-                inputfile = inputfile.split("/")[-1]
+                inputfile = inputfile.split(os.sep)[-1]
                 basedir = self.inputfilename.replace(inputfile,"")
             else:
                 #If absolute path to different directory
-                inputfile = inputfile.split("/")[-1]
+                inputfile = inputfile.split(os.sep)[-1]
                 pathtoinput = self.inputfilename.replace(inputfile,'')
                 basedir = pathtoinput
 
-            if (not os.path.isfile(basedir+"/"+self.executable)):
-                msgbx = wx.MessageBox("Directory "+basedir+
-                                      "does not have a copy of executable " + self.executable,
-                                      "Copy one from srcdir? "+ self.srcdir,
-                                       wx.ICON_QUESTION | wx.NO | wx.YES )
-                if  msgbx == wx.YES:
-                    shutil.copy(self.srcdir+"/"+self.executable, basedir+"/"+self.executable)
+            execpath_base = os.path.join(basedir, self.executable)
+            execpath_src = os.path.join(self.srcdir, self.executable)
+            if (not os.path.isfile(execpath_base)):
+                if (os.path.isfile(execpath_src)):
+                    msgbx = wx.MessageBox("Directory "+basedir+
+                                          "does not have a copy of executable " + self.executable 
+                                          + " Copy one from srcdir? "+ self.srcdir, " ",
+                                           wx.ICON_QUESTION | wx.NO | wx.YES )
+                    if  msgbx == wx.YES:
+                        shutil.copy(execpath_src, execpath_base)
+                else:
+                    dialog = wx.TextEntryDialog(None,
+                            "Executable not found, please enter path here",
+                            "Text Entry", "Default Value", style=wx.OK|wx.CANCEL)
+                    if dialog.ShowModal() == wx.ID_OK:
+                        print("You entered: %s" % dialog.GetValue())
 
             restartfile = self.restartfilename
             if restartfile and (self.srcdir in restartfile or
                                 basedir in restartfile):
-                restartfile = restartfile.split("/")[-1]
+                restartfile = restartfile.split(os.sep)[-1]
                 checkbasedir = self.restartfilename.replace(restartfile,"")
                 print("Location of restart file=", checkbasedir, " is not the same as basedir=", 
                        basedir, " copy restart file to basedir")
@@ -1127,7 +1138,7 @@ class MyFrame(wx.Frame):
 
     def run_btn(self, event): 
 
-        # otherwise ask the user what new file to open
+        # Ask the user where to save the run output
         with wx.DirDialog(self, "Choose output directory",
                           defaultPath="../runs/") as folderDiag:
 
@@ -1153,7 +1164,7 @@ class MyFrame(wx.Frame):
         if (len(self.auipanes.keys()) >= self.ncpus):
             print("RUnning cases =", self.auipanes.keys(), " max cpus = ", self.ncpus )
             msgbx = wx.MessageDialog(self, 
-                        "Running cases greater than number of cpus ",
+                        "Running cases greater than number of available cpus ",
                                     style=wx.OK|wx.ICON_ERROR)
             msgbx.ShowModal()
             msgbx.Destroy()
@@ -1163,7 +1174,7 @@ class MyFrame(wx.Frame):
         if self.auipane:
 
             self.run = swl.MDRun(src, basedir, rundir,
-                                 "./"+self.executable, 
+                                 "./" + self.executable, 
                                  inputfile,
                                  self.outputfile,
                                  inputchanges=changes, 
@@ -1173,10 +1184,11 @@ class MyFrame(wx.Frame):
 
             self.run.setup()
             try:
-                shutil.move(rundir+"/"+self.outputfile, 
-                            rundir+"/"+self.outputfile+".bak")
-                shutil.move(rundir+"/"+self.outputfile+'_err', 
-                            rundir+"/"+self.outputfile+'_err'+".bak")
+                outfilepath = os.path.join(rundir, self.outputfile)
+                shutil.move(outfilepath, 
+                            outfilepath+'.bak')
+                shutil.move(outfilepath+'_err', 
+                            outfilepath+'_err.bak')
                 os.remove(rundir+"/ABORTABORT")
             except FileNotFoundError:
                 pass
@@ -1195,7 +1207,7 @@ class MyFrame(wx.Frame):
             #Read files from run
             for i in range(50):
                 try:
-                    filename = rundir + "/" + self.outputfile
+                    filename = rundir + os.sep + self.outputfile
                     self.auipanes[rundir].stdout = open(filename, "r")
                     self.auipanes[rundir].stderr = open(filename+'_err' , "r")
                     self.auipanes[rundir].endrun = False
@@ -1333,18 +1345,20 @@ class MyFrame(wx.Frame):
             pass
         print("Making ", self.tmpdir)
         os.mkdir(self.tmpdir)
-        os.mkdir(self.tmpdir+"/results")
+        os.mkdir(self.tmpdir+ os.sep +"results")
 
         basedir, pathtoinput, inputfile, restartfile = self.get_files()
 
+        print("files= ", basedir, pathtoinput, inputfile, restartfile)
         print("Restart file =", self.restartfilename, " inputfile = ",  self.inputfilename)
 
-        self.run = swl.MDRun(self.srcdir, basedir, self.srcdir + "/" + self.tmpdir,
-                  "./"+self.executable, 
-                  inputfile, "setup.out",
-                  inputchanges=changes, finishargs = {},
-                  restartfile = restartfile,
-                  dryrun=False, minimalcopy=True)                
+        self.run = swl.MDRun(self.srcdir, basedir, 
+                             os.path.join(self.srcdir,self.tmpdir),
+                             "./" + self.executable, 
+                             inputfile, "setup.out",
+                             inputchanges=changes, finishargs = {},
+                             restartfile = restartfile,
+                             dryrun=False, minimalcopy=True)                
 
         try:
             self.run.setup()
@@ -1586,13 +1600,14 @@ class MyFrame(wx.Frame):
 
         try:
             for key, values in self.ChangeDict.items():
-                #print("Dryrun in OnSave - saving to ", self.inputfilename, "keys=", key, "values=",values)
+                print("Dryrun in OnSave - saving to ", self.inputfilename, "keys=", key, "values=",values)
                 self.InputFileMod.replace_input(key, values)
 
             #Clear history of changes
             self.ChangeDict = {}
-        except AttributeError:
-            print("No changes to save")
+        except AttributeError  as e:
+            print("No changes to save", e)
+            raise
             pass
 
     def OnSaveAs(self, event):
@@ -1699,7 +1714,7 @@ class MyFrame(wx.Frame):
         self.Destroy()
 
     def killproc(self, rundir):
-        open(rundir + "/ABORTABORT", 'a').close()
+        open(rundir + os.sep + "ABORTABORT", 'a').close()
         try:
             self.auipanes[rundir].run.proc.kill()
         except AttributeError:

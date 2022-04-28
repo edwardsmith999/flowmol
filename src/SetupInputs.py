@@ -83,7 +83,7 @@ class SetupInputs():
                 keyword = re.split(',',item)[1].strip("'")
                 variables = []; located = True
             if (item.find('read(1') != -1 and located):
-                #Used to identify csv lists, not an input
+                #Used to identify input type is a csv lists
                 if ("commacheckstr" in item):
                     continue
                 variables.append(re.split('\*\\)|ios\\)',
@@ -122,9 +122,9 @@ class SetupInputs():
                 #print(var, item, item.find(var) != -1,  item.find('if') != -1)
                 if (item.find('ios') != -1):
                     continue
-                # First get what condition is extracting
+                # First get which condition is being extracted
                 # between brackets "()" handling newline "&"
-                # assuming more than 20 is unlikely
+                # and assuming more than 20 is unlikely
                 condition = item
                 #print("condition = ", condition, var, item.find('if') != -1)
                 for i in range(1,20):
@@ -154,6 +154,8 @@ class SetupInputs():
                     #print(condition, nestif,  line)
                     #Then look for a read statement
                     if (line.find('read(') != -1):
+                        if ("commacheckstr" in line):
+                            continue
                         convariable.append(re.split('\*\\)|ios\\)',
                                             line)[-1].strip(' ').split('\t')[0].split("!")[0].strip(" "))
                     elif (line.find(' locate') != -1):                
@@ -165,14 +167,15 @@ class SetupInputs():
                     elif (line.find('if ') != -1 and line.find('&') != -1):
                         for n in range(1,10):
                             fline = self.listout[l+i+n]
-                            print(fline,fline.find('&'),  fline.find('then'))
+                            #print(fline,fline.find('&'),  fline.find('then'))
                             if (fline.find('&') != -1):
                                 pass
                             elif (fline.find('then') != -1):
                                 nestif += 1
                                 break
                             #else:
-                            #    raise IOError("Runaway argument in SetupInputs get_conditional due to ampersand and if statements ")
+                            #    raise IOError("Runaway argument in SetupInputs 
+                            #                    get_conditional due to ampersand and if statements ")
 
                     #Go until endif
                     if (line.find('endif') != -1 or line.find('end if') != -1):
