@@ -438,7 +438,7 @@ subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
 	real(kind(0.d0))		:: xlocation, ylocation, zlocation, unitsize(3), add
 	real(kind(0.d0))		:: rand, fraction_domain, postheight, sizex, sizez, nposts
 	real(kind(0.d0))		:: tstart, tend, tdepth, grad, normal, mid, wallwidth, bottom, line
-	real(kind(0.d0))		:: inlet, outlet, region
+	real(kind(0.d0))		:: inlet, outlet, region, postwidth
 	!real(kind(0.d0)),dimension(:),allocatable	:: temp
 	!real(kind(0.d0)),dimension(:,:),allocatable,save	:: z
 
@@ -450,27 +450,43 @@ subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
 	case(posts)
 
         tagdisttop = tethereddisttop
-
 		postheight = texture_intensity
 		tagdistbottom = tethereddistbottom
 		ylocation = rg(2) + 0.5*globaldomain(2)
 
 		! Post is above wall
-		if ((ylocation .gt. tethereddistbottom(2) ) .and. & 
-			(ylocation .lt. tethereddistbottom(2) + postheight)) then
+		!if ((ylocation .gt. tethereddistbottom(2) ) .and. & 
+		!	(ylocation .lt. tethereddistbottom(2) + postheight)) then
 
-            !Soecify number of posts
-            npostsx = 3
-            npostsz = 0
+            !Specify number of posts in x and z
+			if (abs(tex_opt1+666.d0) .lt. 1e-6) then
+				npostsx = 1
+			else
+				npostsx = tex_opt1
+			endif
+			if (abs(tex_opt2+666.d0) .lt. 1e-6) then
+				npostsz = 0
+			else
+				npostsz = tex_opt2
+			endif
 
 			!Single strip in the middle of the domain
             if (npostsx .eq. 1) then
-			    if (rg(1) .gt. -postheight/2.d0 .and. &
-				    rg(1) .lt.  postheight/2.d0) then
+				!If a single post, use 3rd arg to specify width
+				if (abs(tex_opt3+666.d0) .lt. 1e-6) then
+					postwidth = 0.5*postheight
+				else
+					postwidth = tex_opt3
+				endif
+				!Add a single post (note can be negative for pore)
+			    if (rg(1) .gt. -postwidth/2.d0 .and. &
+				    rg(1) .lt.  postwidth/2.d0) then
 				    tagdistbottom(2) = tethereddistbottom(2) + postheight 
+
 			    else
 				    tagdistbottom(2) = tethereddistbottom(2)
 			    endif
+
             elseif (npostsz .eq. 0) then
                 !Repeating posts over x
 			    if ( sin(dble(npostsx)*2.d0*pi*(rg(1)+0.5d0*globaldomain(1))/globaldomain(1)) .gt. 0.0) then
@@ -487,7 +503,7 @@ subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
 				    tagdistbottom(2) = tethereddistbottom(2)
 			    endif
             endif
-		endif
+		!endif
 
 	case(triangle_notch)
 
