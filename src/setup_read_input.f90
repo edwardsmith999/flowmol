@@ -485,7 +485,16 @@ subroutine setup_read_input
 
 		case('2phase_surfactant_solution', '2phase_surfactant_atsurface')
 
-            !Specifiy more general potential than LJ
+			! #########################################################################
+			! # Specifiy more general potential than LJ, including powers 
+			! # 12 and 6 with lambda_a and lambda_r to allow tuning to more 
+			! # general molecular models with mol_type keeping track of the 
+			! # parameter which chooses a pre-defined molecule type and
+			! # allows varying wetting potential/wall interaction eij
+			! # [1] 0 - Lennard Jones Potential
+			! # [1] 1 - Mie Potential
+			! # [2] int - Default value of Mie molecule type
+			! #-----------------------------------------------------------------------
 	        call locate(1,'MIE_POTENTIAL',.false.,found_in_input) 
 	        if (found_in_input) then
                 read(1,*) Mie_potential
@@ -807,8 +816,12 @@ subroutine setup_read_input
             print*, "Default moltype not given -- assuming Argon (=1)"
             default_moltype = 1
         endif
-        !IF Mie potential, check for EIJ wall
-        if (Mie_potential .ne. 0) then
+		if (Mie_potential .ne. 0) then
+			! #########################################################################
+			! # Wetting between wall and fluid 
+			! # [1] float - Magnitude of top and bottom (or just bottom if top set below)
+			! # [2] float - Magnitude of top 
+			! #----------------------------------------------------------------------- 
             call locate(1,'EIJ_WALL',.false.,found_in_input)
             if (found_in_input) then
                 read(1,*,iostat=ios) eij_wall(1)
@@ -975,6 +988,11 @@ subroutine setup_read_input
             end do
 
             if (any(bforce_flag .eq. substrate_force)) then
+				! #########################################################################
+				! # Wetting between wall and fluid 
+				! # [1] float - Magnitude of top and bottom (or just bottom if top set below)
+				! # [2] float - Magnitude of top 
+				! #----------------------------------------------------------------------- 
                 call locate(1,'EIJ_WALL',.false.,found_in_input)
                 if (found_in_input) then
                     read(1,*,iostat=ios) eij_wall(1)
