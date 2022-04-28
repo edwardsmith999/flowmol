@@ -2137,7 +2137,14 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
     if (lg_direction .eq. 1) then
         lg = 2
     elseif (lg_direction .eq. 2) then
-        lg = 1
+		!Some case split wall, liquid and gas in y (e.g. film)
+		select case(gastype)
+		case('film')
+			lg = 2
+		!The rest split in x but keep the wall in y
+		case default
+			lg = 1
+		end select
 	else
 		print*, "lg_direction = ", lg_direction, "lg_fract=", lg_fract, "gastype=", gastype
 		call error_abort("lg_direction specified by second argument to LIQUID_FRACTION must be 1 or 2")
@@ -2189,12 +2196,12 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
             if(rc(3).ge. domain(3)*(kblock  )) cycle
 
             !Solid region given by wall textures or tethered region
-            call wall_textures(texture_type,(rc(:)-globaldomain(:)/2.d0),solid_bottom,solid_top)
+            call wall_textures(texture_type, rc(:)-0.5d0*globaldomain(:), &
+							   solid_bottom, solid_top)
 
             !If outside solid region, randomly remove molecules from lattice
             if (rc(lg)-globaldomain(lg)/2.d0 .gt. (solid_bottom(lg) - globaldomain(lg)/2.d0) .and. & 
                 rc(lg)-globaldomain(lg)/2.d0 .lt. (globaldomain(lg)/2.d0  -  solid_top(lg))) then
-                !cycle
                 call random_number(rand)
                 if (rand .gt. density_ratio_sl) cycle
 
@@ -2325,7 +2332,7 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
 
 
                 case('film')
-                    !Gas is initialised for middle fraction of the domain in x
+                    !Gas is initialised for near wall region of the domain in y
                     y = rc(2)
                     if (y .gt. 0.5*lg_fract*globaldomain(2)) then
                         call random_number(rand)
