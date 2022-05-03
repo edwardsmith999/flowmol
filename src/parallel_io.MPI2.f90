@@ -1281,7 +1281,7 @@ subroutine setup_restart_microstate()
         if (irank.eq.iroot) print*, 'Molecular tags reset based on input file.'
         call setup_location_tags(0)              !Setup locn of fixed mols
     elseif (reset_tags_on_restart .eq. 2) then
-        if (irank.eq.iroot) print*, 'Molecular tags reset based on input file.'
+        if (irank.eq.iroot) print*, 'Thermal tags reset based on input file.'
         call setup_location_tags(1)              !Setup locn of thermostats only
     else
         if (irank.eq.iroot) print*, 'Molecular tags have been read from restart file.'
@@ -2542,7 +2542,12 @@ subroutine parallel_io_psf()
         if (nproc .gt. 99) then 
             print*, "Warning, manually concat results/vmd_out.psf.* files"
         else if (nproc .gt. 1) then
-            write (nprocstr, "(i2)") nproc
+            if (nproc < 10) then
+                write (nprocstr, "(i1)") nproc
+            else
+                write (nprocstr, "(i2)") nproc
+            endif
+
             write(cmd,'(4a)') "for i in {2..", trim(nprocstr)//"}; do cat ", &
                                        trim(prefix_dir)//"results/vmd_out.psf.$i >> ", &
                                        trim(prefix_dir)//"results/vmd_out.psf; done;"
