@@ -90,6 +90,9 @@ contains
                     tag_status = .false.
                     return
                 endif
+            elseif (texture_type .eq. posts) then
+                tagdistbottom(:) = emptydistbottom(:)
+                tagdisttop(:)	 = emptydisttop(:)
             else
                 !Don't remove tethered molecules!
                 if (get_tag_status(rg,'teth')) then
@@ -251,7 +254,13 @@ subroutine setup_location_tags(thermo_only_)
 		    if ( l_fixed .and.	   l_slide ) tag(n) = fixed_slide
 
 		    ! Thermo only
-		    if ( l_thermo .and. .not. l_teth .and. .not. l_slide ) tag(n) = thermo
+		    if ( l_thermo .and. .not. l_teth .and. .not. l_slide ) then
+                tag(n) = thermo
+            else
+                !If liquid molecule was previously thermostatted 
+                !but should not be now then switch them off
+                if (tag(n) .eq. thermo) tag(n) = free
+            endif
 
             if (debug_tags) then
                 if (l_thermo) call output_tags("thermo_tags", rglob, n)
