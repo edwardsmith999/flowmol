@@ -1049,7 +1049,7 @@ end subroutine initial_control_volume
 ! and intermolecular bonds, used primarily for vmd visualisation
 ! Note - a single psf is used for all frames so molecules must
 !        be in the same place throughout the run
-subroutine build_psf
+subroutine build_psf()
     use module_initial_record
     use interfaces, only: error_abort
     use librarymod, only: get_new_fileunit
