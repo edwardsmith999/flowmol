@@ -377,7 +377,7 @@ contains
             endif
 
             do n=1,nthermo
-			    Q(n) = 0.1d0*thermostatnp(n) * delta_t
+			    Q(n) = 1.d0*thermostatnp(n) * delta_t
                 if (thermostatnp(n) .gt. 0.d0) then
     			    dzeta_dt(n) = (mv2sum(n) - (nd*thermostatnp(n) + 1) & 
                                    *thermostattemperature(n)) / Q(n)
@@ -387,6 +387,7 @@ contains
 			    zeta(n) 	 = zeta(n) + delta_t*dzeta_dt(n)
 			    bscale(n)	 = 1.d0/(1.d0+0.5d0*delta_t*zeta(n))
 			    ascale(n)	 = (1.d0-0.5d0*delta_t*zeta(n))*bscale(n)
+                !print*, n, "NH Q=", Q(n), dzeta_dt(n), zeta(n), ascale(n), bscale(n)
             enddo
 
 		else
@@ -418,6 +419,7 @@ contains
 			case (thermo)
 				!Nose Hoover Thermostatted Molecule
                 tr = get_therm_region(n)
+                !print*, "Liquid thermostatted", n, tr, thermostattemperature(tr),  globalise(r(:,n))
 				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
 				r(1,n) = r(1,n)    +     v(1,n)*delta_t			
 				v(2,n) = v(2,n)*ascale(tr) + a(2,n)*delta_t*bscale(tr)
@@ -426,7 +428,7 @@ contains
 				r(3,n) = r(3,n)    +     v(3,n)*delta_t
 			case (teth_thermo)
                 tr = get_therm_region(n)
-                !print*, n, tr, thermostattemperature(tr),  globalise(r(:,n))
+                !print*, "Tethered thermostatted", n, tr, thermostattemperature(tr),  globalise(r(:,n))
 				!Thermostatted Tethered molecules unfixed with no sliding velocity
 				call tether_force(n)
 				v(1,n) = v(1,n)*ascale(tr) + a(1,n)*delta_t*bscale(tr)
