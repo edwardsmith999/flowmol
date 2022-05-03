@@ -37,7 +37,7 @@ Once finished, you can analyse results by first calling
 
 `python Analyse_data_and_pickle.py`
 
-Not you need numpy and matplotlib. The default behaviour of this script is to read
+Note you need numpy and matplotlib. The default behaviour of this script is to read
 the summary.p file (which is included from the data used in the paper above). If
 you want to analyse your own data, delete or rename this summary.p folder and a new
 one will be created from your data.
