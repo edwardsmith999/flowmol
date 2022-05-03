@@ -1839,8 +1839,10 @@ subroutine set_parameters_outputs
 	real(kind(0.d0))		:: shift
 
 
-    !Profile memory use in setup
-    call system_mem_usage(mem_start)
+    if (irank.eq.iroot) then
+        !Profile memory use in setup
+        call system_mem_usage(mem_start)
+    endif
 
 	!Use definition of temperature and re-arrange to define an average velocity minus 3 degrees of
 	!freedom - this is to fix the momentum of the domain boundaries 
@@ -2125,9 +2127,11 @@ subroutine set_parameters_outputs
 	!allocate(Gxybins(nbins(1),nbins(2),nbins(3),3,3))
 	!Gxybins = 0.d0
 
-    !Profile memory use in setup
-    call system_mem_usage(mem_end)
-    print*, "Memory allocated before momentum CV=", (mem_end-mem_start)/1024, "Mb"
+    if (irank.eq.iroot) then
+        !Profile memory use in setup
+        call system_mem_usage(mem_end)
+        print*, "Memory allocated before momentum CV=", (mem_end-mem_start)/1024, "Mb"
+    endif
 
 	!Allocate bins for control volume mass fluxes
 	if (mflux_outflag .eq. 1) then
@@ -2215,9 +2219,12 @@ subroutine set_parameters_outputs
 			momentum_flux 	= 0.d0
 			volume_momentum = 0.d0
 			!volume_force 	= 0.d0
-            !Profile memory use in setup
-            call system_mem_usage(mem_end)
-            print*, "Total Memory allocated after momentum CV=", (mem_end-mem_start)/1024, "Mb"
+
+            if (irank.eq.iroot) then
+                !Profile memory use in setup
+                call system_mem_usage(mem_end)
+                print*, "Total Memory allocated after momentum CV=", (mem_end-mem_start)/1024, "Mb"
+            endif
 
 			if (CV_debug .eq. 1) then
 				call CVcheck_mass%initialise(nbins,nhb,domain,delta_t,Nmflux_ave)   ! initialize CVcheck
@@ -2241,12 +2248,13 @@ subroutine set_parameters_outputs
 				!call CV_sphere_momentum%initialise_sphere((/1,1,1/),collect_spherical=.false.)	
 			endif
 
-            !Profile memory use in CV debug (this is very memory hungry)
-            if (CV_debug .ne. 0) then
-                call system_mem_usage(mem_end)
-                print*, "Total Memory allocated after CV Debugging=", (mem_end-mem_start)/1024, "Mb"
+            if (irank.eq.iroot) then
+                !Profile memory use in CV debug (this is very memory hungry)
+                if (CV_debug .ne. 0) then
+                    call system_mem_usage(mem_end)
+                    print*, "Total Memory allocated after CV Debugging=", (mem_end-mem_start)/1024, "Mb"
+                endif
             endif
-
 
 			!Allocate bins for control volume mass fluxes
 			!if (.not.(allocated(volume_mass)))  allocate(volume_mass(nbinso(1),nbinso(2),nbinso(3)))
@@ -2275,9 +2283,11 @@ subroutine set_parameters_outputs
 			allocate(Fv_ext_bin(nbinso(1),nbinso(2),nbinso(3)))
 			Fv_ext_bin = 0.d0
 		endif
-        !Profile memory use in setup
-        call system_mem_usage(mem_end)
-        print*, "Total Memory allocated after energy CV=", (mem_end-mem_start)/1024, "Mb"
+        if (irank.eq.iroot) then
+            !Profile memory use in setup
+            call system_mem_usage(mem_end)
+            print*, "Total Memory allocated after energy CV=", (mem_end-mem_start)/1024, "Mb"
+        endif
 
 	elseif (eflux_outflag .eq. 1 .or. eflux_outflag .eq. 2 .or. eflux_outflag .eq. 3) then
 		stop "Error - eflux MOP is not coded!"
@@ -2300,10 +2310,12 @@ subroutine set_parameters_outputs
 	endif
 #endif
 
-    !Profile memory use in setup
-    call system_mem_usage(mem_end)
-    print*, "Total Memory allocated by set_parameters_outputs=", &
-         (mem_end-mem_start)/1024, "Mb"
+    if (irank.eq.iroot) then
+        !Profile memory use in setup
+        call system_mem_usage(mem_end)
+        print*, "Total Memory allocated by set_parameters_outputs=", &
+             (mem_end-mem_start)/1024, "Mb"
+    endif
 
 end subroutine set_parameters_outputs
 
