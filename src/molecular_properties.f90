@@ -44,6 +44,8 @@ contains
             if (texture_type .ne. 0 .and. texture_therm .eq. 1) then
                 call wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
             endif
+            tagdistbottom(2) = tagdistbottom(2) - tethereddistbottom(2) + thermstatbottom(2)
+            tagdisttop(2)	 = tagdisttop(2) - tethereddisttop(2) + thermstattop(2)
 
             if (any(local_heat_region .ne. -666.d0)) then
                 !Specify pool boiling region
@@ -91,6 +93,15 @@ contains
                     return
                 endif
             elseif (texture_type .eq. posts) then
+                !This code removes including the textures
+                !call wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
+                !tagdistbottom(2) = tagdistbottom(2) - tethereddistbottom(2) + emptydistbottom(2)
+                !tagdisttop(2)	 = tagdisttop(2) - tethereddisttop(2) + emptydisttop(2)
+                !if (tagdistbottom(2) < 0.d0) then 
+                !    tag_status = .false.
+                !    return
+                !endif
+                !This code just removes a strip at the bottom
                 tagdistbottom(:) = emptydistbottom(:)
                 tagdisttop(:)	 = emptydisttop(:)
             else
@@ -491,7 +502,6 @@ subroutine wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
 			    if (rg(1) .gt. -postwidth/2.d0 .and. &
 				    rg(1) .lt.  postwidth/2.d0) then
 				    tagdistbottom(2) = tethereddistbottom(2) + postheight 
-
 			    else
 				    tagdistbottom(2) = tethereddistbottom(2)
 			    endif
