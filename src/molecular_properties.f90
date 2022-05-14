@@ -24,6 +24,7 @@ contains
         character(*) :: status_type ! Specifies thermo, tethered, fixed, etc
 
         integer :: ixyz
+        real(kind(0.d0)) :: temp
         real(kind(0.d0)) :: bottom(3) ! Global position of bottom of domain
         real(kind(0.d0)) :: top(3)
         real(kind(0.d0)) :: tagdistbottom(3) ! Distance specified by user
@@ -42,10 +43,23 @@ contains
             !Thermostat complicated wall texture if specified, otherwise thermostat
             !is based on thermstatbottom/thermstattop
             if (texture_type .ne. 0 .and. texture_therm .eq. 1) then
-                call wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
+                if (texture_type .eq. triangle_notch .or. & 
+                    texture_type .eq. converge_diverge) then
+                    call wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
+                elseif (texture_type .eq. posts) then
+                    temp = - thermstatbottom(2) + tethereddistbottom(2)
+                    if (rg(1) < 0.d0) then
+                        call wall_textures(texture_type, rg+temp, tagdistbottom, tagdisttop)
+                    else 
+                        call wall_textures(texture_type, rg-temp, tagdistbottom, tagdisttop)
+                    endif
+                endif
+                tagdistbottom(2) = tagdistbottom(2) - tethereddistbottom(2) + thermstatbottom(2)
+                tagdisttop(2)	 = tagdisttop(2) - tethereddisttop(2) + thermstattop(2)
+            else
+                !Nothing to change here
             endif
-            tagdistbottom(2) = tagdistbottom(2) - tethereddistbottom(2) + thermstatbottom(2)
-            tagdisttop(2)	 = tagdisttop(2) - tethereddisttop(2) + thermstattop(2)
+
 
             if (any(local_heat_region .ne. -666.d0)) then
                 !Specify pool boiling region
@@ -93,17 +107,25 @@ contains
                     return
                 endif
             elseif (texture_type .eq. posts) then
-                !This code removes including the textures
-                !call wall_textures(texture_type, rg, tagdistbottom, tagdisttop)
-                !tagdistbottom(2) = tagdistbottom(2) - tethereddistbottom(2) + emptydistbottom(2)
-                !tagdisttop(2)	 = tagdisttop(2) - tethereddisttop(2) + emptydisttop(2)
-                !if (tagdistbottom(2) < 0.d0) then 
-                !    tag_status = .false.
-                !    return
-                !endif
-                !This code just removes a strip at the bottom
-                tagdistbottom(:) = emptydistbottom(:)
-                tagdisttop(:)	 = emptydisttop(:)
+                if (texture_therm .eq. 1) then
+                    !This code removes including the textures
+                    temp = - emptydistbottom(2) + tethereddistbottom(2)
+                    if (rg(1) < 0.d0) then
+                        call wall_textures(texture_type, rg+temp, tagdistbottom, tagdisttop)
+                    else 
+                        call wall_textures(texture_type, rg-temp, tagdistbottom, tagdisttop)
+                    endif
+                    tagdistbottom(2) = tagdistbottom(2) - tethereddistbottom(2) + emptydistbottom(2)
+                    tagdisttop(2)	 = tagdisttop(2) - tethereddisttop(2) + emptydisttop(2)
+                    if (tagdistbottom(2) < 0.d0) then 
+                        tag_status = .false.
+                        return
+                    endif
+                else
+                    !This code just removes a strip at the bottom
+                    tagdistbottom(:) = emptydistbottom(:)
+                    tagdisttop(:)	 = emptydisttop(:)
+                endif
             else
                 !Don't remove tethered molecules!
                 if (get_tag_status(rg,'teth')) then
