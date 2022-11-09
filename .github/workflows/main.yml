@@ -39,7 +39,7 @@ jobs:
       - name: Build Flowmol
         run: |
           cd ./src
-          make PLATFORM=gcc p
+          make PLATFORM=gfortran p
           ldd parallel_md.exe
 
       - name: Run Flowmol
