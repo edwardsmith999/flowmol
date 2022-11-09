@@ -28,7 +28,7 @@ jobs:
         run: sudo apt-get update -y 
         
       - name: Build tools
-        run : sudo apt-get install -y gcc build-essentials
+        run : sudo apt-get install -y gcc build-essential
 
       - name: Install mpich
         run: sudo apt-get install -y mpich   
