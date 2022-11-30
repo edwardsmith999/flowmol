@@ -2744,9 +2744,11 @@ end subroutine CFD_cells_to_MD_compute_cells
 
 !end subroutine pointsphere
 
+module point_sphere_cylinder_mod
 
+contains 
 
-subroutine point_sphere_cylinder(centre,targetradius,start_iter,rdim, magnitude)
+subroutine point_sphere_cylinder(centres, targetradius, magnitude, start_iter, rdim)
 	use arrays_MD, only : r,a
 	use physical_constants_MD, only : np, pi
 	use computational_constants_MD, only : iter
@@ -2755,12 +2757,14 @@ subroutine point_sphere_cylinder(centre,targetradius,start_iter,rdim, magnitude)
 
 	integer,optional,intent(in)			        :: start_iter, rdim
 	real(kind(0.d0)), intent(in)			    :: targetradius, magnitude
-	real(kind(0.d0)), dimension(3), intent(in)	:: centre
+	real(kind(0.d0)), dimension(:), allocatable, intent(in)	:: centres
 
-	integer						    :: n, start
+	integer						    :: i, n, start, Ncentres
 	real(kind(0.d0)) 				:: radius, radius2, Fapplied
 	real(kind(0.d0)) 				:: rspherical,rspherical2
-	real(kind(0.d0)), dimension(3)	:: rmapped
+	real(kind(0.d0)), dimension(3)	:: rmapped, centre
+
+	!print*, "inputs=", centres, targetradius, magnitude, start_iter, rdim
 
 	!Grow pore slowly
 	if (present(start_iter)) then
@@ -2770,31 +2774,41 @@ subroutine point_sphere_cylinder(centre,targetradius,start_iter,rdim, magnitude)
 	endif
 	radius = min((iter-start)/1000.d0,targetradius)
 
+	!print*, (iter-start)/1000.d0, targetradius, radius
+
 	!Define square of radius
 	radius2 = radius**2
 
 	! Loop through all molecules
-	do n=1,np
-		rmapped = globalise(r(:,n))-centre !Map to origin of sphere
-        !If cylinder no force along dimension rdim, 
-        if (present(rdim) .and. rdim .ne. 0) then
-            rmapped(rdim) = 0.d0
-        endif
-		rspherical2 = dot_product(rmapped,rmapped)	!Get position in spherical coordinates
-		rspherical = sqrt(rspherical2)
-    	!theta 	   = acos(rmapped(3)/rspherical)
-    	!phi 	   = atan(rmapped(2)/rmapped(1))
-		if (rspherical .lt. radius) then			!Check if inside sphere
-			!if (rspherical .lt. 1.d0) rspherical = 1.d0			!Bounded force
-			Fapplied = magnitude *(1.d0 + 1.d0/exp(rspherical)**2.d0)			!Apply force which diverges at centre
-			!print'(i8,13f10.5)', n,rmapped,rmapped(3)/rspherical,rspherical,theta,phi, Fapplied*sin(theta)*cos(phi), Fapplied*sin(theta)*sin(phi),Fapplied*cos(theta),a(:,n)
-    		a(1,n)= a(1,n) + Fapplied * rmapped(1)!*sin(theta)*cos(phi)
-			a(2,n)= a(2,n) + Fapplied * rmapped(2)!*sin(theta)*sin(phi)
-    		a(3,n)= a(3,n) + Fapplied * rmapped(3)!*cos(theta)
-		endif
+	Ncentres = size(centres,1)/3
+	do i=1,Ncentres	
+		centre(:)=centres(3*(i-1)+1:3*i)
+		!print*, "centre=", i, centre 
+		do n=1,np
+			rmapped = globalise(r(:,n))-centre !Map to origin of sphere
+			!If cylinder no force along dimension rdim, 
+			if (present(rdim) .and. rdim .ne. 0) then
+				rmapped(rdim) = 0.d0
+			endif
+			rspherical2 = dot_product(rmapped,rmapped)	!Get position in spherical coordinates
+			rspherical = sqrt(rspherical2)
+			!theta 	   = acos(rmapped(3)/rspherical)
+			!phi 	   = atan(rmapped(2)/rmapped(1))
+			!PRINT*, i, n, rspherical, radius
+			if (rspherical .lt. radius) then			!Check if inside sphere 
+				!if (rspherical .lt. 1.d0) rspherical = 1.d0			!Bounded force
+				Fapplied = magnitude *(1.d0 + 1.d0/exp(rspherical)**2.d0)			!Apply force which diverges at centre
+
+				!print*, "fORCE APPLIED ",centre, rmapped, rspherical, Fapplied
+				!print'(i8,13f10.5)', n,rmapped,rmapped(3)/rspherical,rspherical,theta,phi, Fapplied*sin(theta)*cos(phi), Fapplied*sin(theta)*sin(phi),Fapplied*cos(theta),a(:,n)
+				a(1,n)= a(1,n) + Fapplied * rmapped(1)!*sin(theta)*cos(phi)
+				a(2,n)= a(2,n) + Fapplied * rmapped(2)!*sin(theta)*sin(phi)
+				a(3,n)= a(3,n) + Fapplied * rmapped(3)!*cos(theta)
+			endif
+		enddo
 	enddo
 
 end subroutine point_sphere_cylinder
 
-
+end module point_sphere_cylinder_mod
 

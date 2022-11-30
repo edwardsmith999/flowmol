@@ -1102,6 +1102,17 @@ subroutine setup_read_input
 	! #		- F_ext_centre in x
 	! #		- F_ext_centre in y
 	! #		- F_ext_centre in z
+	! # 4 - apply multiple spherical (0) or cylinderical (1,2 or 3) locations
+	! # 	- F_ext direction sphere=0 or cylinder along x=1,y=2,z=3
+	! #		- Radius of sphere or cylinder
+	! #     - Number of forcing locations
+	! #		- F_ext_centre in x of 1st location
+	! #		- F_ext_centre in y of 1st location
+	! #		- F_ext_centre in z of 1st location
+	! #     - ...
+	! #		- F_ext_centre in x of Nth location
+	! #		- F_ext_centre in y of Nth location
+	! #		- F_ext_centre in z of Nth location
 	! # -----------------------------------------------------------------------
 	call locate(1,'EXTERNAL_FORCE',.false.,found_in_input)
 	if (found_in_input) then
@@ -1118,9 +1129,20 @@ subroutine setup_read_input
 				read(1,*) F_ext_limits(5)
 				read(1,*) F_ext_limits(6)
             else if (external_force_flag .eq. 3) then
+				allocate(F_ext_centre(3))
 			    read(1,*) F_ext_centre(1)
 			    read(1,*) F_ext_centre(2)
 			    read(1,*) F_ext_centre(3)
+				read(1,*,iostat=ios) F_ext_radial
+				if (ios .ne. 0) F_ext_radial = 10.d0
+            else if (external_force_flag .eq. 4) then
+			    read(1,*) F_ext_Ncentres
+				allocate(F_ext_centre(3*F_ext_Ncentres))
+				do n=1,F_ext_Ncentres
+					read(1,*) F_ext_centre(3*(n-1)+1)
+					read(1,*) F_ext_centre(3*(n-1)+2)
+					read(1,*) F_ext_centre(3*(n-1)+3)
+				enddo
 				read(1,*,iostat=ios) F_ext_radial
 				if (ios .ne. 0) F_ext_radial = 10.d0
 			endif
@@ -1395,6 +1417,8 @@ subroutine setup_read_input
 		! #		Phys. Rev. E. 52, 5 with constants  (k2 = 28.575, k4 = 0, k6 = 0)
 		! # c)  S. Y. Liem, D. Brown, and J. H. R. Clarke (1992) 
 		! #		Phys. Rev. A. 45, 6 with constants  (k2 = 36.0,   k4 = 0, k6 = 0)
+		! # d)  K. P. Travis, B. D. Todd and D. J. Evans (1997), 
+		! #     Phys. Rev. E 55, 4288  with constants  (k2 = 150.0,   k4 = 0, k6 = 0)
 		! # Default Force constants (k2 = 0, k4 = 5,000, k6 = 5,000,000)  
 		! # from Petravich and Harrowell (2006) J. Chem. Phys.124, 014103.
 		! # ---------------------------------------------------------------------
