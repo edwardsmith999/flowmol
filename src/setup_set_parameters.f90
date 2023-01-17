@@ -2227,15 +2227,19 @@ subroutine set_parameters_outputs
             endif
 
 			if (CV_debug .eq. 1) then
-				call CVcheck_mass%initialise(nbins,nhb,domain,delta_t,Nmflux_ave)   ! initialize CVcheck
+            	if (mflux_outflag .ne. 1) then
+    				call CVcheck_mass%initialise(nbins,nhb,domain,delta_t,Nmflux_ave)   ! initialize CVcheck
+                endif
 				call CVcheck_momentum%initialise(nbins,nhb,domain,delta_t,Nvflux_ave)   ! initialize CVcheck
 				call CV_constraint%initialise(nbins,nhb,domain,delta_t,Nvflux_ave)   ! initialize CV constraint object
 				call CVcheck_energy%initialise(nbins,nhb,domain,delta_t,Neflux_ave)   ! initialize CVcheck
             elseif (CV_debug .eq. 2) then
                 print*, 'Bin(s) for CV Debugging:', debug_CV,localise_bin(debug_CV)
-				call CVcheck_mass%initialise(nbins,nhb,domain, & 
+            	if (mflux_outflag .ne. 1) then
+    				call CVcheck_mass%initialise(nbins,nhb,domain, & 
                                              delta_t,Nmflux_ave, & 
                                              localise_bin(debug_CV),debug_CV_range)     ! initialize CVcheck
+                endif   
 				call CVcheck_momentum%initialise(nbins,nhb,domain, & 
                                                  delta_t,Nvflux_ave, & 
                                                  localise_bin(debug_CV),debug_CV_range) ! initialize CVcheck
