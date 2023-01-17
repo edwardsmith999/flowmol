@@ -446,8 +446,8 @@ subroutine initialise(self, box, normal, alpha, eps, &
     enddo
 
     select type (self)
-    !class is (intrinsic_surface_real)
-		!pass
+    class is (intrinsic_surface_real)
+	!	pass
     !type is (intrinsic_surface_complex)
 	!	stop "Error - intrinsic_surface initialise -  Complex code is depricated"
     class is (intrinsic_surface_bilinear)
