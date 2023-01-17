@@ -75,7 +75,7 @@ subroutine simulation_checkrebuild(rebuild)
     if (proc_abort .eq. 1) abort = .true.
 	if (abort) then
 		print*, 'File ABORTABORT detected. Writing final_state file...'
-		call messenger_syncall
+		call messenger_syncall()
 		call parallel_io_final_state(.false.)
 		call error_abort('Restart file written. Simulation aborted.')
 	end if
