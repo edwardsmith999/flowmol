@@ -1902,7 +1902,7 @@ subroutine setup_read_input
     				print*, "   calculation (method 2), switching to trapizium (method 1)   "
 					VA_calcmethod = 1
     			endif
-				if (VA_calcmethod .eq. 1) then
+				if (any(VA_calcmethod .eq. (/1, 3/))) then
 					read(1,*,iostat=ios) VA_line_samples
     				if (ios .ne. 0)	VA_line_samples = 20
 				endif
