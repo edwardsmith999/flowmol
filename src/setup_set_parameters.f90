@@ -1123,8 +1123,10 @@ subroutine set_parameters_allocate
 	integer :: ixyz, n, mem_start, mem_end
     double precision    :: temp
 
-    !Log memory useage
-    call system_mem_usage(mem_start)
+    if (irank.eq.iroot) then
+		!Log memory useage
+		call system_mem_usage(mem_start)
+	endif
 
 	!Calculate required extra allocation of molecules to allow copied Halos
 	!using ratio of halo to domain volume (with safety factor)
@@ -1149,9 +1151,11 @@ subroutine set_parameters_allocate
 !		allocate(a_old(nd,np+extralloc))
 !	endif
 
-    !Profile memory use in setup
-    call system_mem_usage(mem_end)
-    print*, "Memory allocated after r,v,a=", (mem_end-mem_start)/1024, "Mb"
+    if (irank.eq.iroot) then
+		!Profile memory use in setup
+		call system_mem_usage(mem_end)
+		print*, "Memory allocated after r,v,a=", (mem_end-mem_start)/1024, "Mb"
+	endif
 
 	!Allocate potential energy and virial per molecule array
 	allocate(potenergymol(np+extralloc))
@@ -1173,11 +1177,12 @@ subroutine set_parameters_allocate
         allocate(vinitial(nd,np+extralloc))
     endif
 
-    !Profile memory use in setup
-    call system_mem_usage(mem_end)
-    print*, "Memory allocated after analysis potential and true=", & 
-            (mem_end-mem_start)/1024, "Mb"
-
+    if (irank.eq.iroot) then
+		!Profile memory use in setup
+		call system_mem_usage(mem_end)
+		print*, "Memory allocated after analysis potential and true=", & 
+				(mem_end-mem_start)/1024, "Mb"
+	endif
 	!allocate(rijsum(nd,np+extralloc)) !Sum of rij for each i, used for SLLOD algorithm
 	!allocate(vmagnitude(np+extralloc))
 
@@ -1204,9 +1209,11 @@ subroutine set_parameters_allocate
 		allocate(slidev(nd,np+extralloc))
 	endif
 
-    !Profile memory use in setup
-    call system_mem_usage(mem_end)
-    print*, "Memory allocated after moltype and tags=", (mem_end-mem_start)/1024, "Mb"
+    if (irank.eq.iroot) then
+		!Profile memory use in setup
+		call system_mem_usage(mem_end)
+		print*, "Memory allocated after moltype and tags=", (mem_end-mem_start)/1024, "Mb"
+	endif
 
     !If necessary, allocate global molecular number
     if (global_numbering .ne. 0) then
@@ -1228,11 +1235,12 @@ subroutine set_parameters_allocate
         allocate(intnscshift(np+extralloc))
     endif
 
-    !Profile memory use in setup
-    call system_mem_usage(mem_end)
-    print*, "Memory allocated at end of set_parameters_allocate=", &
-             (mem_end-mem_start)/1024, "Mb"
-
+    if (irank.eq.iroot) then
+		!Profile memory use in setup
+		call system_mem_usage(mem_end)
+		print*, "Memory allocated at end of set_parameters_allocate=", &
+				 (mem_end-mem_start)/1024, "Mb"
+	endif
 
 end subroutine set_parameters_allocate
 
