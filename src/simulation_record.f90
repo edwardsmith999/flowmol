@@ -3101,7 +3101,7 @@ end subroutine cumulative_centre_of_mass
 !===================================================================================
 
 subroutine pressure_averaging(ixyz)
-	use field_io, only : virial_stress_io,VA_stress_io,VA_stress_cpol_io
+	use field_io, only : virial_stress_io, VA_stress_io, VA_stress_cpol_io
 	use module_record
 	implicit none
 
@@ -3118,16 +3118,16 @@ subroutine pressure_averaging(ixyz)
 		select case(ixyz)
 		case(1)
 		    !FULL DOMAIN VIRIAL STRESS CALCULATION
-			call virial_stress_io
+			call virial_stress_io()
 			Pxy = 0.d0
 		case(2)
 		    !VA STRESS CALCULATION
-			call VA_stress_io
+			call VA_stress_io()
 			Pxybin = 0.d0
 			vvbin  = 0.d0
 			rfbin  = 0.d0
 		case(3)
-			call VA_stress_cpol_io
+			call VA_stress_cpol_io()
 			Pxybin = 0.d0
 			vvbin  = 0.d0
 			rfbin  = 0.d0
@@ -3137,7 +3137,7 @@ subroutine pressure_averaging(ixyz)
 		if(viscosity_outflag .eq. 1) then
 			sample_count = sample_count + 1
 			if (sample_count .eq. Nvisc_ave) then
-				call viscosity_io
+				call viscosity_io()
 				sample_count = 0
 			endif
 		endif
@@ -3148,7 +3148,7 @@ end subroutine pressure_averaging
 !===================================================================================
 !Add pressure_tensor to running total
 
-subroutine cumulative_pressure(ixyz,sample_count)
+subroutine cumulative_pressure(ixyz, sample_count)
 	use module_record
 	use shear_info_MD, only: le_sp, le_sr, le_sd
     use messenger_data_exchange, only : globalSum
@@ -3484,13 +3484,15 @@ contains
 subroutine pressure_tensor_forces_VA(ri, rj, rF, domain,  & 
                                      nbins, nhb, array,   & 
                                      VA_calcmethod,       &
-                                     VA_line_samples)
+                                     VA_line_samples,     &
+                                     molnoi, molnoj)
     use computational_constants_MD, only : cellsidelength
     use module_record, only : get_bin
     implicit none
 
     integer,intent(in)                                      :: VA_calcmethod
     integer,intent(in),optional                             :: VA_line_samples
+    integer,intent(in),optional                             :: molnoi, molnoj
     integer,dimension(3),intent(in)                         :: nbins,nhb
 	real(kind(0.d0)), dimension(:,:), intent(in)            :: rF
 	real(kind(0.d0)),dimension(3), intent(in)		        :: ri, rj, domain
@@ -3502,18 +3504,21 @@ subroutine pressure_tensor_forces_VA(ri, rj, rF, domain,  &
     halfdomain = 0.5d0 * domain
 
 	!Select requested configurational line partition methodology
+    !print*, "pressure_tensor_forces_VA", VA_calcmethod, molnoi, molnoj, VA_line_samples
+    if (present(VA_line_samples)) then
+        VA_line_samples_ = VA_line_samples
+    else
+        VA_line_samples_ = 0 !Auto select if zero
+    endif
 	select case(VA_calcmethod)
 	case(0)
 		call pressure_tensor_forces_H(ri,rj,rF)
 	case(1)
-        if (present(VA_line_samples)) then
-            VA_line_samples_ = VA_line_samples
-        else
-            VA_line_samples_ = 0 !Auto select if zero
-        endif
 		call pressure_tensor_forces_VA_trap(ri,rj,rF,VA_line_samples_)
 	case(2)
 		call pressure_tensor_forces_VA_exact(ri,rj,rF)
+	case(3)
+		call pressure_tensor_forces_VA_trap_binwise(molnoi, molnoj, rF, VA_line_samples_)
 	case default
 		stop "Error - VA_calcmethod incorrect"
 	end select 
@@ -3657,6 +3662,104 @@ subroutine pressure_tensor_forces_VA_trap(ri, rj, rF, VA_line_samples)
 	end do	
 	
 end subroutine pressure_tensor_forces_VA_trap
+
+
+
+
+subroutine pressure_tensor_forces_VA_trap_binwise(molnoi, molnoj, rF, VA_line_samples)
+	use librarymod, only: outerprod
+    use module_record, only : r,  get_bin_molno, np
+	implicit none
+
+    integer,intent(in)                           :: VA_line_samples, molnoi, molnoj
+	real(kind(0.d0)), dimension(:,:), intent(in) :: rF
+
+	integer :: ss, Ns
+	integer, dimension(3) ::  bin, bini, binj, binij, cbini, cbinj, cbins
+	real(kind(0.d0)), dimension(3) :: ri, rj
+	real(kind(0.d0)) :: s, ds, checksum
+
+	real(kind(0.d0)) ::rs(3), rij(3)
+
+    if (molnoi .gt. np .and. molnoj .gt. np ) return
+
+    !Take bin of two end points (more efficient with Intrinsic interface)
+    !and assign evenly to all bins between
+	!rij = rj - ri
+    !Intrinsic shift only exists for bins in domain
+    if (molnoi .gt. np) then
+        ri = r(:, molnoi)
+        bini = get_bin(ri(:))
+    else
+        bini(:) = get_bin_molno(molnoi)
+    endif
+    if (molnoj .gt. np) then
+        rj = r(:, molnoj)
+        binj = get_bin(rj(:))
+    else
+        binj(:) = get_bin_molno(molnoj)
+    endif
+    binij(:) = binj-bini
+
+    !cbini = get_bin(ri(:))
+    !cbinj = get_bin(rj(:))
+
+    !print*, molnoi, molnoj, np, ri, rj, bini, cbini
+
+	!Auto select line segments so hopefully one segment per bin
+    !Note sum(abs(binij)) would be more conservative
+	if (VA_line_samples .eq. 0) then
+		Ns = maxval(abs(binij))+1
+		!print*, "Trap bins", Ns , bini, binj, binij
+	else
+		Ns = VA_line_samples
+	endif
+	
+	! Split line l_ij into segments of size ds
+	ds = 1.d0 / real(Ns, kind(0.d0))
+	! First sample at midpoint of first segment 
+	s = 0.5d0*ds 
+
+	! Loop over all samples, s varies from 0 to 1
+    checksum = 0.d0
+	do ss = 1, Ns
+
+		! Bin of sample on line
+        if (ss .eq. 1) then
+            bin(:) = bini(:)
+        else
+    		bin(:) = bini(:) + ceiling(s*binij)
+        endif
+		!rs(:) = ri(:) + s*rij(:)	
+
+		! Don't count if sample is outside the domain (will be picked up
+		! by neighbouring processors)
+		!if ( .not. any( bin .gt. nbins(:)+nhb(:)) ) then
+		!if ( .not. any( abs(rs(:)) .gt. halfdomain(:) ) ) then
+
+            !if (any( bin .gt. nbins(:))) print*, rs, bin
+			array(bin(1),bin(2),bin(3),:,:) =  &
+			array(bin(1),bin(2),bin(3),:,:) + rF(:,:)/real(Ns,kind(0.d0))
+
+		!endif
+
+
+            !cbins = get_bin(rs(:))
+
+            !checksum =  checksum + 1.d0/real(Ns,kind(0.d0))
+
+            !print*, ss, s, rs(1), bini(1), bin(1), binj(1),  cbini(1), cbins(1), cbinj(1), & 
+            !    any( abs(rs(:)) .gt. halfdomain(:) ), any( bin .gt. nbins(:)+nhb(:)), checksum
+
+
+		s = s + ds	
+
+	end do	
+
+    !print*, Ns, checksum!, rj-rs
+	
+end subroutine pressure_tensor_forces_VA_trap_binwise
+
 
 !===============================================================================
 ! VOLUME AVERAGE CONFIGURATIONAL EXPRESSION
@@ -4140,12 +4243,14 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 	where (cellsperbin .ge. 1.d0) cellsperbin = 1.d0
 
 	!Get cell number from bin numbers
-!	icellmin = (imin-1)*cellsperbin(1)+1+(1-cellsperbin(1))
-!	icellmax =  imax   *cellsperbin(1)  +(1-cellsperbin(1))
-!	jcellmin = (jmin-1)*cellsperbin(2)+1+(1-cellsperbin(2))
-!	jcellmax =  jmax   *cellsperbin(2)  +(1-cellsperbin(2))
-!	kcellmin = (kmin-1)*cellsperbin(3)+1+(1-cellsperbin(3))
-!	kcellmax =  kmax   *cellsperbin(3)  +(1-cellsperbin(3))
+	!icellmin = max(1,           int( (imin-1)*cellsperbin(1)+1+(1-cellsperbin(1))) )
+	!icellmax = min(ncells(1)+2, int(   imax  *cellsperbin(1)  +(1-cellsperbin(1))) )
+	!jcellmin = max(1,           int( (jmin-1)*cellsperbin(2)+1+(1-cellsperbin(2))) )
+	!jcellmax = min(ncells(2)+2, int(   jmax  *cellsperbin(2)  +(1-cellsperbin(2))) )
+	!kcellmin = max(1,           int( (kmin-1)*cellsperbin(3)+1+(1-cellsperbin(3))) ) 
+	!kcellmax = min(ncells(3)+2, int(   kmax  *cellsperbin(3)  +(1-cellsperbin(3))) )
+
+    !print*, icellmin, icellmax , jcellmin, jcellmax , kcellmin, kcellmax, ncells(:) + 2
 
     icellmin = 1; icellmax = ncells(1) + 2
     jcellmin = 1; jcellmax = ncells(2) + 2
@@ -4199,7 +4304,7 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
 				        !Linear magnitude of acceleration for each molecule
 				        invrij2 = 1.d0/rij2                 !Invert value
 				        accijmag = get_accijmag(invrij2, molnoi, molnoj) !48.d0*(invrij2**7-0.5d0*invrij2**4)
-                        call get_outerprod(rij,rij*accijmag,rf)
+                        call get_outerprod(rij, rij*accijmag, rf)
 
                         !------------------------------------------------------------
                         ! - Get volume average pressure tensor and pressure heating -
@@ -4246,12 +4351,14 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
                                 call pressure_tensor_forces_VA(ri, rj, rF, domain,  & 
                                                                nbins, nhb,rfbin,    & 
                                                                VA_calcmethod,       &
-                                                               VA_line_samples)
+                                                               VA_line_samples,     &
+                                                               molnoi, molnoj)
 
                                 call pressure_tensor_forces_VA(ri, rj, rFv, domain, & 
                                                                nbins, nhb, rfvbin,  & 
                                                                VA_heatflux_calcmethod, &
-                                                               VA_heatflux_line_samples)
+                                                               VA_heatflux_line_samples,     &
+                                                               molnoi, molnoj)
 !                            endif
                         else
                             !---------------------------------------
@@ -4261,7 +4368,8 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
                                 call pressure_tensor_forces_VA(ri, rj, rF, domain,  & 
                                                                nbins, nhb,rfbin,    & 
                                                                VA_calcmethod,       &
-                                                               VA_line_samples)
+                                                               VA_line_samples,     &
+                                                               molnoi, molnoj)
                             endif
                             !----------------------------------------
                             ! - Get volume average pressure heating -
@@ -4277,7 +4385,8 @@ subroutine simulation_compute_rfbins!(imin, imax, jmin, jmax, kmin, kmax)
                                 call pressure_tensor_forces_VA(ri, rj, rFv, domain, & 
                                                                nbins, nhb, rfvbin,  & 
                                                                VA_heatflux_calcmethod, &
-                                                               VA_heatflux_line_samples)
+                                                               VA_heatflux_line_samples,     &
+                                                               molnoi, molnoj)
                             endif
                         endif
 
@@ -4332,8 +4441,8 @@ contains
                 !rf = outerprod(rij,rij*accijmag)
                 call pressure_tensor_forces_VA(ri, rj, rf, domain,  & 
                                                 nbins, nhb, rfbin,  &
-                                                VA_calcmethod=1,    & 
-                                                VA_line_samples=VA_line_samples)
+                                                1, VA_line_samples, &
+                                                molnoi, molnoj)
 
             end do	
 
@@ -4649,7 +4758,9 @@ subroutine cumulative_heatflux(ixyz,sample_count)
 		!Don't calculate Position (x) force dot v for configurational part of heatflux tensor
         !if it has already been calculated in pressure calculation
         if (pressure_outflag .ne. 2 .or. Nheatflux_ave .ne. Nstress_ave) then
-            call simulation_compute_rfbins
+            call simulation_compute_rfbins!(1,nbins(1)+2*nhb(1), & 
+                                          ! 1,nbins(2)+2*nhb(2), & 
+                                          ! 1,nbins(3)+2*nhb(3))
         endif
 
 		!Calculate mass velocity dot [velocity (x) velocity] for kinetic part of heatflux tensor

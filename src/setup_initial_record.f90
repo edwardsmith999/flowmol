@@ -1106,6 +1106,9 @@ subroutine build_psf()
     allocate(mass(NATOM))     ! Determine mass of each atom
     if (Mie_potential .eq. 1) then
         allocate(glob_moltype(NATOM))
+        !Set to zero as default as sum used to collect global array
+        !so non-zero initialised values cause an error here
+        glob_moltype = 0
     endif
     res_ID(:) = 0
     glob_sc(:) = 0

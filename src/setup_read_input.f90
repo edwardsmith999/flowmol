@@ -881,6 +881,751 @@ subroutine setup_read_input
 	endif
 
 	! ########################################################################
+	! ## NEWPAGE - Outputs
+	! ########################################################################
+	call locate(1,'NEWPAGE_OUTPUTS',.false.,found_in_input)
+	if (found_in_input) then
+		!read(1,*) newpage
+		print*, "The keyword OUTPUT does nothing, "
+		print*, "it is used to denote start of output section flowmol_inputs" 
+	endif
+
+
+    !print*, "INTRINSIC_INTERFACE inputs", intrinsic_interface_outflag, II_normal, II_alpha, II_tau, II_eps, II_ns      
+
+
+    !#########################################################################
+    !# Output flag for visualisation in VMD:
+    !# [1] 0 - off, 
+    !# [1] 1 - homogeneous, 
+    !# [1] 2 - solid/liquid,
+    !# [1] 3 - homogeneous+halos, 
+    !# [1] 4 - "true" unwrapped positions
+    !# [2] 0 - Write all
+    !# [2] 1 - 1 interval specified as csv in next box
+    !# [2] 2 - 2 intervals specified as csv in next box
+    !# [2] 3 - 3 intervals specified as csv in next box
+    !# [2] 4 - 4 intervals specified as csv in next box
+    !# [2] 5 - 5 intervals specified as csv in next box
+    !# [2] 6 - 6 intervals specified as csv in next box
+    !# [2] 7 - 7 intervals specified as csv in next box
+    !# [2] 8 - 8 intervals specified as csv in next box
+    !# [2] 9 - 9 intervals specified as csv in next box
+    !# [2] 10 - 10 intervals specified as csv in next box
+    !# [2] 11 - 11 intervals specified as csv in next box
+    !# [2] 12 - 12 intervals specified as csv in next box
+    !# [2] 13 - 13 intervals specified as csv in next box
+    !# [2] 14 - 14 intervals specified as csv in next box
+    !# [2] 15 - 15 intervals specified as csv in next box
+    !# [2] 16 - 16 intervals specified as csv in next box
+    !# [2] 17 - 17 intervals specified as csv in next box
+    !# [2] 18 - 18 intervals specified as csv in next box
+    !# [2] 19 - 19 intervals specified as csv in next box
+    !# [2] 20 - 20 intervals specified as csv in next box
+    !# [3] list - Intervals: start, finish of interval as: start_1, finish_1, start_2, finish_2, etc, etc
+    !# [4] int - Number of intervals if csv list not used
+    !# -----------------------------------------------------------------------
+	call locate(1,'VMD_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) vmd_outflag
+		if (vmd_outflag .ne. 0) then
+			read(1,*,iostat=ios) Nvmd_intervals	!Number of vmd intervals
+            !If zero intervals or not specified, switch on for entire time
+			if (Nvmd_intervals .eq. 0 .or. ios .ne. 0) then
+				allocate(vmd_intervals(2,1))
+				vmd_intervals(1,1) = 1; vmd_intervals(2,1) = Nsteps
+				Nvmd_intervals = 1
+            !Otherwise, try to read intervals from next line
+			else
+				allocate(vmd_intervals(2,Nvmd_intervals))
+                !Check if interval in form of comma seperated list of inputs
+                read(1,'(a)',iostat=ios) commacheckstr
+                backspace(1)
+                if (scan(commacheckstr, ",").gt.0) then
+                    read(1,*,iostat=ios) vmd_intervals
+                !Otherwise, use Nvmd_interval_size to specify linearly space records
+                else
+                    !See if a single interval size is specified, otherwise use 1000
+                    read(1,*,iostat=ios) Nvmd_interval_size
+                    if (ios .ne. 0) Nvmd_interval_size = 1000
+                    vmd_intervals(1,:) = linspace(0.d0, & 
+                                                  real(Nsteps,kind(0.d0)),&
+                                                  Nvmd_intervals)
+                    vmd_intervals(2,:) = vmd_intervals(1,:) + Nvmd_interval_size
+                    !Note, convention to have last interval from Nsteps 
+                    !interval_size to Nsteps
+                    vmd_intervals(1,size(vmd_intervals,2)) = & 
+                        vmd_intervals(1,size(vmd_intervals,2)) - Nvmd_interval_size
+                    vmd_intervals(2,size(vmd_intervals,2)) = & 
+                        vmd_intervals(2,size(vmd_intervals,2)) - Nvmd_interval_size
+                endif
+
+#if USE_COUPLER
+				!Coupler total simulation time is setup later so defer this check
+				!until later
+#else
+				if (maxval(vmd_intervals) .gt. Nsteps) then
+					print'(2(a,i8))', 'Value specified for end of final vmd_interval = ' & 
+									, maxval(vmd_intervals), 'but Nsteps = ', Nsteps 
+					call error_abort("Specified VMD interval greater than Nsteps")
+				endif
+#endif
+			endif
+		endif
+	else
+		!If not switched on in input then VMD set to off
+		vmd_outflag = 0
+	endif
+
+	! #########################################################################
+	! # Frequency of VMD output
+	! # [1] int - Number of tplot steps between outputs
+	! # -----------------------------------------------------------------------
+    call locate(1,'VMD_SKIP',.false.,found_in_input)
+    if (found_in_input) then
+        read(1,*) vmd_skip  
+        if (vmd_skip .lt. 1) then
+            call error_abort('VMD_SKIP cannot be less than 1')
+        end if
+    else
+        vmd_skip = 1
+    end if
+
+
+	call locate(1,'SEPERATE_OUTFILES',.false.,found_in_input)
+	if (found_in_input) then
+        call error_abort('SEPERATE_OUTFILES error, sepArate is misspelt')
+    endif
+    
+	! #########################################################################
+	! # Save output files as a single file or seperate file at each timestep
+	! # [1] .false. - Output a single file per output
+	! # [1] .true. - Output a value per timestep and per output type 
+	! # [2] .false. - On restart, use numbering starting from current record (initialstep)
+	! # [2] .true. - Delete all previous files and create file numbes
+	! # -----------------------------------------------------------------------
+	call locate(1,'SEPARATE_OUTFILES',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) separate_outfiles
+        if (separate_outfiles) then
+    		read(1,*,iostat=ios) restart_numbering
+			if (ios .ne. 0) restart_numbering = .false.
+        endif
+	endif
+
+	! #########################################################################
+	! # Define the number of output bins in terms of the compuational cells
+	! # This constraint is useful for efficiency (cell lists) and consistency
+	! # while not being particularly restrictive (bins must be integer no in
+	! # each process and so must cells). The bin cell ratio in the x,y,z 
+	! # directions is specified in real format with e.g. 2.0 is 2 bins per
+	! # cell or 0.5 is 2 cells per bin. Care must be taken that cells is an
+	! # even number if splitting.
+	! # [1] float - x ratio of bins per cell
+	! # [2] float - y ratio of bins per cell
+	! # [3] float - z ratio of bins per cell
+	! # -----------------------------------------------------------------------
+	call locate(1,'BIN2CELLRATIO',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) binspercell(1)
+		read(1,*) binspercell(2)
+		read(1,*) binspercell(3)
+!		if (any(binspercell .gt. 1.d0) .and. & 
+!			any(binspercell .lt. 1.d0)) then
+!			print*, "WARNING -- BIN2CELLRATIO input - cannot specify multiple ", &
+!					"bins per cell in one direction and multiple cells per bin ", &
+!					"in the other -- setting minimum binspercell to 1"
+!			where(binspercell .gt. 1.d0) binspercell = 1.d0
+!		endif
+	else
+		binspercell = 1.d0
+	endif
+
+	! #########################################################################
+	! # Output flag for macroscopic properties:
+	! # [1] 0 - off
+	! # [1] 1 - high precision > stdout
+	! # [1] 2 - high precision > stdout + results/macroscopic_properties
+	! # [1] 3 - concise        > stdout
+	! # [1] 4 - concise        > stdout + results/macroscopic_properties
+	! # -----------------------------------------------------------------------
+	call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) read(1,*) macro_outflag
+
+	! #########################################################################
+	! # Add correction to energy and virial pressure in macro output based
+	! # standard long range correction (see an MD textbook e.g. Rapaport or 
+	! # Allen and Tildesley)
+	! # [1] 0 - Off
+	! # [1] 1 - On
+	! # -----------------------------------------------------------------------
+	call locate(1,'SLRC_FLAG',.false.,found_in_input)
+	if (found_in_input) read(1,*) sLRC_flag
+	!Test for WCA potential and switch LRC off
+	if (abs(rcutoff-2.d0**(1.d0/6.d0)) .lt. 0.0001) then
+		if (sLRC_flag .eq. 1) then
+			print*, "WCA potential used - switching sLRC off"
+			sLRC_flag = 0
+		endif
+	endif
+
+	! #########################################################################
+	! # Output flag for mass record:
+	! # [1] 0 - off 
+	! # [1] 4 - 3D grid of bins
+	! # [2] int - No. of samples for mass average
+	! # -----------------------------------------------------------------------
+	call locate(1,'MASS_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) mass_outflag
+		if (mass_outflag .ne. 0) then
+			read(1,*) Nmass_ave
+		endif
+		if (mass_outflag .eq. 5) then
+			call locate(1,'CPOL_BINS',.true.)
+			read(1,*) gcpol_bins(1)	
+			read(1,*) gcpol_bins(2)	
+			read(1,*) gcpol_bins(3)	
+		end if
+	endif
+
+	! #########################################################################
+	! # Output flag for velocity record (identical to MOMENTUM_OUTFLAG):
+	! # [1] 0 - off 
+	! # [1] 4 - 3D grid of bins
+	! # [2] int - No. of samples for momentum average
+	! # -----------------------------------------------------------------------
+	call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) momentum_outflag
+		if (momentum_outflag .ne. 0) then
+			read(1,*) Nvel_ave
+		endif
+		if (momentum_outflag .eq. 5) then
+			call locate(1,'CPOL_BINS',.true.)
+			read(1,*) gcpol_bins(1)	
+			read(1,*) gcpol_bins(2)	
+			read(1,*) gcpol_bins(3)	
+		end if
+        already_read = .true.
+	endif
+
+	! #########################################################################
+	! # Output flag for momentum record:
+	! # [1] 0 - off 
+	! # [1] 4 - 3D grid of bins
+	! # [2] int - No. of samples for momentum average
+	! # -----------------------------------------------------------------------
+	call locate(1,'MOMENTUM_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+        if (already_read) then
+            print*, "Warning - VELOCITY_OUTFLAG already specified,", & 
+                    " overriding with MOMENTUM_OUTFLAG values" 
+            already_read = .false.
+        endif
+		read(1,*) momentum_outflag
+		if (momentum_outflag .ne. 0) then
+			read(1,*) Nvel_ave
+		endif
+		if (momentum_outflag .eq. 5) then
+			call locate(1,'CPOL_BINS',.true.)
+			read(1,*) gcpol_bins(1)	
+			read(1,*) gcpol_bins(2)	
+			read(1,*) gcpol_bins(3)	
+		end if
+	endif
+	! #########################################################################
+	! # Output flag for temperature record:
+	! # [1] 0 - off 
+	! # [1] 4 - 3D grid of bins
+	! # [2] int - No. of samples for temperature average
+	! # [3] 0 - Peculiar velocity off
+	! # [3] 1 - Peculiar velocity on
+	! # -----------------------------------------------------------------------
+	call locate(1,'TEMPERATURE_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) temperature_outflag
+		if (temperature_outflag .ne. 0) then
+			read(1,*) NTemp_ave
+			read(1,*,iostat=ios) peculiar_flag
+			if (ios .ne. 0) peculiar_flag = 0 !default to zero if value not found
+		endif
+	endif
+	! #########################################################################
+	! # Output flag for energy record:
+	! # [1] 0 - off 
+	! # [1] 4 - 3D grid of bins
+	! # [2] int - No. of samples for energy average
+	! # -----------------------------------------------------------------------
+	call locate(1,'ENERGY_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) energy_outflag
+		if (energy_outflag .ne. 0) then
+			read(1,*) Nenergy_ave
+		endif
+	endif
+	! #########################################################################
+	! # Output flag for bin centre of mass record:
+	! # [1] 0 - off 
+	! # [1] 4 - 3D grid of bins
+	! # [2] int - No. of samples for centre of mass average
+	! # -----------------------------------------------------------------------
+	call locate(1,'CENTRE_OF_MASS_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) centre_of_mass_outflag
+		if (centre_of_mass_outflag .ne. 0) then
+			read(1,*) Ncom_ave
+		endif
+	endif
+
+	! #########################################################################
+	! # Output flag for Pressure binning:
+	! #  Notes on Configurational Stress VA Splitting method
+	! #       0 is Harasima contour (half per bin)
+	! #       1 is Line length per bin trapizium rule
+	! #            (less accurate but more robust, requires number of segments
+	! #             specified on next line)
+	! #       2 is Line length per bin explicit calculation 
+	! #            (Perfectly accurate but horribly complicated and limited to
+	! #             cases where binsize > cellsize)
+	! # [1] 0 - Off
+	! # [1] 1 - virial
+	! # [1] 2 - Volume Averaged
+	! # [2] int - number of samples used for averaging
+	! # [3] 0 - Just output total pressure
+	! # [3] 1 - Split output into configurational and kinetic
+	! # [4] 0 - Harasima contour (half per bin)
+	! # [4] 1 - Line length per trapizium bin using discrete segments
+	! # [4] 2 - Exact calculation (note requires binsize > cellsize)
+	! # [5] int - Number of segments for line length (0 attempts to optimise)
+	! # -----------------------------------------------------------------------
+	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) pressure_outflag
+		if (pressure_outflag .ne. 0) then
+			!Stress averaging
+			read(1,*) Nstress_ave
+			!Split kinetic/config
+			read(1,*,iostat=ios) split_kin_config
+			if (ios .ne. 0) split_kin_config = 0 !default to zero if value not found
+			!Check other options such as calculation method and 
+			if (pressure_outflag .eq. 2 .or. pressure_outflag .eq. 3) then
+    			read(1,*,iostat=ios) VA_calcmethod
+				if (ios .ne. 0) VA_calcmethod = 1
+    			if (any(binspercell .gt. 1.d0) .and. VA_calcmethod .eq. 2) then
+    				print*, "WARNING -- Cannot specify multiple bins per cell with exact VA "
+    				print*, "   calculation (method 2), switching to trapizium (method 1)   "
+					VA_calcmethod = 1
+    			endif
+				if (any(VA_calcmethod .eq. (/1, 3/))) then
+					read(1,*,iostat=ios) VA_line_samples
+    				if (ios .ne. 0)	VA_line_samples = 20
+				endif
+			endif
+		endif
+		if (pressure_outflag .eq. 3) then
+			call locate(1,'CPOL_BINS',.true.)
+			read(1,*) gcpol_bins(1)	
+			read(1,*) gcpol_bins(2)	
+			read(1,*) gcpol_bins(3)	
+		end if
+	endif
+
+	! #########################################################################
+	! # Output flag for heatflux binning:
+	! #  Notes on Configurational Stress VA Splitting method
+	! #       0 is Harasima contour (half per bin)
+	! #       1 is Line length per bin trapizium rule
+	! #            (less accurate but more robust, requires number of segments
+	! #             specified on next line)
+	! #       2 is Line length per bin explicit calculation 
+	! #            (Perfectly accurate but horribly complicated and limited to
+	! #             cases where binsize > cellsize)
+	! # [1] 0 - Off
+	! # [1] 1 - virial
+	! # [1] 2 - Volume Averaged
+	! # [2] int - number of samples used for averaging
+	! # [3] 0 - Just output total heatflux
+	! # [3] 1 - Split output into configurational heaflux and energy flux
+	! # [4] 0 - Harasima contour (half per bin)
+	! # [4] 1 - Line length per trapizium bin using discrete segments
+	! # [4] 2 - Exact calculation (note requires binsize > cellsize)
+	! # [5] int - Number of segments for line length (0 attempts to optimise)
+	! # -----------------------------------------------------------------------
+	call locate(1,'HEATFLUX_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) heatflux_outflag
+		if (heatflux_outflag .ne. 0) then
+			!Stress averaging
+			read(1,*) Nheatflux_ave
+			!Split kinetic/config
+			read(1,*,iostat=ios) split_hfkin_config
+			if (ios .ne. 0) split_hfkin_config = 0 !default to zero if value not found
+			!Check other options such as calculation method and 
+			if (heatflux_outflag .eq. 2) then
+				if (pressure_outflag .ne. 2) then
+					call error_abort("Error -- Volume average stress must be recorded for heat flux")
+				endif
+			endif
+			if (heatflux_outflag .eq. 2 .or. heatflux_outflag .eq. 3) then
+    			read(1,*,iostat=ios) VA_heatflux_calcmethod
+				if (ios .ne. 0) VA_heatflux_calcmethod = 1
+    			if (any(binspercell .gt. 1.d0) .and. VA_heatflux_line_samples .eq. 2) then
+    				print*, "WARNING -- Cannot specify multiple bins per cell with exact VA "
+    				print*, "   calculation (method 2), switching to trapizium (method 1)   "
+					VA_heatflux_calcmethod = 1
+    			endif
+				if (VA_heatflux_calcmethod .eq. 1) then
+					read(1,*,iostat=ios) VA_heatflux_line_samples
+    				if (ios .ne. 0)	VA_heatflux_line_samples = 20
+				endif
+			endif
+		endif
+		if (heatflux_outflag .eq. 3) then
+			call error_abort("Error -- heat flux not developed for cpol bins")
+		end if
+	endif
+
+	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) viscosity_outflag
+		if ( viscosity_outflag .ne. 0) then
+			read(1,*) Nvisc_ave
+		endif
+	endif
+	! #########################################################################
+	! # Control Volume Conservation Averaging
+	! #	CV Conservation averaging (0=off 1=on) - take mass, momentum or 
+	! #	energy flux measure every step to ensureflux will be equal to change 
+	! #	in snapshots. Note, this increases computational cost somewhat
+	! #   Debug mode .true. or .false. can be used to enforce in code CV 
+	! #	conservation checking
+	! # [1] 0 - Off
+	! # [1] 1 - On
+	! # [2] 0 - Debug off 
+	! # [2] 1 - Debug on 
+	! # [3] int - x index of first debug CV
+	! # [4] int - y index of first debug CV
+	! # [5] int - z index of first debug CV
+	! # [6] int - x number of debug CVs
+	! # [7] int - y number of debug CVs
+	! # [8] int - z number of debug CVs
+	! # -----------------------------------------------------------------------
+	call locate(1,'CV_CONSERVE',.false.,found_in_input)
+	cv_conserve = 0
+	if (found_in_input) then
+		read(1,*) cv_conserve
+        if (cv_conserve .ne. 0) then
+		    read(1,*,iostat=ios) CV_debug
+		    if (ios .ne. 0) CV_debug = 0
+            if (CV_debug .eq. 2) then
+		        read(1,*,iostat=ios) debug_CV(1)
+                read(1,*,iostat=ios) debug_CV(2)
+                read(1,*,iostat=ios) debug_CV(3)
+        		if (ios .ne. 0) then
+                    print*, "Warning - CV_debug = 2 so CV number should be specified, setting to 3,3,3"
+                    debug_CV = (/ 3, 3, 3 /)
+                endif
+				!Try to keep reading to see if range specified
+		        read(1,*,iostat=ios) debug_CV_range(1)				
+				read(1,*,iostat=ios) debug_CV_range(2)
+				read(1,*,iostat=ios) debug_CV_range(3)
+        		if (ios .ne. 0) then
+                    debug_CV_range = (/ 1, 1, 1 /)
+                endif
+            endif
+        endif
+	endif
+
+
+	! #########################################################################
+	! # Pass velocities in halos
+	! # [1] - Off
+	! # [1] - On
+	! # -----------------------------------------------------------------------
+	call locate(1,'PASS_VHALO',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) pass_vhalo
+    else
+        pass_vhalo = 0
+	endif
+
+	! #########################################################################
+	! # Output flag for mass flux control volume analysis
+	! # Will save mass snapshots msnap and surface fluxes mflux.
+	! # [1] 0 - Off
+	! # [1] 1 - On (3D grid using local control volumes)
+	! # [2] int - No. of samples for mass flux & interval for CV mass snapshot
+	! # -----------------------------------------------------------------------
+	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) mflux_outflag
+		if (mflux_outflag .ne. 0) then
+			read(1,*) Nmflux_ave
+		endif
+	endif
+	! #########################################################################
+	! # Output flag for momentum flux over a surface for control volume analysis
+	! # Will save momentum snapshots vsnap and surface fluxes vflux as well as	
+	! # force interactions crossing the surface of the control volume  
+	! # [1] 0 - Off
+	! # [1] 1 - Method of planes in x (depreciated)
+	! # [1] 2 - Method of planes in y (depreciated)
+	! # [1] 3 - Method of planes in z (depreciated)
+	! # [1] 4 - 3D grid using local control volumes
+	! # [2] int - No. of samples for momentum flux & interval for snapshot
+	! # -----------------------------------------------------------------------
+	call locate(1,'VFLUX_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) vflux_outflag
+		if (vflux_outflag .ne. 0) then
+			read(1,*) Nvflux_ave
+		endif
+		if (mflux_outflag .eq. 0) Nmflux_ave = Nvflux_ave !Mass set to same as velocity
+	endif
+	! #########################################################################
+	! # Output flag for energy flux/power & CV energy snapshots over 
+	! # a surface for control volume analysis
+	! # Will save energy snapshots esnap and surface fluxes eflux as well as	
+	! # force time velocity interactions crossing the surface of the control volume  
+	! # [1] 0 - Off
+	! # [1] 1 - Method of planes in x (depreciated)
+	! # [1] 2 - Method of planes in y (depreciated)
+	! # [1] 3 - Method of planes in z (depreciated)
+	! # [1] 4 - 3D grid using local control volumes
+	! # [2] int - No. of samples for energy flux & interval for snapshot
+	! # -----------------------------------------------------------------------
+	call locate(1,'EFLUX_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) eflux_outflag
+		if (eflux_outflag .ne. 0) then
+			read(1,*) Neflux_ave
+			pass_vhalo = 1		!Turn on passing of velocities for halo images
+		endif
+	endif
+	if (CV_debug .gt. 0) then
+		if (mflux_outflag .eq. 0 .and. & 
+			vflux_outflag .eq. 0 .and. & 
+			eflux_outflag .eq. 0) then
+			call error_abort("If CV_debug is true, mass/momentum/energy flux must be turned on")
+		endif
+	endif
+
+	! #########################################################################
+	! # Output flag for flux based density on a control volume 
+	! # Density of molecules found on the surface of a bin 
+	! # Includes all intermediate bins, methodology from 
+	! # " A technique for the calculation of mass, energy, and momentum densities
+	! #  at planes in molecular dynamics simulations"
+	! #  By Peter J. Daivis, Karl P. Travis, and B. D. Todd
+	! # Will save density snapshots msurf.
+	! # [1] 0 - Off
+	! # [1] 1 - On (3D grid using local control volumes)
+	! # [2] int - No. of samples for flux density snapshot
+	! # -----------------------------------------------------------------------
+	call locate(1,'MSURF_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+        read(1,*) msurf_outflag
+        read(1,*) Nsurfm_ave
+    else
+        msurf_outflag = 0
+        Nsurfm_ave = 0
+    endif
+
+	! #########################################################################
+	! # Turn on logging for mass, momentum and energy change in a control	  
+	! # volume due to the surface moving past the molecules
+	! # outputs dsurf_mflux, dsurf_vflux and dsurf_eflux files
+	! # Note this may be unnecessary
+	! # [1] 0 - Off
+	! # [1] 1 - On (3D grid using local control volumes)
+	! # [2] int - No. of samples for flux density snapshot
+	! # -----------------------------------------------------------------------
+	call locate(1,'SURF_EVO_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+        read(1,*) Nsurfevo_outflag
+        read(1,*) Nsurfevo_ave
+    else
+        Nsurfevo_outflag = 0
+        Nsurfevo_ave = 0
+    endif
+
+	call locate(1,'ETEVTCF_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) etevtcf_outflag
+		if (etevtcf_outflag.ne.0) then
+			read(1,*) etevtcf_iter0
+	
+			if (mod(etevtcf_iter0,tplot).ne.0) then
+				etevtcf_iter0 = etevtcf_iter0 + (tplot - mod(etevtcf_iter0,tplot))
+				print*, 'Etevtcf must be a multiple of tplot, resetting etevtcf to ', etevtcf_iter0
+			end if
+		end if
+	endif
+
+	call locate(1,'RTRUE_FLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) rtrue_flag
+	else
+		rtrue_flag = 0
+	endif
+
+	call locate(1,'DIFFUSION',.false.,found_in_input)
+	if (found_in_input) then
+        read(1,*) diffusion_flag
+        read(1,*,iostat=ios) Ndiff_samples
+		if (ios .ne. 0) Ndiff_samples = Nsteps
+        if (diffusion_flag .eq. 1) rtrue_flag = 1
+    else
+        diffusion_flag = 0
+    endif
+
+	call locate(1,'MOLTRAJ',.false.,found_in_input)
+	if (found_in_input) then
+        read(1,*) moltraj_flag
+        read(1,*) Nmoltraj
+        if (moltraj_flag .eq. 1) rtrue_flag = 1
+    else
+        moltraj_flag = 0
+    endif
+
+
+	call locate(1,'R_GYRATION_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) r_gyration_outflag
+		read(1,*) r_gyration_iter0
+        if (r_gyration_outflag .ne. 0) rtrue_flag = 1
+	endif
+
+	call locate(1,'RDF_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) rdf_outflag
+		read(1,*) rdf_rmax
+		read(1,*) rdf_nbins
+	endif
+
+	call locate(1,'VPDF',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) vPDF_flag
+		read(1,*) NvPDF_ave
+		read(1,*) NPDFbins 
+		read(1,*) PDFvlims
+    else
+        vPDF_flag = 0
+	endif
+	
+	call locate(1,'STRUCT_OUTFLAG',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) ssf_outflag
+		read(1,*) ssf_ax1
+		read(1,*) ssf_ax2 
+		read(1,*) ssf_nmax 
+	endif
+
+	call locate(1,'RIEMANN_TRANSFORM',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) Riemann_transform
+	endif
+
+
+    split_pol_sol_stats = 0
+    call locate(1,'SPLIT_POL_SOL_STATS',.false.,found_in_input)
+    if (found_in_input) then
+        read(1,*) split_pol_sol_stats
+    else
+        split_pol_sol_stats = 0
+    end if
+
+
+	! ########################################################################
+	! # Turn on cluster analysis to build clusters from molecules
+	! # a linked list of all molecules within a cutoff distance of each other
+	! # [1] 0 - Cluster Analysis Off 
+	! # [1] 1 - Cluster Analysis On - allows intrinsic interface
+	! # [1] 2 - Cluster Analysis On - for average mass bin interface (OBSOLETE)
+	! # [2] float - Cutoff length for cluster search
+	! # [3] int - Minimum number of neighbours for inclusion in cluster
+	! # [4] 1 - Write interface as an xyz file (for VMD) with all molecuels in cluster.xyz 
+	! # [4] 2 - Write interface as an obj file (for Blender, etc)
+	! # [4] 3 - Write interface as surface.grid, a simple ascii grid of center locations 
+	! # [4] 4 - Write modes to ascii file 
+	! # [5] int - Resolution to write interface (Number of points in each direction)
+	! # ----------------------------------------------------------------------
+	call locate(1,'CLUSTER_ANALYSIS',.false.,found_in_input)
+	if (found_in_input) then
+		read(1,*) cluster_analysis_outflag
+        if (cluster_analysis_outflag .ne. 0) then
+            if (nproc .ne. 1) then
+                call error_abort("Cluster Analysis only works with one processor")
+            end if
+		    read(1,*,iostat=ios) CA_rd   ! Cutoff length for cluster search
+            if (ios .ne. 0) CA_rd = 1.5
+		    read(1,*,iostat=ios) CA_min_nghbr   ! Minimum number of neighbours
+            if (ios .ne. 0) CA_min_nghbr = 0  ! Set to zero (i.e. default no minimum)
+		    read(1,*,iostat=ios) CA_generate_xyz   ! Output xyz files for vmd
+            if (ios .ne. 0) CA_generate_xyz = 0  ! Set to zero (i.e. default no output)
+            if (CA_generate_xyz .ne. 0) then
+    		    read(1,*,iostat=ios) CA_generate_xyz_res   ! Resolution for output xyz files 
+                if (ios .ne. 0) CA_generate_xyz_res = 0  
+            endif
+            ! If interface cutoff is less that interaction rcutoff
+            ! then we can use the neighbourlist to get molecules in 
+            ! interface region (N.B. need to use all interations)
+            if (CA_rd .gt. (rcutoff + minval(delta_rneighbr))) then
+                call error_abort("Error in build cluster -- rd must be less than neighbourlist cutoff")
+            endif
+
+            if ((force_list .lt. 1) .or. (force_list .gt. 2)) then
+                call error_abort("Error in build_from_cellandneighbour_lists -- full "//&
+                                 "neightbour list should be used with interface tracking."//&
+                                 " Set FORCE_LIST to 2 in input file.")
+            end if
+        endif
+    else
+        cluster_analysis_outflag = 0
+	endif
+
+	! ########################################################################
+    !# Fit an intrinsic surface to the outside of the cluster
+	! # [1] 0 - Intrinsic Interface Off 
+	! # [1] 1 - Intrinsic Sine and Cosine components
+	! # [1] 2 - Sine and Cosine using bilinear component
+	! # [1] 3 - Chebychev terms in non-periodic directions using bilinear
+	! # [2] 1 - x surface normal
+	! # [2] 2 - y surface normal
+	! # [2] 3 - z surface normal
+	! # [3] float - Smallest Wavelength
+	! # [4] float - Search radius around surface used to fit interface
+	! # [5] float - Weight for surface energy minimising constraint
+	! # [6] float - Target density of surface Npivots/Area
+	! # [7] 0 - Top of cluster
+	! # [7] 1 - Bottom of cluster
+	! # ----------------------------------------------------------------------
+	call locate(1,'INTRINSIC_INTERFACE',.false.,found_in_input)
+	if (found_in_input) then
+        if (cluster_analysis_outflag .eq. 0) then
+            call error_abort("Cluster Analysis must be on to use intrinsic interface")
+        endif
+		read(1,*) intrinsic_interface_outflag
+        if (intrinsic_interface_outflag .ne. 0) then
+    		read(1,*,iostat=ios) II_normal   ! Surface normal direction
+            if (ios .ne. 0) II_normal = 3
+            read(1,*,iostat=ios) II_alpha    ! Smallest wavelength
+            if (ios .ne. 0) II_alpha = 0.5d0
+            read(1,*,iostat=ios) II_tau      ! Search radius around surface
+            if (ios .ne. 0) II_tau = 1.d0
+            read(1,*,iostat=ios) II_eps    ! Weight for surface energy minimising constraint
+            if (ios .ne. 0) II_eps = 0.00000001d0
+            read(1,*,iostat=ios) II_ns       ! Target density of surface Npivots/Area
+            if (ios .ne. 0) II_ns = 0.8d0
+            read(1,*,iostat=ios) II_topbot       !Top =1 or bottom=2
+            if (ios .ne. 0) II_topbot = 1
+        endif
+    else
+        intrinsic_interface_outflag = 0
+	endif
+
+	! ########################################################################
 	! ## NEWPAGE - BOUNDARY CONDITIONS
 	! ########################################################################
 	call locate(1,'NEWPAGE_BOUNDARY_CONDITIONS',.false.,found_in_input)
@@ -1563,751 +2308,6 @@ subroutine setup_read_input
 			local_heat_region = -666.d0
 		endif
 
-	endif
-
-	! ########################################################################
-	! ## NEWPAGE - Outputs
-	! ########################################################################
-	call locate(1,'NEWPAGE_OUTPUTS',.false.,found_in_input)
-	if (found_in_input) then
-		!read(1,*) newpage
-		print*, "The keyword OUTPUT does nothing, "
-		print*, "it is used to denote start of output section flowmol_inputs" 
-	endif
-
-
-    !print*, "INTRINSIC_INTERFACE inputs", intrinsic_interface_outflag, II_normal, II_alpha, II_tau, II_eps, II_ns      
-
-
-    !#########################################################################
-    !# Output flag for visualisation in VMD:
-    !# [1] 0 - off, 
-    !# [1] 1 - homogeneous, 
-    !# [1] 2 - solid/liquid,
-    !# [1] 3 - homogeneous+halos, 
-    !# [1] 4 - "true" unwrapped positions
-    !# [2] 0 - Write all
-    !# [2] 1 - 1 interval specified as csv in next box
-    !# [2] 2 - 2 intervals specified as csv in next box
-    !# [2] 3 - 3 intervals specified as csv in next box
-    !# [2] 4 - 4 intervals specified as csv in next box
-    !# [2] 5 - 5 intervals specified as csv in next box
-    !# [2] 6 - 6 intervals specified as csv in next box
-    !# [2] 7 - 7 intervals specified as csv in next box
-    !# [2] 8 - 8 intervals specified as csv in next box
-    !# [2] 9 - 9 intervals specified as csv in next box
-    !# [2] 10 - 10 intervals specified as csv in next box
-    !# [2] 11 - 11 intervals specified as csv in next box
-    !# [2] 12 - 12 intervals specified as csv in next box
-    !# [2] 13 - 13 intervals specified as csv in next box
-    !# [2] 14 - 14 intervals specified as csv in next box
-    !# [2] 15 - 15 intervals specified as csv in next box
-    !# [2] 16 - 16 intervals specified as csv in next box
-    !# [2] 17 - 17 intervals specified as csv in next box
-    !# [2] 18 - 18 intervals specified as csv in next box
-    !# [2] 19 - 19 intervals specified as csv in next box
-    !# [2] 20 - 20 intervals specified as csv in next box
-    !# [3] list - Intervals: start, finish of interval as: start_1, finish_1, start_2, finish_2, etc, etc
-    !# [4] int - Number of intervals if csv list not used
-    !# -----------------------------------------------------------------------
-	call locate(1,'VMD_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) vmd_outflag
-		if (vmd_outflag .ne. 0) then
-			read(1,*,iostat=ios) Nvmd_intervals	!Number of vmd intervals
-            !If zero intervals or not specified, switch on for entire time
-			if (Nvmd_intervals .eq. 0 .or. ios .ne. 0) then
-				allocate(vmd_intervals(2,1))
-				vmd_intervals(1,1) = 1; vmd_intervals(2,1) = Nsteps
-				Nvmd_intervals = 1
-            !Otherwise, try to read intervals from next line
-			else
-				allocate(vmd_intervals(2,Nvmd_intervals))
-                !Check if interval in form of comma seperated list of inputs
-                read(1,'(a)',iostat=ios) commacheckstr
-                backspace(1)
-                if (scan(commacheckstr, ",").gt.0) then
-                    read(1,*,iostat=ios) vmd_intervals
-                !Otherwise, use Nvmd_interval_size to specify linearly space records
-                else
-                    !See if a single interval size is specified, otherwise use 1000
-                    read(1,*,iostat=ios) Nvmd_interval_size
-                    if (ios .ne. 0) Nvmd_interval_size = 1000
-                    vmd_intervals(1,:) = linspace(0.d0, & 
-                                                  real(Nsteps,kind(0.d0)),&
-                                                  Nvmd_intervals)
-                    vmd_intervals(2,:) = vmd_intervals(1,:) + Nvmd_interval_size
-                    !Note, convention to have last interval from Nsteps 
-                    !interval_size to Nsteps
-                    vmd_intervals(1,size(vmd_intervals,2)) = & 
-                        vmd_intervals(1,size(vmd_intervals,2)) - Nvmd_interval_size
-                    vmd_intervals(2,size(vmd_intervals,2)) = & 
-                        vmd_intervals(2,size(vmd_intervals,2)) - Nvmd_interval_size
-                endif
-
-#if USE_COUPLER
-				!Coupler total simulation time is setup later so defer this check
-				!until later
-#else
-				if (maxval(vmd_intervals) .gt. Nsteps) then
-					print'(2(a,i8))', 'Value specified for end of final vmd_interval = ' & 
-									, maxval(vmd_intervals), 'but Nsteps = ', Nsteps 
-					call error_abort("Specified VMD interval greater than Nsteps")
-				endif
-#endif
-			endif
-		endif
-	else
-		!If not switched on in input then VMD set to off
-		vmd_outflag = 0
-	endif
-
-	! #########################################################################
-	! # Frequency of VMD output
-	! # [1] int - Number of tplot steps between outputs
-	! # -----------------------------------------------------------------------
-    call locate(1,'VMD_SKIP',.false.,found_in_input)
-    if (found_in_input) then
-        read(1,*) vmd_skip  
-        if (vmd_skip .lt. 1) then
-            call error_abort('VMD_SKIP cannot be less than 1')
-        end if
-    else
-        vmd_skip = 1
-    end if
-
-
-	call locate(1,'SEPERATE_OUTFILES',.false.,found_in_input)
-	if (found_in_input) then
-        call error_abort('SEPERATE_OUTFILES error, sepArate is misspelt')
-    endif
-    
-	! #########################################################################
-	! # Save output files as a single file or seperate file at each timestep
-	! # [1] .false. - Output a single file per output
-	! # [1] .true. - Output a value per timestep and per output type 
-	! # [2] .false. - On restart, use numbering starting from current record (initialstep)
-	! # [2] .true. - Delete all previous files and create file numbes
-	! # -----------------------------------------------------------------------
-	call locate(1,'SEPARATE_OUTFILES',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) separate_outfiles
-        if (separate_outfiles) then
-    		read(1,*,iostat=ios) restart_numbering
-			if (ios .ne. 0) restart_numbering = .false.
-        endif
-	endif
-
-	! #########################################################################
-	! # Define the number of output bins in terms of the compuational cells
-	! # This constraint is useful for efficiency (cell lists) and consistency
-	! # while not being particularly restrictive (bins must be integer no in
-	! # each process and so must cells). The bin cell ratio in the x,y,z 
-	! # directions is specified in real format with e.g. 2.0 is 2 bins per
-	! # cell or 0.5 is 2 cells per bin. Care must be taken that cells is an
-	! # even number if splitting.
-	! # [1] float - x ratio of bins per cell
-	! # [2] float - y ratio of bins per cell
-	! # [3] float - z ratio of bins per cell
-	! # -----------------------------------------------------------------------
-	call locate(1,'BIN2CELLRATIO',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) binspercell(1)
-		read(1,*) binspercell(2)
-		read(1,*) binspercell(3)
-!		if (any(binspercell .gt. 1.d0) .and. & 
-!			any(binspercell .lt. 1.d0)) then
-!			print*, "WARNING -- BIN2CELLRATIO input - cannot specify multiple ", &
-!					"bins per cell in one direction and multiple cells per bin ", &
-!					"in the other -- setting minimum binspercell to 1"
-!			where(binspercell .gt. 1.d0) binspercell = 1.d0
-!		endif
-	else
-		binspercell = 1.d0
-	endif
-
-	! #########################################################################
-	! # Output flag for macroscopic properties:
-	! # [1] 0 - off
-	! # [1] 1 - high precision > stdout
-	! # [1] 2 - high precision > stdout + results/macroscopic_properties
-	! # [1] 3 - concise        > stdout
-	! # [1] 4 - concise        > stdout + results/macroscopic_properties
-	! # -----------------------------------------------------------------------
-	call locate(1,'MACRO_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) read(1,*) macro_outflag
-
-	! #########################################################################
-	! # Add correction to energy and virial pressure in macro output based
-	! # standard long range correction (see an MD textbook e.g. Rapaport or 
-	! # Allen and Tildesley)
-	! # [1] 0 - Off
-	! # [1] 1 - On
-	! # -----------------------------------------------------------------------
-	call locate(1,'SLRC_FLAG',.false.,found_in_input)
-	if (found_in_input) read(1,*) sLRC_flag
-	!Test for WCA potential and switch LRC off
-	if (abs(rcutoff-2.d0**(1.d0/6.d0)) .lt. 0.0001) then
-		if (sLRC_flag .eq. 1) then
-			print*, "WCA potential used - switching sLRC off"
-			sLRC_flag = 0
-		endif
-	endif
-
-	! #########################################################################
-	! # Output flag for mass record:
-	! # [1] 0 - off 
-	! # [1] 4 - 3D grid of bins
-	! # [2] int - No. of samples for mass average
-	! # -----------------------------------------------------------------------
-	call locate(1,'MASS_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) mass_outflag
-		if (mass_outflag .ne. 0) then
-			read(1,*) Nmass_ave
-		endif
-		if (mass_outflag .eq. 5) then
-			call locate(1,'CPOL_BINS',.true.)
-			read(1,*) gcpol_bins(1)	
-			read(1,*) gcpol_bins(2)	
-			read(1,*) gcpol_bins(3)	
-		end if
-	endif
-
-	! #########################################################################
-	! # Output flag for velocity record (identical to MOMENTUM_OUTFLAG):
-	! # [1] 0 - off 
-	! # [1] 4 - 3D grid of bins
-	! # [2] int - No. of samples for momentum average
-	! # -----------------------------------------------------------------------
-	call locate(1,'VELOCITY_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) momentum_outflag
-		if (momentum_outflag .ne. 0) then
-			read(1,*) Nvel_ave
-		endif
-		if (momentum_outflag .eq. 5) then
-			call locate(1,'CPOL_BINS',.true.)
-			read(1,*) gcpol_bins(1)	
-			read(1,*) gcpol_bins(2)	
-			read(1,*) gcpol_bins(3)	
-		end if
-        already_read = .true.
-	endif
-
-	! #########################################################################
-	! # Output flag for momentum record:
-	! # [1] 0 - off 
-	! # [1] 4 - 3D grid of bins
-	! # [2] int - No. of samples for momentum average
-	! # -----------------------------------------------------------------------
-	call locate(1,'MOMENTUM_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-        if (already_read) then
-            print*, "Warning - VELOCITY_OUTFLAG already specified,", & 
-                    " overriding with MOMENTUM_OUTFLAG values" 
-            already_read = .false.
-        endif
-		read(1,*) momentum_outflag
-		if (momentum_outflag .ne. 0) then
-			read(1,*) Nvel_ave
-		endif
-		if (momentum_outflag .eq. 5) then
-			call locate(1,'CPOL_BINS',.true.)
-			read(1,*) gcpol_bins(1)	
-			read(1,*) gcpol_bins(2)	
-			read(1,*) gcpol_bins(3)	
-		end if
-	endif
-	! #########################################################################
-	! # Output flag for temperature record:
-	! # [1] 0 - off 
-	! # [1] 4 - 3D grid of bins
-	! # [2] int - No. of samples for temperature average
-	! # [3] 0 - Peculiar velocity off
-	! # [3] 1 - Peculiar velocity on
-	! # -----------------------------------------------------------------------
-	call locate(1,'TEMPERATURE_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) temperature_outflag
-		if (temperature_outflag .ne. 0) then
-			read(1,*) NTemp_ave
-			read(1,*,iostat=ios) peculiar_flag
-			if (ios .ne. 0) peculiar_flag = 0 !default to zero if value not found
-		endif
-	endif
-	! #########################################################################
-	! # Output flag for energy record:
-	! # [1] 0 - off 
-	! # [1] 4 - 3D grid of bins
-	! # [2] int - No. of samples for energy average
-	! # -----------------------------------------------------------------------
-	call locate(1,'ENERGY_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) energy_outflag
-		if (energy_outflag .ne. 0) then
-			read(1,*) Nenergy_ave
-		endif
-	endif
-	! #########################################################################
-	! # Output flag for bin centre of mass record:
-	! # [1] 0 - off 
-	! # [1] 4 - 3D grid of bins
-	! # [2] int - No. of samples for centre of mass average
-	! # -----------------------------------------------------------------------
-	call locate(1,'CENTRE_OF_MASS_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) centre_of_mass_outflag
-		if (centre_of_mass_outflag .ne. 0) then
-			read(1,*) Ncom_ave
-		endif
-	endif
-
-	! #########################################################################
-	! # Output flag for Pressure binning:
-	! #  Notes on Configurational Stress VA Splitting method
-	! #       0 is Harasima contour (half per bin)
-	! #       1 is Line length per bin trapizium rule
-	! #            (less accurate but more robust, requires number of segments
-	! #             specified on next line)
-	! #       2 is Line length per bin explicit calculation 
-	! #            (Perfectly accurate but horribly complicated and limited to
-	! #             cases where binsize > cellsize)
-	! # [1] 0 - Off
-	! # [1] 1 - virial
-	! # [1] 2 - Volume Averaged
-	! # [2] int - number of samples used for averaging
-	! # [3] 0 - Just output total pressure
-	! # [3] 1 - Split output into configurational and kinetic
-	! # [4] 0 - Harasima contour (half per bin)
-	! # [4] 1 - Line length per trapizium bin using discrete segments
-	! # [4] 2 - Exact calculation (note requires binsize > cellsize)
-	! # [5] int - Number of segments for line length (0 attempts to optimise)
-	! # -----------------------------------------------------------------------
-	call locate(1,'PRESSURE_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) pressure_outflag
-		if (pressure_outflag .ne. 0) then
-			!Stress averaging
-			read(1,*) Nstress_ave
-			!Split kinetic/config
-			read(1,*,iostat=ios) split_kin_config
-			if (ios .ne. 0) split_kin_config = 0 !default to zero if value not found
-			!Check other options such as calculation method and 
-			if (pressure_outflag .eq. 2 .or. pressure_outflag .eq. 3) then
-    			read(1,*,iostat=ios) VA_calcmethod
-				if (ios .ne. 0) VA_calcmethod = 1
-    			if (any(binspercell .gt. 1.d0) .and. VA_calcmethod .eq. 2) then
-    				print*, "WARNING -- Cannot specify multiple bins per cell with exact VA "
-    				print*, "   calculation (method 2), switching to trapizium (method 1)   "
-					VA_calcmethod = 1
-    			endif
-				if (VA_calcmethod .eq. 1) then
-					read(1,*,iostat=ios) VA_line_samples
-    				if (ios .ne. 0)	VA_line_samples = 20
-				endif
-			endif
-		endif
-		if (pressure_outflag .eq. 3) then
-			call locate(1,'CPOL_BINS',.true.)
-			read(1,*) gcpol_bins(1)	
-			read(1,*) gcpol_bins(2)	
-			read(1,*) gcpol_bins(3)	
-		end if
-	endif
-
-	! #########################################################################
-	! # Output flag for heatflux binning:
-	! #  Notes on Configurational Stress VA Splitting method
-	! #       0 is Harasima contour (half per bin)
-	! #       1 is Line length per bin trapizium rule
-	! #            (less accurate but more robust, requires number of segments
-	! #             specified on next line)
-	! #       2 is Line length per bin explicit calculation 
-	! #            (Perfectly accurate but horribly complicated and limited to
-	! #             cases where binsize > cellsize)
-	! # [1] 0 - Off
-	! # [1] 1 - virial
-	! # [1] 2 - Volume Averaged
-	! # [2] int - number of samples used for averaging
-	! # [3] 0 - Just output total heatflux
-	! # [3] 1 - Split output into configurational heaflux and energy flux
-	! # [4] 0 - Harasima contour (half per bin)
-	! # [4] 1 - Line length per trapizium bin using discrete segments
-	! # [4] 2 - Exact calculation (note requires binsize > cellsize)
-	! # [5] int - Number of segments for line length (0 attempts to optimise)
-	! # -----------------------------------------------------------------------
-	call locate(1,'HEATFLUX_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) heatflux_outflag
-		if (heatflux_outflag .ne. 0) then
-			!Stress averaging
-			read(1,*) Nheatflux_ave
-			!Split kinetic/config
-			read(1,*,iostat=ios) split_hfkin_config
-			if (ios .ne. 0) split_hfkin_config = 0 !default to zero if value not found
-			!Check other options such as calculation method and 
-			if (heatflux_outflag .eq. 2) then
-				if (pressure_outflag .ne. 2) then
-					call error_abort("Error -- Volume average stress must be recorded for heat flux")
-				endif
-			endif
-			if (heatflux_outflag .eq. 2 .or. heatflux_outflag .eq. 3) then
-    			read(1,*,iostat=ios) VA_heatflux_calcmethod
-				if (ios .ne. 0) VA_heatflux_calcmethod = 1
-    			if (any(binspercell .gt. 1.d0) .and. VA_heatflux_line_samples .eq. 2) then
-    				print*, "WARNING -- Cannot specify multiple bins per cell with exact VA "
-    				print*, "   calculation (method 2), switching to trapizium (method 1)   "
-					VA_heatflux_calcmethod = 1
-    			endif
-				if (VA_heatflux_calcmethod .eq. 1) then
-					read(1,*,iostat=ios) VA_heatflux_line_samples
-    				if (ios .ne. 0)	VA_heatflux_line_samples = 20
-				endif
-			endif
-		endif
-		if (heatflux_outflag .eq. 3) then
-			call error_abort("Error -- heat flux not developed for cpol bins")
-		end if
-	endif
-
-	call locate(1,'VISCOSITY_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) viscosity_outflag
-		if ( viscosity_outflag .ne. 0) then
-			read(1,*) Nvisc_ave
-		endif
-	endif
-	! #########################################################################
-	! # Control Volume Conservation Averaging
-	! #	CV Conservation averaging (0=off 1=on) - take mass, momentum or 
-	! #	energy flux measure every step to ensureflux will be equal to change 
-	! #	in snapshots. Note, this increases computational cost somewhat
-	! #   Debug mode .true. or .false. can be used to enforce in code CV 
-	! #	conservation checking
-	! # [1] 0 - Off
-	! # [1] 1 - On
-	! # [2] 0 - Debug off 
-	! # [2] 1 - Debug on 
-	! # [3] int - x index of first debug CV
-	! # [4] int - y index of first debug CV
-	! # [5] int - z index of first debug CV
-	! # [6] int - x number of debug CVs
-	! # [7] int - y number of debug CVs
-	! # [8] int - z number of debug CVs
-	! # -----------------------------------------------------------------------
-	call locate(1,'CV_CONSERVE',.false.,found_in_input)
-	cv_conserve = 0
-	if (found_in_input) then
-		read(1,*) cv_conserve
-        if (cv_conserve .ne. 0) then
-		    read(1,*,iostat=ios) CV_debug
-		    if (ios .ne. 0) CV_debug = 0
-            if (CV_debug .eq. 2) then
-		        read(1,*,iostat=ios) debug_CV(1)
-                read(1,*,iostat=ios) debug_CV(2)
-                read(1,*,iostat=ios) debug_CV(3)
-        		if (ios .ne. 0) then
-                    print*, "Warning - CV_debug = 2 so CV number should be specified, setting to 3,3,3"
-                    debug_CV = (/ 3, 3, 3 /)
-                endif
-				!Try to keep reading to see if range specified
-		        read(1,*,iostat=ios) debug_CV_range(1)				
-				read(1,*,iostat=ios) debug_CV_range(2)
-				read(1,*,iostat=ios) debug_CV_range(3)
-        		if (ios .ne. 0) then
-                    debug_CV_range = (/ 1, 1, 1 /)
-                endif
-            endif
-        endif
-	endif
-
-
-	! #########################################################################
-	! # Pass velocities in halos
-	! # [1] - Off
-	! # [1] - On
-	! # -----------------------------------------------------------------------
-	call locate(1,'PASS_VHALO',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) pass_vhalo
-    else
-        pass_vhalo = 0
-	endif
-
-	! #########################################################################
-	! # Output flag for mass flux control volume analysis
-	! # Will save mass snapshots msnap and surface fluxes mflux.
-	! # [1] 0 - Off
-	! # [1] 1 - On (3D grid using local control volumes)
-	! # [2] int - No. of samples for mass flux & interval for CV mass snapshot
-	! # -----------------------------------------------------------------------
-	call locate(1,'MFLUX_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) mflux_outflag
-		if (mflux_outflag .ne. 0) then
-			read(1,*) Nmflux_ave
-		endif
-	endif
-	! #########################################################################
-	! # Output flag for momentum flux over a surface for control volume analysis
-	! # Will save momentum snapshots vsnap and surface fluxes vflux as well as	
-	! # force interactions crossing the surface of the control volume  
-	! # [1] 0 - Off
-	! # [1] 1 - Method of planes in x (depreciated)
-	! # [1] 2 - Method of planes in y (depreciated)
-	! # [1] 3 - Method of planes in z (depreciated)
-	! # [1] 4 - 3D grid using local control volumes
-	! # [2] int - No. of samples for momentum flux & interval for snapshot
-	! # -----------------------------------------------------------------------
-	call locate(1,'VFLUX_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) vflux_outflag
-		if (vflux_outflag .ne. 0) then
-			read(1,*) Nvflux_ave
-		endif
-		if (mflux_outflag .eq. 0) Nmflux_ave = Nvflux_ave !Mass set to same as velocity
-	endif
-	! #########################################################################
-	! # Output flag for energy flux/power & CV energy snapshots over 
-	! # a surface for control volume analysis
-	! # Will save energy snapshots esnap and surface fluxes eflux as well as	
-	! # force time velocity interactions crossing the surface of the control volume  
-	! # [1] 0 - Off
-	! # [1] 1 - Method of planes in x (depreciated)
-	! # [1] 2 - Method of planes in y (depreciated)
-	! # [1] 3 - Method of planes in z (depreciated)
-	! # [1] 4 - 3D grid using local control volumes
-	! # [2] int - No. of samples for energy flux & interval for snapshot
-	! # -----------------------------------------------------------------------
-	call locate(1,'EFLUX_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) eflux_outflag
-		if (eflux_outflag .ne. 0) then
-			read(1,*) Neflux_ave
-			pass_vhalo = 1		!Turn on passing of velocities for halo images
-		endif
-	endif
-	if (CV_debug .gt. 0) then
-		if (mflux_outflag .eq. 0 .and. & 
-			vflux_outflag .eq. 0 .and. & 
-			eflux_outflag .eq. 0) then
-			call error_abort("If CV_debug is true, mass/momentum/energy flux must be turned on")
-		endif
-	endif
-
-	! #########################################################################
-	! # Output flag for flux based density on a control volume 
-	! # Density of molecules found on the surface of a bin 
-	! # Includes all intermediate bins, methodology from 
-	! # " A technique for the calculation of mass, energy, and momentum densities
-	! #  at planes in molecular dynamics simulations"
-	! #  By Peter J. Daivis, Karl P. Travis, and B. D. Todd
-	! # Will save density snapshots msurf.
-	! # [1] 0 - Off
-	! # [1] 1 - On (3D grid using local control volumes)
-	! # [2] int - No. of samples for flux density snapshot
-	! # -----------------------------------------------------------------------
-	call locate(1,'MSURF_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-        read(1,*) msurf_outflag
-        read(1,*) Nsurfm_ave
-    else
-        msurf_outflag = 0
-        Nsurfm_ave = 0
-    endif
-
-	! #########################################################################
-	! # Turn on logging for mass, momentum and energy change in a control	  
-	! # volume due to the surface moving past the molecules
-	! # outputs dsurf_mflux, dsurf_vflux and dsurf_eflux files
-	! # Note this may be unnecessary
-	! # [1] 0 - Off
-	! # [1] 1 - On (3D grid using local control volumes)
-	! # [2] int - No. of samples for flux density snapshot
-	! # -----------------------------------------------------------------------
-	call locate(1,'SURF_EVO_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-        read(1,*) Nsurfevo_outflag
-        read(1,*) Nsurfevo_ave
-    else
-        Nsurfevo_outflag = 0
-        Nsurfevo_ave = 0
-    endif
-
-	call locate(1,'ETEVTCF_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) etevtcf_outflag
-		if (etevtcf_outflag.ne.0) then
-			read(1,*) etevtcf_iter0
-	
-			if (mod(etevtcf_iter0,tplot).ne.0) then
-				etevtcf_iter0 = etevtcf_iter0 + (tplot - mod(etevtcf_iter0,tplot))
-				print*, 'Etevtcf must be a multiple of tplot, resetting etevtcf to ', etevtcf_iter0
-			end if
-		end if
-	endif
-
-	call locate(1,'RTRUE_FLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) rtrue_flag
-	else
-		rtrue_flag = 0
-	endif
-
-	call locate(1,'DIFFUSION',.false.,found_in_input)
-	if (found_in_input) then
-        read(1,*) diffusion_flag
-        read(1,*,iostat=ios) Ndiff_samples
-		if (ios .ne. 0) Ndiff_samples = Nsteps
-        if (diffusion_flag .eq. 1) rtrue_flag = 1
-    else
-        diffusion_flag = 0
-    endif
-
-	call locate(1,'MOLTRAJ',.false.,found_in_input)
-	if (found_in_input) then
-        read(1,*) moltraj_flag
-        read(1,*) Nmoltraj
-        if (moltraj_flag .eq. 1) rtrue_flag = 1
-    else
-        moltraj_flag = 0
-    endif
-
-
-	call locate(1,'R_GYRATION_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) r_gyration_outflag
-		read(1,*) r_gyration_iter0
-        if (r_gyration_outflag .ne. 0) rtrue_flag = 1
-	endif
-
-	call locate(1,'RDF_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) rdf_outflag
-		read(1,*) rdf_rmax
-		read(1,*) rdf_nbins
-	endif
-
-	call locate(1,'VPDF',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) vPDF_flag
-		read(1,*) NvPDF_ave
-		read(1,*) NPDFbins 
-		read(1,*) PDFvlims
-    else
-        vPDF_flag = 0
-	endif
-	
-	call locate(1,'STRUCT_OUTFLAG',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) ssf_outflag
-		read(1,*) ssf_ax1
-		read(1,*) ssf_ax2 
-		read(1,*) ssf_nmax 
-	endif
-
-	call locate(1,'RIEMANN_TRANSFORM',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) Riemann_transform
-	endif
-
-
-    split_pol_sol_stats = 0
-    call locate(1,'SPLIT_POL_SOL_STATS',.false.,found_in_input)
-    if (found_in_input) then
-        read(1,*) split_pol_sol_stats
-    else
-        split_pol_sol_stats = 0
-    end if
-
-
-	! ########################################################################
-	! # Turn on cluster analysis to build clusters from molecules
-	! # a linked list of all molecules within a cutoff distance of each other
-	! # [1] 0 - Cluster Analysis Off 
-	! # [1] 1 - Cluster Analysis On - allows intrinsic interface
-	! # [1] 2 - Cluster Analysis On - for average mass bin interface (OBSOLETE)
-	! # [2] float - Cutoff length for cluster search
-	! # [3] int - Minimum number of neighbours for inclusion in cluster
-	! # [4] 1 - Write interface as an xyz file (for VMD) with all molecuels in cluster.xyz 
-	! # [4] 2 - Write interface as an obj file (for Blender, etc)
-	! # [4] 3 - Write interface as surface.grid, a simple ascii grid of center locations 
-	! # [4] 4 - Write modes to ascii file 
-	! # [5] int - Resolution to write interface (Number of points in each direction)
-	! # ----------------------------------------------------------------------
-	call locate(1,'CLUSTER_ANALYSIS',.false.,found_in_input)
-	if (found_in_input) then
-		read(1,*) cluster_analysis_outflag
-        if (cluster_analysis_outflag .ne. 0) then
-            if (nproc .ne. 1) then
-                call error_abort("Cluster Analysis only works with one processor")
-            end if
-		    read(1,*,iostat=ios) CA_rd   ! Cutoff length for cluster search
-            if (ios .ne. 0) CA_rd = 1.5
-		    read(1,*,iostat=ios) CA_min_nghbr   ! Minimum number of neighbours
-            if (ios .ne. 0) CA_min_nghbr = 0  ! Set to zero (i.e. default no minimum)
-		    read(1,*,iostat=ios) CA_generate_xyz   ! Output xyz files for vmd
-            if (ios .ne. 0) CA_generate_xyz = 0  ! Set to zero (i.e. default no output)
-            if (CA_generate_xyz .ne. 0) then
-    		    read(1,*,iostat=ios) CA_generate_xyz_res   ! Resolution for output xyz files 
-                if (ios .ne. 0) CA_generate_xyz_res = 0  
-            endif
-            ! If interface cutoff is less that interaction rcutoff
-            ! then we can use the neighbourlist to get molecules in 
-            ! interface region (N.B. need to use all interations)
-            if (CA_rd .gt. (rcutoff + minval(delta_rneighbr))) then
-                call error_abort("Error in build cluster -- rd must be less than neighbourlist cutoff")
-            endif
-
-            if ((force_list .lt. 1) .or. (force_list .gt. 2)) then
-                call error_abort("Error in build_from_cellandneighbour_lists -- full "//&
-                                 "neightbour list should be used with interface tracking."//&
-                                 " Set FORCE_LIST to 2 in input file.")
-            end if
-        endif
-    else
-        cluster_analysis_outflag = 0
-	endif
-
-	! ########################################################################
-    !# Fit an intrinsic surface to the outside of the cluster
-	! # [1] 0 - Intrinsic Interface Off 
-	! # [1] 1 - Intrinsic Sine and Cosine components
-	! # [1] 2 - Sine and Cosine using bilinear component
-	! # [1] 3 - Chebychev terms in non-periodic directions using bilinear
-	! # [2] 1 - x surface normal
-	! # [2] 2 - y surface normal
-	! # [2] 3 - z surface normal
-	! # [3] float - Smallest Wavelength
-	! # [4] float - Search radius around surface used to fit interface
-	! # [5] float - Weight for surface energy minimising constraint
-	! # [6] float - Target density of surface Npivots/Area
-	! # [7] 0 - Top of cluster
-	! # [7] 1 - Bottom of cluster
-	! # ----------------------------------------------------------------------
-	call locate(1,'INTRINSIC_INTERFACE',.false.,found_in_input)
-	if (found_in_input) then
-        if (cluster_analysis_outflag .eq. 0) then
-            call error_abort("Cluster Analysis must be on to use intrinsic interface")
-        endif
-		read(1,*) intrinsic_interface_outflag
-        if (intrinsic_interface_outflag .ne. 0) then
-    		read(1,*,iostat=ios) II_normal   ! Surface normal direction
-            if (ios .ne. 0) II_normal = 3
-            read(1,*,iostat=ios) II_alpha    ! Smallest wavelength
-            if (ios .ne. 0) II_alpha = 0.5d0
-            read(1,*,iostat=ios) II_tau      ! Search radius around surface
-            if (ios .ne. 0) II_tau = 1.d0
-            read(1,*,iostat=ios) II_eps    ! Weight for surface energy minimising constraint
-            if (ios .ne. 0) II_eps = 0.00000001d0
-            read(1,*,iostat=ios) II_ns       ! Target density of surface Npivots/Area
-            if (ios .ne. 0) II_ns = 0.8d0
-            read(1,*,iostat=ios) II_topbot       !Top =1 or bottom=2
-            if (ios .ne. 0) II_topbot = 1
-        endif
-    else
-        intrinsic_interface_outflag = 0
 	endif
 
 
