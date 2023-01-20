@@ -362,6 +362,9 @@ subroutine setup_read_input
 					print*, "Default direction not given for LIQUID_FRACTION, assuming x"
 					lg_direction = 1
 				endif
+            else
+                lg_fract = 0.d0
+				lg_direction = 1
 			endif
 
             if (config_special_case .eq. "bubble") then
