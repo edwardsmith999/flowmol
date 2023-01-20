@@ -2344,9 +2344,17 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
                     rsphere = sqrt( (rc(1)-0.5d0*globaldomain(1)-rcentre(1))**2 & 
                                    +(rc(2)-0.5d0*globaldomain(2)-rcentre(2))**2 & 
                                    +(rc(3)-0.5d0*globaldomain(3)-rcentre(3))**2   )
-                    if (rsphere .lt. rbubble) then
-                        call random_number(rand)
-                        if (rand .gt. density_ratio_gl) cycle   
+                    if (rbubble .gt. 0.d0) then
+                        if (rsphere .lt. rbubble) then
+                            call random_number(rand)
+                            if (rand .gt. density_ratio_gl) cycle   
+                        endif
+                    !Bubble becomes a droplet with negative radius
+                    else
+                        if (rsphere .gt. -rbubble) then
+                            call random_number(rand)
+                            if (rand .gt. density_ratio_gl) cycle   
+                        endif
                     endif
 
                 case default
