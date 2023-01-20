@@ -2502,7 +2502,13 @@ subroutine setup_initialise_surfactants(casename)
     ! Connect all the chains we can, bonds to be removed later 
     ! Store maximum number of chains
     solid_density = density
-    call setup_initialise_solid_liquid_gas('2phase')
+	!If a 2phase case, then setup gas region
+	if (index(trim(casename), '2phase') .ne. 0) then
+		call setup_initialise_solid_liquid_gas('2phase')
+	elseif (index(trim(casename), 'bubble') .ne. 0) then
+		call setup_initialise_solid_liquid_gas('bubble')
+	endif
+
     call setup_location_tags(0)               !Setup locn of fixed mols
     call initialise_info()
 
@@ -2794,6 +2800,13 @@ contains
         !
         ids = (/ 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6 /)
         branch = .false.
+        !_________________________________________________________________________
+        ! d) Glycerol 4 bead model
+        !       GL--GL--GL--GL 
+        !_________________________________________________________________________
+        !ids = (/ 10, 10, 10, 10 /)
+        !branch = .false.
+
 
         if (branch) then
             midendID = nmonomers-2

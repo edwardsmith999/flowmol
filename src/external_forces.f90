@@ -111,6 +111,37 @@ subroutine simulation_apply_local_force(ixyz,F_const,xmin,xmax,ymin,ymax,zmin,zm
 
 end subroutine simulation_apply_local_force
 
+
+module spatially_varying_force
+
+contains 
+
+subroutine cosine_force(wavelengths, magnitude)
+	use arrays_MD, only : r,a
+	use physical_constants_MD, only : np, pi
+    use messenger, only : globalise
+	use computational_constants_MD, only : globaldomain
+	implicit none
+
+	real(kind(0.d0)), dimension(3), intent(in)	:: wavelengths, magnitude
+
+	integer						    :: i, n
+	real(kind(0.d0)), dimension(3)	:: Fapplied
+	real(kind(0.d0)), dimension(3)	:: rmapped
+
+	do n=1,np
+		rmapped = globalise(r(:,n))/globaldomain !Map to -0.5 to 0.5
+		!Fapplied(:) = magnitude(:)*(1.d0-cos(wavelengths(1)*pi*rmapped(1))) & 
+		!						  *(1.d0-cos(wavelengths(2)*pi*rmapped(2))) & 
+		!						  *(1.d0-cos(wavelengths(3)*pi*rmapped(3)))
+		Fapplied(:) = magnitude(:)*(1.d0-cos(wavelengths(:)*pi*rmapped(:)))
+		a(:,n)= a(:,n) + Fapplied(:) * rmapped(:)
+	enddo
+
+end subroutine cosine_force
+
+end module spatially_varying_force
+
 !--------------------------------------------------------------------------------------
 !Apply a force to prevent molecules from escaping the domain
 
@@ -2744,10 +2775,13 @@ end subroutine CFD_cells_to_MD_compute_cells
 
 !end subroutine pointsphere
 
+
+
+
+
 module point_sphere_cylinder_mod
 
 contains 
-
 subroutine point_sphere_cylinder(centres, targetradius, magnitude, start_iter, rdim)
 	use arrays_MD, only : r,a
 	use physical_constants_MD, only : np, pi

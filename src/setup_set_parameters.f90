@@ -37,7 +37,7 @@ module module_set_parameters
     double precision           :: potshift !Shift in Lennard Jones potential due to cutoff
 
     !Generalised Mie-potential parameters
-    integer,parameter :: ntypes = 9
+    integer,parameter :: ntypes = 10
     character(30),dimension(ntypes)             :: moltype_names
     double precision,dimension(ntypes)          :: mass_lookup
     double precision,dimension(ntypes,ntypes)   :: epsilon_lookup, sigma_lookup, &    
@@ -733,6 +733,17 @@ subroutine setup_mie_potential
     lambdar_lookup(9,9) = 12.d0
     lambdaa_lookup(9,9) = 6.d0
 
+
+    !10 == Glycerol 5-bead model from raaSAFT  ; 
+    !moltype_names(10) = '          Glycerol          '
+    moltype_names(10)    = 'GY' !' Glycerol '
+    mass_lookup(10)      = 1.d0
+    epsilon_lookup(10,10) = 3.76d0 !451K
+    sigma_lookup(10,10)   = 0.9297058823529412d0 !3.16e-10/3.4e-10
+    lambdar_lookup(10,10) = 16.1d0
+    lambdaa_lookup(10,10) = 6.d0
+
+
     !Define adjusted cross potential interactions (tuned by prior simulation)
     !ether and Water
     epsilon_lookup(6,3) = 0.9756d0
@@ -752,6 +763,15 @@ subroutine setup_mie_potential
     epsilon_lookup(5,4) = 0.7114d0
     !SAFT adjusted alkane--ether interaction from prior studies
     epsilon_lookup(7,6) = 0.7154d0
+
+	!From Phase equilibria of triolein to biodiesel reactor systems
+	! http://dx.doi.org/10.1016/j.fluid.2015.09.049
+	! the Water glycerol cross interactions where
+	! eij = (1- Kij) sqrt(ei ej) and 
+	!Kij = aij + bij /Tr + cij ln (Tr) + dij Tr + eij Tr^2
+	!assuming Tr = 1.0 (temperature Tr = T/Tref where Tref=298K)
+	! and using bij = 0.2146 and cij = -1.6503 with all others set to zero.
+    epsilon_lookup(10,3) = (1 - 0.2146)*sqrt(epsilon_lookup(3,3)*epsilon_lookup(10,10))
 
     !Define chain interactions
 
