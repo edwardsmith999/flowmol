@@ -1239,9 +1239,10 @@ class MyFrame(wx.Frame):
                 return None
 
             #Get existing pane and resize splitter
-            apane = self.auipanes[pane.name]
-            apane.spt.SetMinimumPaneSize(h/(2*Npanes))
-            apane.spt.UpdateSize()
+            if (pane.name in self.auipanes.keys()):
+                apane = self.auipanes[pane.name]
+                apane.spt.SetMinimumPaneSize(h/(2*Npanes))
+                apane.spt.UpdateSize()
 
 
         #Split display and properties window
