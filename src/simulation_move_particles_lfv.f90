@@ -41,6 +41,7 @@ subroutine simulation_move_particles_lfv
     use boundary_MD, only: specular_flag, specular_flat, specular_wall, &
                            specular_radial, specular_wall_flag
 	use point_sphere_cylinder_mod
+	use spatially_varying_force
 	implicit none
 	
 	integer :: n
@@ -60,6 +61,8 @@ subroutine simulation_move_particles_lfv
 										  F_ext_limits(5),F_ext_limits(6))
 	case(3:4)
         call point_sphere_cylinder(F_ext_centre, F_ext, F_ext_radial, 1, F_ext_ixyz)
+	case(5)
+        call cosine_force(F_ext_wavelength, F_ext_cos_amplitude)
 	case default
 		call error_abort("Error - incorrectly specified external_force_flag")
 	end select
