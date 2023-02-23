@@ -60,7 +60,7 @@ module computational_constants_MD
 	real(kind(0.d0))        	  :: F_ext				 !Magnitude of external forces or radius (if radial force)
 	real(kind(0.d0))        	  :: F_ext_radial   	 !Magnitude of radial forces
     real(kind(0.d0)),dimension(2) :: eij_wall            !Interaction potential strength for substrate wall
-	real(kind(0.d0)),dimension(3) :: F_ext_wavelength	 !Wavelength of cosine force in 3 directions
+	real(kind(0.d0)),dimension(3) :: F_ext_wavenum	 !Wavelength of cosine force in 3 directions
 	real(kind(0.d0)),dimension(3) :: F_ext_cos_amplitude !Amplitudes of cosine force in 3 directions
 	real(kind(0.d0)),dimension(6) :: F_ext_limits		 !Limits of region external forces applied to
 	real(kind(0.d0)),dimension(:), allocatable :: F_ext_centre		 !Centre of sphere(s)/cylinder(s) for force
@@ -133,9 +133,12 @@ module computational_constants_MD
 	real(kind(0.d0))	:: gas_density	    !Density of liquid if gas/liquid case used
 	real(kind(0.d0))	:: lg_fract	        !Fraction of the domain which is liquid (0 = all gas, 1 = all liquid)
 	real(kind(0.d0))	:: dropletH =0.d0,dropletHLratio=0.d0   !Droplet height and H to length ratio
-	real(kind(0.d0))	:: rbubble, rcentre(3)   !Radius of bubble
     logical             :: Twophase_from_file = .false.
 	character(len=128)	:: FEA_filename
+
+    integer             :: Nbubbles     !Number of initial bubbles
+	real(kind(0.d0)), dimension(:), allocatable	:: rbubble   !Radius of bubble
+	real(kind(0.d0)), dimension(:,:), allocatable	:: rcentre   !center of bubble
 
 	!Initial velocity selection
 	integer           	:: initial_velocity_flag
@@ -449,6 +452,7 @@ module polymer_info_MD
     real(kind(0.d0))    :: targetconc               !Solvent target concentration
     real(kind(0.d0))    :: surface_surfactant_layer !Solvent thickness at liquid surface
 	real(kind(0.d0))    :: eps_pp, eps_ps, eps_ss   !Solvent parameters
+	character(len=128)	:: surfactant_type
 	real(kind(0.d0)), parameter :: sod_cut =1.5d0   !Soddemann potential cutoff
 	real(kind(0.d0)), parameter :: sod_cut2=2.25d0  ! 
 	real(kind(0.d0)), parameter :: sod_a    = 3.1730728678

@@ -676,13 +676,22 @@ subroutine setup_mie_potential
     lambdaa_lookup(3,3) = 6.d0
 
     !4 == SAFT "M" {(CH₃)₃--Si--O½} molecules per bead
+    !THIS PREVIOUS DEFINITION FOR M WAS A DIFFERENT BEAD TYPE 
     !moltype_names(4) = '     (CH₃)₃--Si--O½     '
-    moltype_names(4)    = 'M'!' 3CH3SiOh '
-    mass_lookup(4)      = 1.8588d0
-    epsilon_lookup(4,4) = 0.8998d0
-    sigma_lookup(4,4)   = 1.2398d0
-    lambdar_lookup(4,4) = 26.d0
-    lambdaa_lookup(4,4) = 6.d0
+    !moltype_names(4)    = 'M'!' 3CH3SiOh '
+    !mass_lookup(4)      = 1.8588d0
+    !epsilon_lookup(4,4) = 0.8998d0
+    !sigma_lookup(4,4)   = 1.2398d0
+    !lambdar_lookup(4,4) = 26.d0
+    !lambdaa_lookup(4,4) = 6.d0
+
+    !4 == SAFT gamma "M" {-CH2-CH2-CH2-} molecules per bead 
+    moltype_names(4) = 'M' ! '-CH2-CH2-CH2-'
+    mass_lookup(4) = 0.8756896d0
+    epsilon_lookup(4,4) = 3.14283d0 ! '377.14/120'
+    sigma_lookup(4,4) = 1.230588d0  !'4.1840/3.4 '
+    lambdar_lookup(4,4) = 16.433d0
+    lambdaa_lookup(4,4) = 6.d0 
 
     !5 == SAFT "D" {O½--(CH₃)₂--Si--O½} molecules per bead
     !moltype_names(5) = '   O½--(CH₃)₂--Si--O½   '
@@ -733,7 +742,6 @@ subroutine setup_mie_potential
     lambdar_lookup(9,9) = 12.d0
     lambdaa_lookup(9,9) = 6.d0
 
-
     !10 == Glycerol 5-bead model from raaSAFT  ; 
     !moltype_names(10) = '          Glycerol          '
     moltype_names(10)    = 'GY' !' Glycerol '
@@ -743,7 +751,39 @@ subroutine setup_mie_potential
     lambdar_lookup(10,10) = 16.1d0
     lambdaa_lookup(10,10) = 6.d0
 
-
+    !11 == T molecules CH3-CH2-CH2 ;
+    moltype_names(11) = 'T' ! ' T for Terminal Beads '
+    mass_lookup(11) = 0.978d0
+    epsilon_lookup(11,11) = 2.986d0  ! 358.37/120
+    sigma_lookup(11,11) = 1.324d0  ! 4.5012/3.4
+    lambdar_lookup(11,11) = 15.947d0
+    lambdaa_lookup(11,11) = 6.d0 ! this was fixed at 6.d0 and only lambdarr was adjusted
+	
+	!12 == 2 beads OH-CH2-CH2-O-CH2- 
+	moltype_names(12) = 'OA' 
+	mass_lookup(12) = 1.7044209d0
+	epsilon_lookup(12,12) = 3.33758d0 ! 400.51/120
+	sigma_lookup(12,12) = 1.085294d0 ! 3.690/3.4
+	lambdar_lookup(12,12) = 13.957d0
+	lambdaa_lookup(12,12) = 6.d0 ! this was fixed at 6.d0 and only lambdarr was adjusted
+	
+	!13 ==  -CH2-O-CH2- 
+	moltype_names(13) = 'EM' 
+	mass_lookup(13) = 0.9999718d0
+	epsilon_lookup(13,13) = 2.54308d0 ! 305.17/120 
+	sigma_lookup(13,13) = 1.1352941d0 ! 3.860/3.4 
+	lambdar_lookup(13,13) = 12.587d0
+	lambdaa_lookup(13,13) = 6.d0  ! this was fixed at 6.d0 and only lambdarr was adjusted
+	
+	!14 = 2H2O at T = 298 K 
+	moltype_names(14) = 'W1' ! at 298 K 
+	mass_lookup(14) = 0.8179d0 
+	epsilon_lookup(14,14) = 2.543416d0 ! 305.21/120 
+	sigma_lookup(14,14) = 0.85341d0 ! 2.9016/3.4
+	lambdar_lookup(14,14) = 8.d0 
+	lambdaa_lookup(14,14) = 6.d0 
+	
+	
     !Define adjusted cross potential interactions (tuned by prior simulation)
     !ether and Water
     epsilon_lookup(6,3) = 0.9756d0
@@ -763,7 +803,28 @@ subroutine setup_mie_potential
     epsilon_lookup(5,4) = 0.7114d0
     !SAFT adjusted alkane--ether interaction from prior studies
     epsilon_lookup(7,6) = 0.7154d0
-
+    !SAFT adjusted T--M interactions from SAFT-gamm Force Field for the simulation of 
+	! molecular fluids: 7... by Emma Richards, G, Jackson, E. Muller (preprint, 2021)
+    epsilon_lookup(11,4) = 2.881d0 !'345.72/120'
+	!SAFT adjusted OA-M  interactions
+    epsilon_lookup(12,4) = 2.96025d0 
+	!SAFT adjusted OA-T interactions 
+	epsilon_lookup(12,11) = 2.916833d0 
+	!SAFT adjusted EM-M interactions
+	epsilon_lookup(13,4) = 2.537333d0 
+	!SAFT adjusted EM-T interactions
+	epsilon_lookup(13,11) = 2.5811666d0 
+	!SAFT adjusted EM-OA  interactions
+	epsilon_lookup(13,12) = 2.636083d0 
+	!SAFT adjusted W1-M  interactions
+	epsilon_lookup(14,4) =  1.44508d0 
+	!SAFT adjusted W1-T  interactions
+	epsilon_lookup(14,11) =  1.77 
+	!SAFT adjusted W1-OA  interactions
+	epsilon_lookup(14,12) =  4.101 	
+	!SAFT adjusted W1-EM   interactions
+	epsilon_lookup(14,13) = 2.934583d0
+	
 	!From Phase equilibria of triolein to biodiesel reactor systems
 	! http://dx.doi.org/10.1016/j.fluid.2015.09.049
 	! the Water glycerol cross interactions where
@@ -771,9 +832,16 @@ subroutine setup_mie_potential
 	!Kij = aij + bij /Tr + cij ln (Tr) + dij Tr + eij Tr^2
 	!assuming Tr = 1.0 (temperature Tr = T/Tref where Tref=298K)
 	! and using bij = 0.2146 and cij = -1.6503 with all others set to zero.
-    epsilon_lookup(10,3) = (1 - 0.2146)*sqrt(epsilon_lookup(3,3)*epsilon_lookup(10,10))
+    !epsilon_lookup(10,3) = (1 - 0.2146)*sqrt(epsilon_lookup(3,3)*epsilon_lookup(10,10))
+    !Make really strong to promote misibility
+    epsilon_lookup(3,10) = 5.d0*sqrt(epsilon_lookup(3,3)*epsilon_lookup(10,10))
+    epsilon_lookup(10,3) = 5.d0*sqrt(epsilon_lookup(3,3)*epsilon_lookup(10,10))
+    !lambdar_lookup(3,10) = 6.d0
+    !lambdar_lookup(10,3) = 6.d0
 
-    !Define chain interactions
+    !------------------------------------
+    !-   Define chain interactions      -
+    !------------------------------------
 
     !Default to zero for anything which shouldn't interact!
     k_lookup = 0.d0 ;         r0_lookup = 0.d0
@@ -782,6 +850,7 @@ subroutine setup_mie_potential
     k_lookup(6,6) = 295.3322; r0_lookup(6,6) = 0.9307
     k_lookup(7,6) = 295.3322; r0_lookup(7,6) = 0.9653
     k_lookup(7,7) = 295.3322; r0_lookup(7,7) = 1.0000
+    k_lookup(10,10) = 295.3322; r0_lookup(10,10) = 1.0000
     !This is assumed -- not in paper
     k_lookup(6,4) = 295.3322; r0_lookup(6,4) = 1.0000
 
@@ -1507,7 +1576,7 @@ subroutine set_parameters_global_domain
              'droplet2D','droplet3D','2phase', & 
              '2phase_surfactant_solution', & 
              '2phase_surfactant_atsurface', &
-              '2phase_LJ','bubble','film')
+              '2phase_LJ','bubble','bubble_surfactant','film')
 
 			volume=1	!Set domain size to unity for loop below
 			do ixyz=1,nd

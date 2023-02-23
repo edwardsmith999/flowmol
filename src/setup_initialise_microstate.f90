@@ -82,7 +82,7 @@ subroutine setup_initialise_microstate()
         case('droplet2D','droplet3D','2phase','bubble','film')
             call setup_initialise_solid_liquid_gas(config_special_case)
             call setup_location_tags(0)               !Setup locn of fixed mols
-        case('2phase_surfactant_solution','2phase_surfactant_atsurface')
+        case('2phase_surfactant_solution','2phase_surfactant_atsurface','bubble_surfactant')
             call setup_initialise_surfactants(config_special_case)
         case('2phase_LJ')
             call setup_initialise_solid_liquid     !Setup FCC lattice 
@@ -2035,6 +2035,7 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
 
     character(*),intent(in)   :: gastype
 
+    logical :: skip_mol, in_droplet
     integer :: i, j, n, nl, nx, ny, nz, proc_start_molno,lg
     integer, dimension(nd) :: p_units_lb, p_units_ub 
     integer, dimension(nproc) :: proc_nps
@@ -2341,21 +2342,29 @@ subroutine setup_initialise_solid_liquid_gas(gastype)
 
                 case('bubble')
 
-                    rsphere = sqrt( (rc(1)-0.5d0*globaldomain(1)-rcentre(1))**2 & 
-                                   +(rc(2)-0.5d0*globaldomain(2)-rcentre(2))**2 & 
-                                   +(rc(3)-0.5d0*globaldomain(3)-rcentre(3))**2   )
-                    if (rbubble .gt. 0.d0) then
-                        if (rsphere .lt. rbubble) then
-                            call random_number(rand)
-                            if (rand .gt. density_ratio_gl) cycle   
+                    skip_mol = .false.; in_droplet=.false.
+                    !if (Nbubbles .ne. 1) call error_abort("Error - multiple bubbles no supported yet")
+                    do n = 1,Nbubbles
+                        rsphere = sqrt( (rc(1)-0.5d0*globaldomain(1)-rcentre(1,n))**2 & 
+                                       +(rc(2)-0.5d0*globaldomain(2)-rcentre(2,n))**2 & 
+                                       +(rc(3)-0.5d0*globaldomain(3)-rcentre(3,n))**2   )
+                        if (rbubble(n) .gt. 0.d0) then
+                            if (rsphere .lt. rbubble(n)) then
+                                call random_number(rand)
+                                if (rand .gt. density_ratio_gl) skip_mol = .true.  
+                            endif
+                        !Bubble becomes a droplet with negative radius
+                        else
+                            if (rsphere .gt. -rbubble(n) .and. .not. in_droplet) then
+                                call random_number(rand)
+                                if (rand .gt. density_ratio_gl) skip_mol = .true.
+                            else
+                                in_droplet = .true.
+                                skip_mol = .false.
+                            endif
                         endif
-                    !Bubble becomes a droplet with negative radius
-                    else
-                        if (rsphere .gt. -rbubble) then
-                            call random_number(rand)
-                            if (rand .gt. density_ratio_gl) cycle   
-                        endif
-                    endif
+                    enddo
+                    if (skip_mol) cycle
 
                 case default
                     call error_abort("Error in setup_initialise_solid_liquid_gas -- gastype not know")
@@ -2546,14 +2555,24 @@ subroutine setup_initialise_surfactants(casename)
 		concentration = real(nmonomers*proc_chains(irank)) / real(fluid_np)
 
 		! Turn all polymers at the sides to solvent here
-		call remove_all_chains_limits(gaslowerregion)
-		call remove_all_chains_limits(gasupperregion)
+	    if (index(trim(casename), "2phase_surfactant") .ne. 0) then
+		    call remove_all_chains_limits(gaslowerregion)
+		    call remove_all_chains_limits(gasupperregion)
+        endif
 
 		if (casename .eq. '2phase_surfactant_atsurface') then
 		    nosurfactant = (/ -0.5d0*lg_fract*globaldomain(1)+surface_surfactant_layer, & 
 		                      -0.5d0*globaldomain(2)+solid_bottom(2), & 
 		                      -0.5d0*globaldomain(3), & 
 		                       0.5d0*lg_fract*globaldomain(1)-surface_surfactant_layer, &
+		                       0.5d0*globaldomain(2)-solid_top(2), &
+		                       0.5d0*globaldomain(3) /)
+		    call remove_all_chains_limits(nosurfactant)
+		else if (casename .eq. 'bubble_surfactant') then
+		    nosurfactant = (/ -0.5d0*globaldomain(1), & 
+		                      -0.5d0*globaldomain(2)+solid_bottom(2), & 
+		                      -0.5d0*globaldomain(3), & 
+		                       surface_surfactant_layer, &
 		                       0.5d0*globaldomain(2)-solid_top(2), &
 		                       0.5d0*globaldomain(3) /)
 		    call remove_all_chains_limits(nosurfactant)
@@ -2762,6 +2781,7 @@ contains
     subroutine connect_all_possible_chains_surfactant(maxchainID, targetconc)
         use librarymod, only : magnitude, linspace
         use linked_list, only : check_update_adjacentbeadinfo_allint
+        use polymer_info_MD, only : surfactant_type
         implicit none
 
         real(kind(0.d0)),intent(in)    :: targetconc
@@ -2772,41 +2792,101 @@ contains
         real(kind(0.d0))                :: rand, concentration, rmax
         logical :: connectable, branch, flip=.true., connectable2
 
+        select case (trim(surfactant_type))
         !SURFACTANT CHAIN -- Randomly flipped either up or down
-        !_________________________________________________________________________
-        ! a) Optimal super-spreading surfactant
-        !       M
-        !       |  
-        !       D--EO--EO--EO--EO--EO--EO--EO--EO  
-        !       |
-        !       M
-        !_________________________________________________________________________
-        !        M- D -M- EO-EO-EO-EO-EO-EO-EO-EO
-        !ids = (/ 4, 5, 4, 6, 6, 6, 6, 6, 6, 6, 6 /)
-        ! branch = .true.
 
-        !_________________________________________________________________________
-        ! b) Super-spreading Surfactant (slower than T shape above)
-        !       M--D--M--EO--EO--EO--EO--EO--EO--EO--EO 
-        !_________________________________________________________________________
-        !
-        !        M- D -M- EO-EO-EO-EO-EO-EO-EO-EO
-        !ids = (/ 4, 5, 4, 6, 6, 6, 6, 6, 6, 6, 6 /)
-       ! branch = .false.
-        !_________________________________________________________________________
-        ! c) Organic spreading surfactant
-        !       CM--CM--CM--EO--EO--EO--EO--EO--EO--EO--EO 
-        !_________________________________________________________________________
-        !
-        ids = (/ 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6 /)
-        branch = .false.
-        !_________________________________________________________________________
-        ! d) Glycerol 4 bead model
-        !       GL--GL--GL--GL 
-        !_________________________________________________________________________
-        !ids = (/ 10, 10, 10, 10 /)
-        !branch = .false.
+        case('superspreader_T_surfactant')
+            !_________________________________________________________________________
+            ! a) Optimal super-spreading surfactant
+            !       M
+            !       |  
+            !       D--EO--EO--EO--EO--EO--EO--EO--EO  
+            !       |
+            !       M
+            !_________________________________________________________________________
+            !Check if number of monomers works with surfactant type
+            if (nmonomers .ne. 11) then
+                print*, "For surfactant_type", surfactant_type, " nmonomers should be ", 11, " but is ", nmonomers 
+                call error_abort("Error - number of monomer specified by chain doesn't match surfactant_type")
+            endif
 
+            ids = (/ 4, 5, 4, 6, 6, 6, 6, 6, 6, 6, 6 /)
+            branch = .true.
+
+        case('superspreader_surfactant')
+            !_________________________________________________________________________
+            ! b) Super-spreading Surfactant (slower than T shape above)
+            !       M--D--M--EO--EO--EO--EO--EO--EO--EO--EO 
+            !_________________________________________________________________________
+            !Check if number of monomers works with surfactant type
+            if (nmonomers .ne. 11) then
+                print*, "For surfactant_type", surfactant_type, " nmonomers should be ", 11, " but is ", nmonomers 
+                call error_abort("Error - number of monomer specified by chain doesn't match surfactant_type")
+            endif
+
+            ids = (/ 4, 5, 4, 6, 6, 6, 6, 6, 6, 6, 6 /)
+            branch = .false.
+
+        case('organic_surfactant')
+            !_________________________________________________________________________
+            ! c) Organic spreading surfactant
+            !       CM--CM--CM--EO--EO--EO--EO--EO--EO--EO--EO 
+            !_________________________________________________________________________
+            !Check if number of monomers works with surfactant type
+            if (nmonomers .ne. 11) then
+                print*, "For surfactant_type", surfactant_type, " nmonomers should be ", 11, " but is ", nmonomers 
+                call error_abort("Error - number of monomer specified by chain doesn't match surfactant_type")
+            endif
+
+            ids = (/ 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6 /)
+            branch = .false.
+
+        case('glycerol4')
+            !_________________________________________________________________________
+            ! d) Glycerol 4 bead model
+            !       GL--GL--GL--GL 
+            !_________________________________________________________________________
+            !Check if number of monomers works with surfactant type
+            if (nmonomers .ne. 4) then
+                print*, "For surfactant_type", surfactant_type, " nmonomers should be ", 4, " but is ", nmonomers 
+                call error_abort("Error - number of monomer specified by chain doesn't match surfactant_type")
+            endif
+
+            ids = (/ 10, 10, 10, 10 /)
+            branch = .false.
+
+        case('small_chain')
+            !Check if number of monomers works with surfactant type
+            if (nmonomers .ne. 2) then
+                print*, "For surfactant_type", surfactant_type, " nmonomers should be ", 2, " but is ", nmonomers 
+                call error_abort("Error - number of monomer specified by chain doesn't match surfactant_type")
+            endif
+
+            ids = (/ 10, 10 /)
+            branch = .false.
+
+        case('miscible_liquid')
+            !Check if number of monomers works with surfactant type
+            if (nmonomers .ne. 2) then
+                print*, "For surfactant_type", surfactant_type, " nmonomers should be ", 2, " but is ", nmonomers 
+                call error_abort("Error - number of monomer specified by chain doesn't match surfactant_type")
+            endif
+
+            ids = (/ 10, 10 /)
+            branch = .false.
+        case('water_onebead')
+            !Check if number of monomers works with surfactant type
+            if (nmonomers .ne. 1) then
+                print*, "For surfactant_type", surfactant_type, " nmonomers should be ", 1, " but is ", nmonomers 
+                call error_abort("Error - number of monomer specified by chain doesn't match surfactant_type")
+            endif
+
+            ids = (/ 3 /)
+            branch = .false.
+        case default
+            print*, "surfactant_type = ", surfactant_type
+            call error_abort("Error - surfactant_type not recognised, change string after SURFACTANT_TYPE")
+        end select
 
         if (branch) then
             midendID = nmonomers-2
@@ -2912,13 +2992,20 @@ contains
             midendID = nmonomers-1 
         endif
 
-        ! Connect 1 to 2 
+        !Setup molecule 1
         molno = mols(1)
         monomer(molno)%chainID    = chainID
         monomer(molno)%subchainID = 1 
         monomer(molno)%glob_no    = molno
-        moltype(molno) = ids(1) 
+        moltype(molno) = ids(1)
+        !Allow special case of one molecule chain
+        if (nmonomers .eq. 1) then
+            monomer(molno)%funcy = 1
+            return
+        endif
+
         !print'(4(a,i5))', 'In chain ', chainID, ' connecting ', molno, ' with subchain id ', monomer(molno)%subchainID, ' to subchain ', 2 
+        ! Connect 1 to 2 
         call connect_to_monomer(2,molno)
 
         call check_update_adjacentbeadinfo_allint(molno,mols(2))

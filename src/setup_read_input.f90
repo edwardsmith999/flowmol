@@ -369,17 +369,32 @@ subroutine setup_read_input
 
             if (config_special_case .eq. "bubble") then
 				! #########################################################################
-				! # Location and radius of bubble
+				! # Number of bubbles
+				! # [1] int - Number of bubbles
+				! # -----------------------------------------------------------------------
+                call locate(1,'NBUBBLES',.false.,found_in_input)
+			    if (found_in_input) then
+    			    read(1,*) Nbubbles
+                else
+                    Nbubbles = 1
+                endif
+                allocate(rbubble(Nbubbles))
+                allocate(rcentre(3, Nbubbles))
+
+				! #########################################################################
+				! # Location and radius of bubble, repeated Nbubbles times
 				! # [1] float - Radius of bubble
 				! # [2] float - centre in x direction
 				! # [3] float - centre in y direction
 				! # [4] float - centre in z direction
 				! # -----------------------------------------------------------------------
                 call locate(1,'BUBBLERADIUS',.true.)
-                read(1,*) rbubble
-                read(1,*) rcentre(1)
-                read(1,*) rcentre(2)
-                read(1,*) rcentre(3)
+				do n=1,Nbubbles
+                    read(1,*) rbubble(n)
+                    read(1,*) rcentre(1, n)
+                    read(1,*) rcentre(2, n)
+                    read(1,*) rcentre(3, n)
+				enddo
             endif
 
 		case('concentric_cylinders')
@@ -486,7 +501,8 @@ subroutine setup_read_input
             call locate(1,'LIQUIDDENSITY',.true.)
             read(1,*) liquid_density
 
-		case('2phase_surfactant_solution', '2phase_surfactant_atsurface')
+		case('2phase_surfactant_solution', '2phase_surfactant_atsurface', 'bubble_surfactant')
+
 
 			! #########################################################################
 			! # Specifiy more general potential than LJ, including powers 
@@ -567,6 +583,46 @@ subroutine setup_read_input
                     print*, "Default direction not given for LIQUID_FRACTION, assuming x"
                     lg_direction = 1
                 endif
+            endif
+
+	        if (index(trim(config_special_case), 'bubble') .ne. 0) then
+				! #########################################################################
+				! # Number of bubbles
+				! # [1] int - Number of bubbles
+				! # -----------------------------------------------------------------------
+                call locate(1,'NBUBBLES',.false.,found_in_input)
+			    if (found_in_input) then
+    			    read(1,*) Nbubbles
+                else
+                    Nbubbles = 1
+                endif
+                allocate(rbubble(Nbubbles))
+                allocate(rcentre(3, Nbubbles))
+
+				! #########################################################################
+				! # Location and radius of bubble, repeated Nbubbles times
+				! # [1] float - Radius of bubble
+				! # [2] float - centre in x direction
+				! # [3] float - centre in y direction
+				! # [4] float - centre in z direction
+				! # -----------------------------------------------------------------------
+                call locate(1,'BUBBLERADIUS',.true.)
+				do n=1,Nbubbles
+                    print*, "Attempting to read bubble ", i, " of ", Nbubbles
+                    read(1,*,iostat=ios) rbubble(n)
+		            if (ios .ne. 0) call error_abort( "Error -- BUBBLERADIUS read error")
+                    read(1,*) rcentre(1, n)
+                    read(1,*) rcentre(2, n)
+                    read(1,*) rcentre(3, n)
+				enddo
+            endif
+
+
+	        call locate(1,'SURFACTANT_TYPE',.false.,found_in_input)
+		    if (found_in_input) then
+    	        read(1,*) surfactant_type
+            else
+                surfactant_type = "organic_surfactant"
             endif
 
 		case default
@@ -1861,6 +1917,15 @@ subroutine setup_read_input
 	! #		- F_ext_centre in x of Nth location
 	! #		- F_ext_centre in y of Nth location
 	! #		- F_ext_centre in z of Nth location
+	! # 5 - apply spatially varying force
+	! # 	- Type of force 1=sine
+	! #		- Overall Force Magntiude
+	! #		- x wavenumber multiplies range which is between -pi and pi
+	! #		- y wavenumber multiplies range which is between -pi and pi
+	! #		- z wavenumber multiplies range which is between -pi and pi
+	! #		- x amplitude
+	! #		- y amplitude
+	! #		- z amplitude
 	! # -----------------------------------------------------------------------
 	call locate(1,'EXTERNAL_FORCE',.false.,found_in_input)
 	if (found_in_input) then
@@ -1893,6 +1958,14 @@ subroutine setup_read_input
 				enddo
 				read(1,*,iostat=ios) F_ext_radial
 				if (ios .ne. 0) F_ext_radial = 10.d0
+            else if (external_force_flag .eq. 5) then
+				read(1,*)F_ext_wavenum(1)
+				read(1,*)F_ext_wavenum(2)
+				read(1,*)F_ext_wavenum(3)
+				read(1,*)F_ext_cos_amplitude(1)
+				read(1,*)F_ext_cos_amplitude(2)
+				read(1,*)F_ext_cos_amplitude(3)
+                print*, "F_ext_cos_amplitude", F_ext_ixyz, F_ext, F_ext_wavenum, F_ext_cos_amplitude
 			endif
         else
             external_force_flag = 0

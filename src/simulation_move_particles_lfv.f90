@@ -62,7 +62,12 @@ subroutine simulation_move_particles_lfv
 	case(3:4)
         call point_sphere_cylinder(F_ext_centre, F_ext, F_ext_radial, 1, F_ext_ixyz)
 	case(5)
-        call cosine_force(F_ext_wavelength, F_ext_cos_amplitude)
+        !Sineusoidally varying force
+        if (F_ext_ixyz .eq. 1) then
+            call sine_force(F_ext, F_ext_wavenum, F_ext_cos_amplitude)
+        else
+		    call error_abort("Error - Unknown spatial force type")
+        endif
 	case default
 		call error_abort("Error - incorrectly specified external_force_flag")
 	end select
