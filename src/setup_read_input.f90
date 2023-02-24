@@ -608,7 +608,7 @@ subroutine setup_read_input
 				! # -----------------------------------------------------------------------
                 call locate(1,'BUBBLERADIUS',.true.)
 				do n=1,Nbubbles
-                    print*, "Attempting to read bubble ", i, " of ", Nbubbles
+                    print*, "Attempting to read bubble ", n, " of ", Nbubbles
                     read(1,*,iostat=ios) rbubble(n)
 		            if (ios .ne. 0) call error_abort( "Error -- BUBBLERADIUS read error")
                     read(1,*) rcentre(1, n)

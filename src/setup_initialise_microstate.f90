@@ -2841,6 +2841,22 @@ contains
             ids = (/ 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6 /)
             branch = .false.
 
+
+        case('poe_surfactant')
+            !_________________________________________________________________________
+            ! c) POE surfactants
+            !       OA--OA--CM--EM--EM--EM--M--T 
+            !_________________________________________________________________________
+            !Check if number of monomers works with surfactant type
+            if (nmonomers .ne. 8) then
+                print*, "For surfactant_type", surfactant_type, " nmonomers should be ", 8, " but is ", nmonomers 
+                call error_abort("Error - number of monomer specified by chain doesn't match surfactant_type")
+            endif
+
+            ids = (/ 12, 12, 13, 13, 13, 4, 4, 11  /)
+            branch = .false.
+
+
         case('glycerol4')
             !_________________________________________________________________________
             ! d) Glycerol 4 bead model

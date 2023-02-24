@@ -37,7 +37,7 @@ module module_set_parameters
     double precision           :: potshift !Shift in Lennard Jones potential due to cutoff
 
     !Generalised Mie-potential parameters
-    integer,parameter :: ntypes = 10
+    integer,parameter :: ntypes = 14
     character(30),dimension(ntypes)             :: moltype_names
     double precision,dimension(ntypes)          :: mass_lookup
     double precision,dimension(ntypes,ntypes)   :: epsilon_lookup, sigma_lookup, &    
@@ -949,7 +949,7 @@ subroutine setup_mie_potential
     if (irank .eq. iroot) then
         do i = 1,ntypes
         do j = 1,ntypes
-            print'(a,2i6,2a5,f10.5,3a4,6f10.5)', 'SAFT PARAMETERS',i,j, & 
+            print'(a,2i6,a1, 2a5,f10.5,3a4,6f10.5)', 'SAFT PARAMETERS',i,j, ' ', & 
                                         moltype_names(i), ' m= ', mass_lookup(i), ' to ', & 
                                         moltype_names(j), ' m= ', mass_lookup(j), &
                                         sigma_lookup(i,j), & 
