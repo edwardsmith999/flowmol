@@ -568,7 +568,7 @@ subroutine setup_mie_potential
     implicit none
 
     integer :: i, j, ids(4)
-
+    double precision :: kdefault, r0_default, kangular_default, angle_default
 
     ! ------------Mie Potential--------------
     ! phi = A(lambda_r,lambda_a) * epsilon * [ (sigma/r)^lambda_r - (sigma/r)^lambda_a)]
@@ -842,28 +842,43 @@ subroutine setup_mie_potential
     !------------------------------------
     !-   Define chain interactions      -
     !------------------------------------
-
     !Default to zero for anything which shouldn't interact!
     k_lookup = 0.d0 ;         r0_lookup = 0.d0
-    k_lookup(5,4) = 295.3322; r0_lookup(5,4) = 1.1550
-    k_lookup(6,5) = 295.3322; r0_lookup(6,5) = 1.0004
-    k_lookup(6,6) = 295.3322; r0_lookup(6,6) = 0.9307
-    k_lookup(7,6) = 295.3322; r0_lookup(7,6) = 0.9653
-    k_lookup(7,7) = 295.3322; r0_lookup(7,7) = 1.0000
-    k_lookup(10,10) = 295.3322; r0_lookup(10,10) = 1.0000
-    !This is assumed -- not in paper
-    k_lookup(6,4) = 295.3322; r0_lookup(6,4) = 1.0000
+    kdefault = 295.3322; r0_default = 1.d0
+    k_lookup(5,4) = kdefault; r0_lookup(5,4) = r0_default ! 1.1550
+    k_lookup(6,5) = kdefault; r0_lookup(6,5) = r0_default !1.0004
+    k_lookup(6,6) = kdefault; r0_lookup(6,6) = r0_default !0.9307
+    k_lookup(7,6) = kdefault; r0_lookup(7,6) = r0_default !0.9653
+    k_lookup(7,7) = kdefault; r0_lookup(7,7) = r0_default
+    k_lookup(10,10) = kdefault; r0_lookup(10,10) = r0_default 
+    k_lookup(6,4) = kdefault; r0_lookup(6,4) = r0_default      !This is assumed -- not in paper
+    !For POE alkyl poly(oxyethylene) glycol surfactants C10E4 surfactant
+    k_lookup(13,4) = kdefault; r0_lookup(13,4) = r0_default
+    k_lookup(13,12) = kdefault; r0_lookup(13,12) = r0_default
+    k_lookup(11,4) = kdefault; r0_lookup(11,4) = r0_default
+    k_lookup(4,4) = kdefault; r0_lookup(4,4) = r0_default
+    k_lookup(12,12) = kdefault; r0_lookup(12,12) = r0_default
+    k_lookup(13,13) = kdefault; r0_lookup(13,13) = r0_default
 
     !Angular interactions
     angular_k_lookup = 0.d0;          angular_r0_lookup = 0.d0
-    angular_k_lookup(6,6,6) = 4.3196; angular_r0_lookup(6,6,6) = 2.75064
-    angular_k_lookup(6,6,7) = 4.3196; angular_r0_lookup(6,6,7) = 2.75064
-    angular_k_lookup(6,7,7) = 4.3196; angular_r0_lookup(6,7,7) = 2.75064
-    angular_k_lookup(6,7,6) = 4.3196; angular_r0_lookup(6,7,6) = 2.75064
-    angular_k_lookup(7,6,6) = 4.3196; angular_r0_lookup(7,6,6) = 2.75064
-    angular_k_lookup(7,7,6) = 4.3196; angular_r0_lookup(7,7,6) = 2.75064
-    angular_k_lookup(7,7,7) = 4.3196; angular_r0_lookup(7,7,7) = 2.75064
-    angular_k_lookup(7,6,7) = 4.3196; angular_r0_lookup(7,6,7) = 2.75064
+    kangular_default = 4.3196; angle_default = 2.7751
+    angular_k_lookup(6,6,6) = kangular_default; angular_r0_lookup(6,6,6) = angle_default
+    angular_k_lookup(6,6,7) = kangular_default; angular_r0_lookup(6,6,7) = angle_default
+    angular_k_lookup(6,7,7) = kangular_default; angular_r0_lookup(6,7,7) = angle_default
+    angular_k_lookup(6,7,6) = kangular_default; angular_r0_lookup(6,7,6) = angle_default
+    angular_k_lookup(7,6,6) = kangular_default; angular_r0_lookup(7,6,6) = angle_default
+    angular_k_lookup(7,7,6) = kangular_default; angular_r0_lookup(7,7,6) = angle_default
+    angular_k_lookup(7,7,7) = kangular_default; angular_r0_lookup(7,7,7) = angle_default
+    angular_k_lookup(7,6,7) = kangular_default; angular_r0_lookup(7,6,7) = angle_default
+
+    !POE alkyl poly(oxyethylene) glycol surfactants C10E4 surfactant
+    angular_k_lookup(12,12,13) = kangular_default; angular_r0_lookup(12,12,13) = angle_default
+    angular_k_lookup(12,13,13) = kangular_default; angular_r0_lookup(12,13,13) = angle_default
+    angular_k_lookup(13,13,13) = kangular_default; angular_r0_lookup(13,13,13) = angle_default
+    angular_k_lookup(13,13,4) = kangular_default; angular_r0_lookup(13,13,4) = angle_default
+    angular_k_lookup(13,4,4) = kangular_default; angular_r0_lookup(13,4,4) = angle_default
+    angular_k_lookup(4,4,11) = kangular_default; angular_r0_lookup(4,4,11) = angle_default
 
     ! Define anything that isn't already defined
     ! Epsilon and lambda cross rules from:

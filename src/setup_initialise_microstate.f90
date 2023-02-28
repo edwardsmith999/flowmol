@@ -2844,8 +2844,8 @@ contains
 
         case('poe_surfactant')
             !_________________________________________________________________________
-            ! c) POE surfactants
-            !       OA--OA--CM--EM--EM--EM--M--T 
+            ! c) non-ionic alkyl poly(oxyethylene) glycol (POE) surfactant 
+            !       OA--OA--EM--EM--EM--M--M--T 
             !_________________________________________________________________________
             !Check if number of monomers works with surfactant type
             if (nmonomers .ne. 8) then
@@ -2897,7 +2897,7 @@ contains
                 call error_abort("Error - number of monomer specified by chain doesn't match surfactant_type")
             endif
 
-            ids = (/ 3 /)
+            ids = (/ default_moltype /)
             branch = .false.
         case default
             print*, "surfactant_type = ", surfactant_type
@@ -2967,7 +2967,7 @@ contains
                     monomer(n)%glob_no     = n
                     monomer(n)%funcy       = 0
                     bond(:,n)              = 0
-                    moltype(n) = 3  !WATER
+                    moltype(n) = default_moltype  !WATER
                     n = n + 1
                 end if
 
