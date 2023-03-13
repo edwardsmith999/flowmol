@@ -44,7 +44,7 @@ module module_set_parameters
                                                    lambdar_lookup, lambdaa_lookup, &
                                                    C_lookup, potshift_lookup, &
                                                    k_lookup, r0_lookup, equil_sep_lookup, &
-                                                   alpha_lookup
+                                                   alpha_lookup, ABIP
 
     double precision,dimension(ntypes,ntypes,ntypes) :: angular_k_lookup, angular_r0_lookup
 
@@ -568,6 +568,7 @@ subroutine setup_mie_potential
     implicit none
 
     integer :: i, j, ids(4)
+    double precision :: kdefault, r0_default, kangular_default, angle_default
 
 
     ! ------------Mie Potential--------------
@@ -688,7 +689,7 @@ subroutine setup_mie_potential
     !4 == SAFT gamma "M" {-CH2-CH2-CH2-} molecules per bead 
     moltype_names(4) = 'M' ! '-CH2-CH2-CH2-'
     mass_lookup(4) = 0.8756896d0
-    epsilon_lookup(4,4) = 3.14283d0 ! '377.14/120'
+    epsilon_lookup(4,4) = 377.14d0/400.d0 ! '377.14/400'
     sigma_lookup(4,4) = 1.230588d0  !'4.1840/3.4 '
     lambdar_lookup(4,4) = 16.433d0
     lambdaa_lookup(4,4) = 6.d0 
@@ -746,7 +747,7 @@ subroutine setup_mie_potential
     !moltype_names(10) = '          Glycerol          '
     moltype_names(10)    = 'GY' !' Glycerol '
     mass_lookup(10)      = 1.d0
-    epsilon_lookup(10,10) = 3.76d0 !451K
+    epsilon_lookup(10,10) = 451/400.d0 !451/400.d0
     sigma_lookup(10,10)   = 0.9297058823529412d0 !3.16e-10/3.4e-10
     lambdar_lookup(10,10) = 16.1d0
     lambdaa_lookup(10,10) = 6.d0
@@ -754,7 +755,7 @@ subroutine setup_mie_potential
     !11 == T molecules CH3-CH2-CH2 ;
     moltype_names(11) = 'T' ! ' T for Terminal Beads '
     mass_lookup(11) = 0.978d0
-    epsilon_lookup(11,11) = 2.986d0  ! 358.37/120
+    epsilon_lookup(11,11) = 358.37/400.d0  ! 358.37/120
     sigma_lookup(11,11) = 1.324d0  ! 4.5012/3.4
     lambdar_lookup(11,11) = 15.947d0
     lambdaa_lookup(11,11) = 6.d0 ! this was fixed at 6.d0 and only lambdarr was adjusted
@@ -762,7 +763,7 @@ subroutine setup_mie_potential
 	!12 == 2 beads OH-CH2-CH2-O-CH2- 
 	moltype_names(12) = 'OA' 
 	mass_lookup(12) = 1.7044209d0
-	epsilon_lookup(12,12) = 3.33758d0 ! 400.51/120
+	epsilon_lookup(12,12) =  400.51/400.d0 ! 400.51/120
 	sigma_lookup(12,12) = 1.085294d0 ! 3.690/3.4
 	lambdar_lookup(12,12) = 13.957d0
 	lambdaa_lookup(12,12) = 6.d0 ! this was fixed at 6.d0 and only lambdarr was adjusted
@@ -770,7 +771,7 @@ subroutine setup_mie_potential
 	!13 ==  -CH2-O-CH2- 
 	moltype_names(13) = 'EM' 
 	mass_lookup(13) = 0.9999718d0
-	epsilon_lookup(13,13) = 2.54308d0 ! 305.17/120 
+	epsilon_lookup(13,13) = 305.17/400.d0 ! 305.17/120 
 	sigma_lookup(13,13) = 1.1352941d0 ! 3.860/3.4 
 	lambdar_lookup(13,13) = 12.587d0
 	lambdaa_lookup(13,13) = 6.d0  ! this was fixed at 6.d0 and only lambdarr was adjusted
@@ -778,7 +779,7 @@ subroutine setup_mie_potential
 	!14 = 2H2O at T = 298 K 
 	moltype_names(14) = 'W1' ! at 298 K 
 	mass_lookup(14) = 0.8179d0 
-	epsilon_lookup(14,14) = 2.543416d0 ! 305.21/120 
+	epsilon_lookup(14,14) = 305.21/400.d0 ! 305.21/400.d0 
 	sigma_lookup(14,14) = 0.85341d0 ! 2.9016/3.4
 	lambdar_lookup(14,14) = 8.d0 
 	lambdaa_lookup(14,14) = 6.d0 
@@ -803,27 +804,52 @@ subroutine setup_mie_potential
     epsilon_lookup(5,4) = 0.7114d0
     !SAFT adjusted alkane--ether interaction from prior studies
     epsilon_lookup(7,6) = 0.7154d0
-    !SAFT adjusted T--M interactions from SAFT-gamm Force Field for the simulation of 
+    !from SAFT-gamm Force Field for the simulation of 
 	! molecular fluids: 7... by Emma Richards, G, Jackson, E. Muller (preprint, 2021)
-    epsilon_lookup(11,4) = 2.881d0 !'345.72/120'
-	!SAFT adjusted OA-M  interactions
-    epsilon_lookup(12,4) = 2.96025d0 
-	!SAFT adjusted OA-T interactions 
-	epsilon_lookup(12,11) = 2.916833d0 
-	!SAFT adjusted EM-M interactions
-	epsilon_lookup(13,4) = 2.537333d0 
-	!SAFT adjusted EM-T interactions
-	epsilon_lookup(13,11) = 2.5811666d0 
-	!SAFT adjusted EM-OA  interactions
-	epsilon_lookup(13,12) = 2.636083d0 
-	!SAFT adjusted W1-M  interactions
-	epsilon_lookup(14,4) =  1.44508d0 
-	!SAFT adjusted W1-T  interactions
-	epsilon_lookup(14,11) =  1.77 
-	!SAFT adjusted W1-OA  interactions
-	epsilon_lookup(14,12) =  4.101 	
-	!SAFT adjusted W1-EM   interactions
-	epsilon_lookup(14,13) = 2.934583d0
+    !SAFT adjusted T--M interactions 345.72
+    epsilon_lookup(11,4) =345.72/400.d0
+	!SAFT adjusted OA-M  interactions 355.23
+    epsilon_lookup(12,4) = 355.23/400.d0 
+	!SAFT adjusted OA-T interactions 350.02
+	epsilon_lookup(12,11) = 350.02/400.d0 
+	!SAFT adjusted EM-M interactions 304.48
+	epsilon_lookup(13,4) = 304.48/400.d0 
+	!SAFT adjusted EM-T interactions 309.74
+	epsilon_lookup(13,11) = 309.74/400.d0 
+	!SAFT adjusted EM-OA  interactions 316.33
+	epsilon_lookup(13,12) = 316.33/400.d0
+	!SAFT adjusted W1-M  interactions 213.01
+	epsilon_lookup(14,4) =  213.01/400.d0
+	!SAFT adjusted W1-T  interactions 212.40
+	epsilon_lookup(14,11) =  212.40/400.d0
+	!SAFT adjusted W1-OA  interactions 492.12
+	epsilon_lookup(14,12) =  492.12/400.d0 	
+	!SAFT adjusted W1-EM   interactions 352.15
+	epsilon_lookup(14,13) = 352.15/400.d0
+
+    !Adjustable Binary Interaction Parameter kij
+    !Yes another tuning parameter in setting cross interactions
+    ABIP(:,:) = 0.d0
+    !SAFT adjusted T--M interaction
+    ABIP(11,4) = 0.0577; ABIP(4,11) = 0.0577
+	!SAFT adjusted OA-M  interactions 355.23
+    ABIP(12,4) = 0.0806; ABIP(4,12) = 0.0806
+	!SAFT adjusted OA-T interactions 350.02
+	ABIP(12,11) = 0.0624; ABIP(11,12) = 0.0624
+	!SAFT adjusted EM-M interactions 304.48
+	ABIP(13,4) = 0.1003; ABIP(4,13) = 0.1003
+	!SAFT adjusted EM-T interactions 309.74
+	ABIP(13,11) = 0.0551; ABIP(11,13) = 0.0551
+	!SAFT adjusted EM-OA  interactions 316.33
+	ABIP(13,12) = 0.0945; ABIP(12,13) = 0.0945
+	!SAFT adjusted W1-M  interactions 213.01
+	ABIP(14,4) =  0.34; ABIP(4,14) =  0.34
+	!SAFT adjusted W1-T  interactions 212.40
+	ABIP(14,11) =  0.31; ABIP(11,14) =  0.31
+	!SAFT adjusted W1-OA  interactions 492.12
+	ABIP(14,12) = -0.4383; ABIP(12,14) = -0.4383
+	!SAFT adjusted W1-EM   interactions 352.15
+	ABIP(14,13) = -0.1896; ABIP(13,14) = -0.1896
 	
 	!From Phase equilibria of triolein to biodiesel reactor systems
 	! http://dx.doi.org/10.1016/j.fluid.2015.09.049
@@ -842,28 +868,43 @@ subroutine setup_mie_potential
     !------------------------------------
     !-   Define chain interactions      -
     !------------------------------------
-
     !Default to zero for anything which shouldn't interact!
     k_lookup = 0.d0 ;         r0_lookup = 0.d0
-    k_lookup(5,4) = 295.3322; r0_lookup(5,4) = 1.1550
-    k_lookup(6,5) = 295.3322; r0_lookup(6,5) = 1.0004
-    k_lookup(6,6) = 295.3322; r0_lookup(6,6) = 0.9307
-    k_lookup(7,6) = 295.3322; r0_lookup(7,6) = 0.9653
-    k_lookup(7,7) = 295.3322; r0_lookup(7,7) = 1.0000
-    k_lookup(10,10) = 295.3322; r0_lookup(10,10) = 1.0000
-    !This is assumed -- not in paper
-    k_lookup(6,4) = 295.3322; r0_lookup(6,4) = 1.0000
+    kdefault = 295.3322; r0_default = 1.d0
+    k_lookup(5,4) = kdefault; r0_lookup(5,4) = r0_default ! 1.1550
+    k_lookup(6,5) = kdefault; r0_lookup(6,5) = r0_default !1.0004
+    k_lookup(6,6) = kdefault; r0_lookup(6,6) = r0_default !0.9307
+    k_lookup(7,6) = kdefault; r0_lookup(7,6) = r0_default !0.9653
+    k_lookup(7,7) = kdefault; r0_lookup(7,7) = r0_default
+    k_lookup(10,10) = kdefault; r0_lookup(10,10) = r0_default 
+    k_lookup(6,4) = kdefault; r0_lookup(6,4) = r0_default      !This is assumed -- not in paper
+    !For POE alkyl poly(oxyethylene) glycol surfactants C10E4 surfactant
+    k_lookup(13,4) = kdefault; r0_lookup(13,4) = r0_default
+    k_lookup(13,12) = kdefault; r0_lookup(13,12) = r0_default
+    k_lookup(11,4) = kdefault; r0_lookup(11,4) = r0_default
+    k_lookup(4,4) = kdefault; r0_lookup(4,4) = r0_default
+    k_lookup(12,12) = kdefault; r0_lookup(12,12) = r0_default
+    k_lookup(13,13) = kdefault; r0_lookup(13,13) = r0_default
 
     !Angular interactions
     angular_k_lookup = 0.d0;          angular_r0_lookup = 0.d0
-    angular_k_lookup(6,6,6) = 4.3196; angular_r0_lookup(6,6,6) = 2.75064
-    angular_k_lookup(6,6,7) = 4.3196; angular_r0_lookup(6,6,7) = 2.75064
-    angular_k_lookup(6,7,7) = 4.3196; angular_r0_lookup(6,7,7) = 2.75064
-    angular_k_lookup(6,7,6) = 4.3196; angular_r0_lookup(6,7,6) = 2.75064
-    angular_k_lookup(7,6,6) = 4.3196; angular_r0_lookup(7,6,6) = 2.75064
-    angular_k_lookup(7,7,6) = 4.3196; angular_r0_lookup(7,7,6) = 2.75064
-    angular_k_lookup(7,7,7) = 4.3196; angular_r0_lookup(7,7,7) = 2.75064
-    angular_k_lookup(7,6,7) = 4.3196; angular_r0_lookup(7,6,7) = 2.75064
+    kangular_default = 4.3196; angle_default = 2.7751
+    angular_k_lookup(6,6,6) = kangular_default; angular_r0_lookup(6,6,6) = angle_default
+    angular_k_lookup(6,6,7) = kangular_default; angular_r0_lookup(6,6,7) = angle_default
+    angular_k_lookup(6,7,7) = kangular_default; angular_r0_lookup(6,7,7) = angle_default
+    angular_k_lookup(6,7,6) = kangular_default; angular_r0_lookup(6,7,6) = angle_default
+    angular_k_lookup(7,6,6) = kangular_default; angular_r0_lookup(7,6,6) = angle_default
+    angular_k_lookup(7,7,6) = kangular_default; angular_r0_lookup(7,7,6) = angle_default
+    angular_k_lookup(7,7,7) = kangular_default; angular_r0_lookup(7,7,7) = angle_default
+    angular_k_lookup(7,6,7) = kangular_default; angular_r0_lookup(7,6,7) = angle_default
+
+    !POE alkyl poly(oxyethylene) glycol surfactants C10E4 surfactant
+    angular_k_lookup(12,12,13) = kangular_default; angular_r0_lookup(12,12,13) = angle_default
+    angular_k_lookup(12,13,13) = kangular_default; angular_r0_lookup(12,13,13) = angle_default
+    angular_k_lookup(13,13,13) = kangular_default; angular_r0_lookup(13,13,13) = angle_default
+    angular_k_lookup(13,13,4) = kangular_default; angular_r0_lookup(13,13,4) = angle_default
+    angular_k_lookup(13,4,4) = kangular_default; angular_r0_lookup(13,4,4) = angle_default
+    angular_k_lookup(4,4,11) = kangular_default; angular_r0_lookup(4,4,11) = angle_default
 
     ! Define anything that isn't already defined
     ! Epsilon and lambda cross rules from:
@@ -890,7 +931,7 @@ subroutine setup_mie_potential
             sigma_lookup(i,j) = 0.5d0*(sigma_lookup(i,i)+sigma_lookup(j,j))
         endif
         if (epsilon_lookup(i,j) .lt. 1e-5) then
-            epsilon_lookup(i,j) = (sqrt((sigma_lookup(i,i)**3)   & 
+            epsilon_lookup(i,j) = (1.d0-ABIP(i,j))* (sqrt((sigma_lookup(i,i)**3)   & 
                                        *(sigma_lookup(j,j)**3))  &
                                        /(sigma_lookup(i,j)**3))  & 
                                   *sqrt(epsilon_lookup(i,i)      &

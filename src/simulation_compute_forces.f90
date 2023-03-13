@@ -1001,7 +1001,7 @@ subroutine simulation_compute_forces_angular
 
         if (monomer(molnoj)%funcy .eq. 2) then
 
-            print*, minloc(abs(bond), 1, mask=abs(bond).gt.0)
+            !print*, minloc(abs(bond), 1, mask=abs(bond).gt.0)
 
             !Find the two molecules which are bonded
             molnoi = bond(1,molnoj)

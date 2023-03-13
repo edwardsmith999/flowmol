@@ -680,7 +680,7 @@ contains
 
     subroutine mark_chain_as_solvent(ID)
         use physical_constants_MD, only: np
-        use computational_constants_MD, only : Mie_potential
+        use computational_constants_MD, only : Mie_potential, default_moltype
         use arrays_MD, only : moltype
         implicit none
 
@@ -697,7 +697,7 @@ contains
                 monomer(molno)%bin_bflag(:) = 0
                 bond(:,molno) = 0
                 if (Mie_potential .eq. 1) then
-                    moltype(molno) = 3 !WATER
+                    moltype(molno) = default_moltype !WATER
                 endif
 
             end if
