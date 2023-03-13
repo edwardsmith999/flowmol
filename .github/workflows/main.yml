@@ -66,8 +66,7 @@ jobs:
 
       - name: Build using visual studio for release
         run: |
-          cd .\platform
-          msbuild .\flowmol_windows_build.sln -t:rebuild -verbosity:diag -property:Configuration=Release
+          msbuild .\platform\flowmol_windows_build.sln -t:rebuild -verbosity:diag -property:Configuration=Release
 
       - name: Run Flowmol
         run: |
@@ -75,3 +74,7 @@ jobs:
           cd .\x64\Release\
           mpiexec.exe -n 1 .\flowmol_windows_build.exe
         
+      - uses: actions/checkout@v2
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
