@@ -66,7 +66,7 @@ jobs:
 
       - name: Build using visual studio for release
         run: |
-          msbuild .\platform\flowmol_windows_build.sln -t:rebuild -verbosity:diag -property:Configuration=Release
+          msbuild .\platforms\flowmol_windows_build.sln -t:rebuild -verbosity:diag -property:Configuration=Release
 
       - name: Run Flowmol
         run: |
