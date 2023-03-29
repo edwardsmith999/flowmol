@@ -1382,9 +1382,12 @@ class MyFrame(wx.Frame):
 
         #Concat dictonaries (incase item already in)
         try:
+            #Prevents previous run changing VMD_OUTFLAG from overriding this
+            self.ChangeDict.pop("VMD_OUTFLAG", None)
             changes = dict({'VMD_OUTFLAG': [5], 'PROCESSORS': [1,1,1]}, **self.ChangeDict)
+
         except IndexError:
-            changes = {'VMD_OUTFLAG': [5]}
+            changes = {'VMD_OUTFLAG': [5], 'PROCESSORS': [1,1,1]}
 
         print("Running setup run", self.inputfilename, " with changes", changes)
 
