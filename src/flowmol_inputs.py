@@ -94,6 +94,7 @@ class CanvasPanel(wx.Panel):
         except FileNotFoundError:
             return
         N = int(header.globalnp)
+
         rt = np.fromfile(self.resultsdir + "/initial_dump_r",  dtype=np.float).reshape(N,3)
         #Limit plotted points to be fast
         if self.fastplot and N > 2000:
@@ -1333,7 +1334,7 @@ class MyFrame(wx.Frame):
 
         #Concat dictonaries (incase item already in)
         try:
-            changes = dict({'VMD_OUTFLAG': [5]}, **self.ChangeDict)
+            changes = dict({'VMD_OUTFLAG': [5], 'PROCESSORS': [1,1,1]}, **self.ChangeDict)
         except IndexError:
             changes = {'VMD_OUTFLAG': [5]}
 
