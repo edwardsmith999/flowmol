@@ -17,7 +17,7 @@ on:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
 
-  test:
+  ubuntu:
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
@@ -47,3 +47,34 @@ jobs:
           cd ./src
           mpiexec -n 1 ./parallel_md.exe 
         
+  # A workflow run is made up of one or more jobs that can run sequentially or in parallel
+  windows:
+    runs-on: windows-2019
+    strategy:
+      fail-fast: false
+
+    steps:
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v1.1
+
+      - name: Setup Intel Fortran
+        uses: modflowpy/install-intelfortran-action@v1
+        
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+
+      - name: Build using visual studio for release
+        run: |
+          msbuild .\platforms\flowmol_windows_build.sln -t:rebuild -verbosity:diag -property:Configuration=Release
+
+      - name: Run Flowmol
+        run: |
+          cp .\src\default.in .\x64\Release\
+          cd .\x64\Release\
+          mpiexec.exe -n 1 .\flowmol_windows_build.exe
+        
+      - uses: actions/checkout@v2
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
