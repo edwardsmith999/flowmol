@@ -5,6 +5,7 @@ import os
 import shutil
 from threading import Thread 
 import psutil
+from multiprocessing import freeze_support
 
 import wx
 import wx.propgrid as wxpg
@@ -12,6 +13,7 @@ import wx.aui
 from wx.adv import BitmapComboBox
 import wx.lib.dialogs
 import wx.stc 
+import wx.richtext as rt
 
 import numpy as np
 from itertools import product
@@ -625,9 +627,22 @@ class MyFrame(wx.Frame):
         #########################################
         self.window_help = wx.Panel(self.window_help_props, wx.ID_ANY)
         sizer_help = wx.BoxSizer(wx.HORIZONTAL)
-        self.helptxt = wx.stc.StyledTextCtrl(self.window_help, style=wx.TE_MULTILINE |
-                                   wx.TE_READONLY, size=(self.width/3, self.height/4))
+        self.helptxt = rt.RichTextCtrl(self.window_help, style=wx.TE_MULTILINE |
+                                   wx.TE_READONLY, size=(self.width/3, self.height/4));
+        #self.helptxt = wx.stc.StyledTextCtrl(self.window_help, style=wx.TE_MULTILINE |
+        #                           wx.TE_READONLY, size=(self.width/3, self.height/4))
+        #font = wx.Font(12, wx.FONTFAMILY_DECORATIVE,
+        #                   wx.FONTSTYLE_NORMAL,
+        #                   wx.FONTWEIGHT_NORMAL)
+        #self.helptxt.face = font.GetFaceName()
+        #self.helptxt.size = font.GetPointSize()
+        #self.helptxt.SetLexer(wx.stc.STC_LEX_PYTHON)
+        #self.helptxt.StyleSetSpec(0, "fore:#000000,face:Times,size:10")
+        #self.helptxt.StyleSetSpec(1, "fore:#ff0000,face:Helvetica,size:10")
+        #self.helptxt.StyleSetSpec(2, "fore:#0000ff,face:Courier,bold,back:#ffff00,size:12")
+
         self.helptxt.SetValue("Help Text \n\n\n\n\n\n\n")
+        #self.helptxt.WriteImage(wx.Image('logo.gif').ConvertToBitmap())
         sizer_help.Add(self.helptxt, 1, wx.EXPAND, 0)
 
         #########################################
@@ -642,6 +657,11 @@ class MyFrame(wx.Frame):
         sizer_props.Add(self.propgrid, 1, wx.EXPAND, 0)
         self.propgrid.Bind(wxpg.EVT_PG_CHANGED, self.change_propgrid)
         self.propgrid.Bind(wxpg.EVT_PG_ITEM_EXPANDED, self.propgrid_click)
+        #self.propgrid.Bind(wxpg.EVT_PG_LABEL_EDIT_BEGIN, self.propgrid_click)
+        #self.propgrid.Bind(wxpg.EVT_PG_SELECTED, self.propgrid_click)
+        #self.propgrid.Bind(wxpg.EVT_PG_HIGHLIGHTED, self.propgrid_hover)
+
+
 
         self.window_props.SetSizer(sizer_props)
         self.window_help.SetSizer(sizer_help)
@@ -838,8 +858,7 @@ class MyFrame(wx.Frame):
 
             #Look for value in Dict
             try:
-                VarsDict = self.InputsDict[Ik]
-                vars = VarsDict["vars"]
+                vars = self.InputsDict[Ik]["vars"]
             except KeyError:
                 print("InputDict entries should contain vars entries")
                 return
@@ -925,15 +944,40 @@ class MyFrame(wx.Frame):
         #Redraw with toolbar
         self.Update()
 
+    def update_helptext(self, key):
+
+        #Title in red and bold
+        self.helptxt.SetValue("")
+        self.helptxt.BeginBold()
+        self.helptxt.BeginTextColour((255, 0, 0))
+        self.helptxt.WriteText(str(key) + "\n")
+        self.helptxt.EndBold()
+        self.helptxt.EndTextColour()
+
+        #clean and write text
+        cleantext = self.InputsDict[key]["HELP"].replace("#","").replace("!","").replace("--","").replace("\t","")
+        self.helptxt.WriteText(cleantext)
+
+    def propgrid_hover(self, event):
+
+        key = event.GetPropertyName()
+
+        #Look for value in Dict
+        try:
+            #Try to get key first, if fail, don't update
+            self.InputsDict[key]
+            self.update_helptext(key)
+        except KeyError:
+            pass
+
     def propgrid_click(self, event):
 
         key = event.GetPropertyName()
 
         #Look for value in Dict
         try:
-            VarsDict = self.InputsDict[key]
-            cleantext = VarsDict["HELP"].replace("#","").replace("!","").replace("--","").replace("\t","")
-            self.helptxt.SetValue(cleantext)
+            self.InputsDict[key]
+            self.update_helptext(key)
         except KeyError:
             print("InputDict entries should contain HELP, missing for", value)
             raise
@@ -946,12 +990,15 @@ class MyFrame(wx.Frame):
         if value == "":
             return
 
-        #Look for value in Dict
+        #While typing value in Dict
         try:
-            VarsDict = self.InputsDict[value]
-            cleantext = VarsDict["HELP"].replace("#","").replace("!","").replace("--","").replace("\t","")
-            self.helptxt.SetValue(cleantext)
-            vars = VarsDict["vars"]
+            self.update_helptext(value)
+        except KeyError:
+            return
+
+        #Once found, try to get from Dict
+        try:
+            vars = self.InputsDict[value]["vars"]
         except KeyError:
             print("InputDict entries should contain HELP and vars entries, missing for", value)
             return
@@ -974,6 +1021,7 @@ class MyFrame(wx.Frame):
         categoryObj = self.propgrid.GetPropertyCategory(propName)
         category = categoryObj.GetLabel()
         key = categoryObj.GetLabel()
+        self.update_helptext(key)
         prop = propName.replace(category,"").replace(" ", "")
 
         if (isinstance(self.InputsDict[key]["vars"][prop], dict)):
@@ -1749,6 +1797,9 @@ class MyFrame(wx.Frame):
 #import wx.lib.inspection
 
 if __name__ == "__main__":
+
+    #Multiprocessing on Windows needs this
+    freeze_support()
 
     #Keyword arguments
     parser = argparse.ArgumentParser(
