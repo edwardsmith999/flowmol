@@ -55,8 +55,8 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Clone pyDataView and SimWrapPy packages
-        working-directory: ./flowmol/src/
-        run: |
+      working-directory: flowmol/src/
+      run: |
           git clone https://github.com/edwardsmith999/pyDataView.git pyDataView
           mv ./pyDataView/postproclib ./postproclib
           git clone https://github.com/edwardsmith999/SimWrapPy.git SimWrapPy
