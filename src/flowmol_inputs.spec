@@ -8,7 +8,14 @@ block_cipher = None
 
 data_files = [
     (os.path.dirname(vispy.glsl.__file__), os.path.join("vispy", "glsl")),
-    (os.path.join(os.path.dirname(vispy.io.__file__), "_data"), os.path.join("vispy", "io", "_data"))
+    (os.path.join(os.path.dirname(vispy.io.__file__), "_data"), os.path.join("vispy", "io", "_data")),
+    os.path.realpath(__file__)+"/setup_read_input.f90",
+    os.path.realpath(__file__)+"/Boundary_Conditions.png",
+    os.path.realpath(__file__)+"/Computational_Parameters.png",
+    os.path.realpath(__file__)+"/Required.png",
+    os.path.realpath(__file__)+"/Outputs.png",
+    os.path.realpath(__file__)+"/Optional.png",
+    os.path.realpath(__file__)+"/System_Setup.png"
 ]
 
 hidden_imports = [
