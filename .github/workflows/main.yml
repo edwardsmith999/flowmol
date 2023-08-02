@@ -46,6 +46,32 @@ jobs:
         run: |
           cd ./src
           mpiexec -n 1 ./parallel_md.exe 
+
+  build-Windows-GUI:
+
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Clone pyDataView and SimWrapPy packages
+        working-directory: ./flowmol/src/
+        run: |
+          git clone https://github.com/edwardsmith999/pyDataView.git pyDataView
+          mv ./pyDataView/postproclib ./postproclib
+          git clone https://github.com/edwardsmith999/SimWrapPy.git SimWrapPy
+          mv ./SimWrapPy/simwraplib ./simwraplib          
+
+    - name: Package Application for Windows
+      uses: JackMcKew/pyinstaller-action-windows@main
+      with:
+        path: ./flowmol/src/
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: flowmol_input.exe
+        path: dist/windows
+        
         
   # A workflow run is made up of one or more jobs that can run sequentially or in parallel
   windows:
