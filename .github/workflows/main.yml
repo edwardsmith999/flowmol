@@ -100,7 +100,7 @@ jobs:
           cd .\x64\Release\
           mpiexec.exe -n 1 .\flowmol_windows_build.exe
         
-      - uses: actions/checkout@v2
-      - name: Setup tmate session
-        if: ${{ failure() }}
-        uses: mxschmitt/action-tmate@v3
+      #- uses: actions/checkout@v2
+      #- name: Setup tmate session
+      #  if: ${{ failure() }}
+      #  uses: mxschmitt/action-tmate@v3
