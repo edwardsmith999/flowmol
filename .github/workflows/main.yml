@@ -55,7 +55,7 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Clone pyDataView and SimWrapPy packages
-      working-directory: flowmol/src/
+      working-directory: src/
       run: |
           git clone https://github.com/edwardsmith999/pyDataView.git pyDataView
           mv ./pyDataView/postproclib ./postproclib
@@ -65,7 +65,7 @@ jobs:
     - name: Package Application for Windows
       uses: JackMcKew/pyinstaller-action-windows@main
       with:
-        path: ./flowmol/src/
+        path: ./src/
 
     - uses: actions/upload-artifact@v2
       with:
