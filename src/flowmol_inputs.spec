@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
-
+from PyInstaller.compat import is_win, is_darwin, is_linux
+from PyInstaller.utils.hooks import collect_submodules
 import vispy.glsl
 import vispy.io
 
@@ -22,7 +23,6 @@ a = Analysis(['flowmol_inputs.py'],
              datas=data_files,
              hiddenimports=hidden_imports,
              hookspath=[],
-             hooksconfig={},
              runtime_hooks=[],
              excludes=[],
              win_no_prefer_redirects=False,
@@ -36,7 +36,7 @@ pyz = PYZ(a.pure, a.zipped_data,
 exe = EXE(pyz,
           a.scripts, 
           [],
-          exclude_binaries=True,
+          exclude_binaries=False,
           name='flowmol_inputs',
           debug=False,
           bootloader_ignore_signals=False,
