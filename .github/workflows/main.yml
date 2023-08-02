@@ -70,7 +70,7 @@ jobs:
     - uses: actions/upload-artifact@v2
       with:
         name: flowmol_input.exe
-        path: dist/windows
+        path: ./src/dist/windows
         
         
   # A workflow run is made up of one or more jobs that can run sequentially or in parallel
