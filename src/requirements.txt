@@ -5,3 +5,4 @@ scipy==1.4.1
 setuptools==65.5.1
 vispy==0.9.6
 wxPython==4.0.7.post2
+psutil
