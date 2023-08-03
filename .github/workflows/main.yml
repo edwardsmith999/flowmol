@@ -59,6 +59,7 @@ jobs:
       run: |
           git clone https://github.com/edwardsmith999/pyDataView.git pyDataView
           mv ./pyDataView/postproclib ./postproclib
+          mv ./pyDataView/misclib ./misclib
           git clone https://github.com/edwardsmith999/SimWrapPy.git SimWrapPy
           mv ./SimWrapPy/simwraplib ./simwraplib          
 
