@@ -1,4 +1,5 @@
-# flowmol
+<img src="out-1.webp" alt="Flowmol Logo" width="200"/>
+
 A molecular dynamics solver for molecular fluid dynamics simulation.
 
 You only need a Fortran compiler and MPI (tested with [MPICH](https://www.mpich.org/)). Assuming you have gfortran installed (from gcc), build it by going to the src directory and calling
