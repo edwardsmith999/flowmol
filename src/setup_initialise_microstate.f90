@@ -47,7 +47,8 @@ subroutine setup_initialise_microstate()
     use module_initialise_microstate
 	use module_read_input, only : COUETTE_t,COUETTE_Re,COUETTE_Uwall, & 
 								  COUETTE_H,COUETTE_slidewall,COUETTE_ixyz, &
-                                  initial_u, initial_v, initial_w
+                                  initial_u, initial_v, initial_w, &
+                                  initial_sine_A, initial_sine_alpha, initial_sine_b
     implicit none
 
     integer     ::  n
@@ -149,15 +150,19 @@ subroutine setup_initialise_microstate()
         case('taylor_green')
             call setup_initialise_velocities_TG_parallel
         case('couette_analytical')
-            call setup_initialise_velocities                 !Setup initial velocities
+            call setup_initialise_velocities()                 !Setup initial velocities
             call set_velocity_field_from_couette_analytical(COUETTE_t,COUETTE_Re, & 
 															COUETTE_Uwall,COUETTE_H, &
 															COUETTE_slidewall,COUETTE_ixyz)
+        case('sine')
+            call setup_initialise_velocities()                !Setup initial velocities
+            call set_velocity_field_sine(initial_sine_A, initial_sine_b, initial_sine_alpha, & 
+                                         2, (/tethereddistbottom(2), tethereddisttop(2)/))
         case('constant')
-            call setup_initialise_velocities                 !Setup initial velocities
+            call setup_initialise_velocities()                 !Setup initial velocities
             call set_velocity_field_constant((/initial_u, initial_v, initial_w/))
         case('dns')
-            call setup_initialise_velocities                 !Setup initial velocities
+            call setup_initialise_velocities()                 !Setup initial velocities
             call set_velocity_field_from_DNS_restart(trim(DNS_filename),DNS_ngx,DNS_ngy,DNS_ngz)
         case default
             call error_abort('Unidentified initial velocities_special_case')    
@@ -4046,6 +4051,8 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity,veltype
 	enddo
 	enddo
 
+    !print*, "Set_velocity", jbinmin, binmin(2), binNsum, binvsum(1)/binNsum, velocity(1)
+
  	if (veltype .eq. 0) then
         if (any(abs(binvsum(:)/binNsum-velocity) .gt. 0.000000001d0)) then
          	print'(i8,a,3f20.16,a,3i4,a,3f10.5)', jblock, ' Corrected velocity is then ',  binvsum(:)/binNsum, & 
@@ -4061,6 +4068,201 @@ subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity,veltype
  	endif
 
 end subroutine set_bin_velocity
+
+
+!subroutine set_bin_velocity(imin, imax, jmin, jmax, kmin, kmax, velocity,veltype)
+!	use linked_list, only : cell, node
+!	use arrays_MD, only : r,v,a
+!	use computational_constants_MD, only : iblock, jblock, kblock, globaldomain, halfdomain, & 
+!										   npx, npy, npz, iter, irank, ncells, delta_t
+!	use calculated_properties_MD, only : gnbins, nbins
+!	implicit none
+
+!	integer, intent(in)                			:: veltype ! 0 = vbin/Nbin, 1 = vbin/binvolume
+!	integer, intent(in)                			:: imin, imax, jmin, jmax, kmin, kmax
+!	real(kind(0.d0)),dimension(3),intent(in)	:: velocity   !Overall momentum of system
+
+!	integer			                			:: iminl, imaxl, jminl, jmaxl, kminl, kmaxl
+!	integer										:: ibinmin,jbinmin,kbinmin,ibinmax,jbinmax,kbinmax
+!	integer										:: i,icell,jcell,kcell,molno,binNsum,cellnp
+!	integer	,dimension(3)						:: p_lb, p_ub
+!	integer,dimension(3)                         :: icellsperbin
+!	logical,dimension(3)                         :: fallback
+!	real(kind(0.d0)),dimension(3)				:: binvsum, vcorrection
+!	real(kind(0.d0)),dimension(3)				:: r_temp,v_temp,binsize,binmin,binmax
+!	type(node), pointer 	        			:: old, current
+
+!	! Require single-bin selection in each direction
+!	if (imin .ne. imax) stop "Error set_bin_velocity -- bin indices imin and imax currently must be the same"
+!	if (jmin .ne. jmax) stop "Error set_bin_velocity -- bin indices jmin and jmax currently must be the same"
+!	if (kmin .ne. kmax) stop "Error set_bin_velocity -- bin indices kmin and kmax currently must be the same"
+
+!	! Work out local processor bin ranges
+!	p_lb(1) = (iblock-1)*floor(gnbins(1)/real(npx,kind(0.d0)))
+!	p_ub(1) =  iblock *ceiling(gnbins(1)/real(npx,kind(0.d0)))
+!	p_lb(2) = (jblock-1)*floor(gnbins(2)/real(npy,kind(0.d0)))
+!	p_ub(2) =  jblock *ceiling(gnbins(2)/real(npy,kind(0.d0)))
+!	p_lb(3) = (kblock-1)*floor(gnbins(3)/real(npz,kind(0.d0)))
+!	p_ub(3) =  kblock *ceiling(gnbins(3)/real(npz,kind(0.d0)))
+
+!	! Convert to local bin number from global
+!	if (imin .gt. p_lb(1) .and. imax .le. p_ub(1)) then 
+!		iminl = imin - p_lb(1)+1
+!		imaxl = imax - p_lb(1)+1
+!	else
+!		return
+!	endif
+!	if (jmin .gt. p_lb(2) .and. jmax .le. p_ub(2)) then 
+!		jminl = jmin - p_lb(2)+1
+!		jmaxl = jmax - p_lb(2)+1
+!	else
+!		return
+!	endif
+!	if (kmin .gt. p_lb(3) .and. kmax .le. p_ub(3)) then 
+!		kminl = kmin - p_lb(3)+1
+!		kmaxl = kmax - p_lb(3)+1
+!	else
+!		return
+!	endif
+
+!	! ---------- Handle cell/bin ratios ----------
+!	! Normal case: bins per dimension <= cells per dimension
+!	! Fallback: bins finer than cells, revert to using whole cells
+!	fallback = .false.
+!	icellsperbin = 1
+
+!	do i=1,3
+!		if (nbins(i) <= ncells(i)) then
+!			! must divide exactly
+!			if (mod(ncells(i), nbins(i)) /= 0) then
+!				stop "ERROR in set_bin_velocity -- non-integer cell/bin ratio!"
+!			endif
+!			icellsperbin(i) = ncells(i) / nbins(i)
+!		else
+!			fallback(i) = .true.
+!		endif
+!	end do
+
+!	if (any(fallback)) then
+!		print*, "WARNING: bins smaller than cells, reverting to cell-based correction"
+!	endif
+
+!	binsize = globaldomain/gnbins
+
+!	! Bin extents (for diagnostics / momentum case)
+!	binmin(1) = (iminl-2) * binsize(1) - halfdomain(1)
+!	binmax(1) = (imaxl-1) * binsize(1) - halfdomain(1)
+! 	binmin(2) = (jminl-2) * binsize(2) - halfdomain(2)
+!	binmax(2) = (jmaxl-1) * binsize(2) - halfdomain(2)	
+!	binmin(3) = (kminl-2) * binsize(3) - halfdomain(3)
+!	binmax(3) = (kmaxl-1) * binsize(3) - halfdomain(3)
+
+!	! Get cell number range from bin numbers
+!	if (.not. fallback(1)) then
+!		ibinmin = (iminl-1)*icellsperbin(1) + 1
+!		ibinmax =  imaxl   *icellsperbin(1)
+!	else
+!		ibinmin = iminl
+!		ibinmax = iminl
+!	endif
+!	if (.not. fallback(2)) then
+!		jbinmin = (jminl-1)*icellsperbin(2) + 1
+!		jbinmax =  jmaxl   *icellsperbin(2)
+!	else
+!		jbinmin = jminl
+!		jbinmax = jminl
+!	endif
+!	if (.not. fallback(3)) then
+!		kbinmin = (kminl-1)*icellsperbin(3) + 1
+!		kbinmax =  kmaxl   *icellsperbin(3)
+!	else
+!		kbinmin = kminl
+!		kbinmax = kminl
+!	endif
+
+!	! --- Phase 1: calculate velocity sum in bin/cell region ---
+!	binvsum = 0.d0
+!	binNsum = 0
+!    do kcell = kbinmin, kbinmax
+!    do jcell = jbinmin, jbinmax
+!    do icell = ibinmin, ibinmax
+
+!        if (icell < 1 .or. icell > ncells(1) .or. &
+!            jcell < 1 .or. jcell > ncells(2) .or. &
+!            kcell < 1 .or. kcell > ncells(3)) then
+!            print*, 'ERROR: cell index out of range before access:', icell,jcell,kcell
+!            print*, 'expected ranges: 1..', ncells(1), ' 1..', ncells(2), ' 1..', ncells(3)
+!            print*, 'computed ibinmin,ibinmax =', ibinmin, ibinmax
+!            print*, 'computed jbinmin,jbinmax =', jbinmin, jbinmax
+!            print*, 'computed kbinmin,kbinmax =', kbinmin, kbinmax
+!            stop 'Out-of-range cell index'
+!        endif
+
+!        cellnp = cell%cellnp(icell,jcell,kcell)
+!        old => cell%head(icell,jcell,kcell)%point
+!        do i = 1, cellnp
+!            molno = old%molno
+!            binNsum = binNsum + 1
+!            binvsum(:) = binvsum(:) + v(:,molno)
+!            v_temp(:) = v(:,molno) + delta_t * a(:,molno)
+!            r_temp(:) = r(:,molno) + delta_t * v_temp(:)
+!            current => old
+!            old => current%next
+!        end do
+!    end do
+!    end do
+!    end do
+
+!	if (binNsum == 0) then
+!		print*, "No molecules in bin ", imin, jmin, kmin
+!		return
+!	endif
+
+!	! --- Phase 2: work out velocity correction ---
+!	if (veltype == 0) then
+!		vcorrection(:) = binvsum(:)/binNsum - velocity(:)
+!	elseif (veltype == 1) then
+!		vcorrection(:) = binvsum(:) - velocity(:)*product(binsize)
+!		vcorrection(:) = vcorrection(:)/binNsum
+!	else
+!		stop "Error in set_bin_velocity -- veltype must be 0 or 1"
+!	endif
+
+!	! --- Phase 3: apply correction ---
+!	binvsum = 0.d0
+!	binNsum = 0
+!    do kcell = kbinmin, kbinmax
+!    do jcell = jbinmin, jbinmax
+!    do icell = ibinmin, ibinmax
+!        cellnp = cell%cellnp(icell,jcell,kcell)
+!        old => cell%head(icell,jcell,kcell)%point
+!        do i = 1, cellnp
+!            molno = old%molno
+!            v(:,molno) = v(:,molno) - vcorrection
+!            binNsum = binNsum + 1
+!            binvsum(:) = binvsum(:) + v(:,molno)
+!            current => old
+!            old => current%next
+!        end do
+!    end do
+!    end do
+!    end do
+
+!	! --- Phase 4: diagnostics ---
+!	if (veltype == 0) then
+!        if (any(abs(binvsum(:)/binNsum - velocity(:)) > 1.0d-9)) then
+!         	print'(i8,a,3f20.16,a,3i4,a,3f10.5)', jblock, ' Corrected velocity is ',  binvsum(:)/binNsum, &
+! 	    										 ' in Bin= ',imin,jmin,kmin, ' should be ', velocity
+!        endif
+! 	elseif (veltype == 1) then
+!        if (any(abs(binvsum(:)/product(binsize) - velocity(:)) > 1.0d-9)) then
+!     	    print'(i8,a,3f20.16,a,3i4,a,3f10.5)', jblock, ' Corrected momentum : ',  binvsum(:)/product(binsize), &
+! 											 ' in Bin= ',imin,jmin,kmin, ' should be ', velocity
+!        endif
+! 	endif
+
+!end subroutine set_bin_velocity
+
 
 
 end module set_bin_velocity_mod
@@ -4314,6 +4516,62 @@ subroutine set_velocity_field_from_couette_analytical(t,Re,Uwall,H,slidewall,ixy
 
 end subroutine set_velocity_field_from_couette_analytical
 
+
+
+!Input should be based on a 1D sinewave of the form
+! 
+! u(x, y, z, 0) = A*sin(alpha*pi*r(ixyz) - b)
+! 
+subroutine set_velocity_field_sine(A, b, alpha, ixyz, wallwidths)
+    use interfaces, only : error_abort
+    use calculated_properties_MD, only : gnbins
+	use computational_constants_MD, only : irank, globaldomain
+    use physical_constants_MD, only : pi
+	use set_bin_velocity_mod
+    implicit none
+
+	integer, intent(in)				:: ixyz
+	real(kind(0.d0)), intent(in)	:: A, b, alpha
+	real(kind(0.d0)), intent(in),dimension(2)	:: wallwidths
+
+	integer							:: ibin, jbin, kbin, bottombin, topbin
+	real(kind(0.d0))				:: binmid, fluiddomain
+	real(kind(0.d0)),dimension(3)	:: binvel, binsize
+
+
+    print*, "set_velocity_field_sine ", A, "sin(", alpha, "*pi*y - ", b, ")", ixyz, wallwidths
+    if (ixyz .ne. 2) then
+        call error_abort("Error -- Only y direction sine developed")
+    endif
+
+	!Create cell lists to be used in specifying velocity!
+    call assign_to_cell()
+
+    !Set MD velocity
+	binsize = globaldomain/gnbins
+
+    bottombin = int(wallwidths(1)/binsize(2))+1
+    topbin = int((globaldomain(2)-wallwidths(2))/binsize(2))+1
+    fluiddomain = globaldomain(2) - (wallwidths(1) + wallwidths(2))
+
+    do jbin=bottombin,topbin
+	    !Get bin extents -- minus one due to halo bins
+	    binmid = (jbin-bottombin) * binsize(ixyz)
+        binvel(1) =  A*sin(alpha*pi*binmid/fluiddomain - b) 
+        binvel(2) =  0.d0
+        binvel(3) =  0.d0
+        print*, "set_velocity_field_sine", jbin, binmid, binmid/fluiddomain, binvel(1)
+        do ibin=2,gnbins(1)+1
+        do kbin=2,gnbins(3)+1
+            call set_bin_velocity(ibin-1, ibin-1, & 
+							      jbin-1, jbin-1, & 
+							      kbin-1, kbin-1, binvel,0)
+
+        enddo
+        enddo
+    enddo
+
+end subroutine set_velocity_field_sine
 
 
 
