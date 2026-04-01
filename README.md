@@ -1,11 +1,12 @@
-# flowmol
+<img src="out-1.webp" alt="Flowmol Logo" width="200"/>
+
 A molecular dynamics solver for molecular fluid dynamics simulation.
 
 You only need a Fortran compiler and MPI (tested with [MPICH](https://www.mpich.org/)). Assuming you have gfortran installed (from gcc), build it by going to the src directory and calling
 
     make PLATFORM=gfortran p
     
-The Intel compliers also work, and the code has been tested on a range of specialised supercomputer architectures are supported, check the platform file (and adding new ones is fairly straightforward). There is an assembly language version of the Heaviside function used for efficiency, which might cause problems on some platform. This can be disabled using
+The Intel compliers should also work, and the code has been tested on a range of specialised supercomputer architectures, check the platform file to see some examples of build flags (and adding new ones is fairly straightforward). There is an assembly language version of the Heaviside function used for efficiency, which might cause problems on some platform. This can be disabled using
 
     make NO_ASSMBLY_HEAVISIDES=1 p
     
