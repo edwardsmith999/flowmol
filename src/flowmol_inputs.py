@@ -97,7 +97,7 @@ class CanvasPanel(wx.Panel):
             return
         N = int(header.globalnp)
 
-        rt = np.fromfile(self.resultsdir + "/initial_dump_r",  dtype=np.float).reshape(N,3)
+        rt = np.fromfile(self.resultsdir + "/initial_dump_r",  dtype=float).reshape(N,3)
         #Limit plotted points to be fast
         if self.fastplot and N > 2000:
             skip = int(N/1000.)
@@ -176,7 +176,7 @@ class CanvasPanel(wx.Panel):
                 except IOError:
                     raise
             elif plottype == "v":
-                v = np.fromfile(self.resultsdir + "/initial_dump_v",  dtype=np.float).reshape(N,3)
+                v = np.fromfile(self.resultsdir + "/initial_dump_v",  dtype=float).reshape(N,3)
                 vmag = np.sqrt(v[::skip,0]**2 + v[::skip,1]**2 + v[::skip,2]**2)
                 if (self.ThreeD):
                     cs = self.axes.scatter(r[:,0], r[:,1], r[:,2], ".", c=vmag, cmap=cm.RdYlBu_r)
@@ -1328,7 +1328,9 @@ class MyFrame(wx.Frame):
 
         #Split
         auipane.spt.SplitHorizontally(auipane.txt, auipane.canvas, sashPosition=-1)
-        auipane.spt.SetMinimumPaneSize(h/(2*Npanes))
+
+        print(h, Npanes)
+        auipane.spt.SetMinimumPaneSize(int(h/(2*Npanes)))
         #auipane.spt.SetSashPosition(self.width/2., redraw=True)
         #auipane.spt.UpdateSize()
 
