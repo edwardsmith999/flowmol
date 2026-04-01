@@ -23,6 +23,8 @@ module module_read_input
 	integer			 :: COUETTE_slidewall,  COUETTE_ixyz
 	real(kind(0.d0)) :: COUETTE_t, COUETTE_Re, COUETTE_Uwall, COUETTE_H
 	real(kind(0.d0)) :: initial_u, initial_v, initial_w
+	real(kind(0.d0)) :: initial_sine_A, initial_sine_alpha, initial_sine_b
+
 
 end module module_read_input
 !----------------------------------------------------------------------------------
@@ -657,6 +659,10 @@ subroutine setup_read_input
 		   		read(1,*) initial_u
 		   		read(1,*) initial_v
 		   		read(1,*) initial_w
+            case('sine')
+		   		read(1,*) initial_sine_A
+		   		read(1,*) initial_sine_alpha
+		   		read(1,*) initial_sine_b
 	   		case('dns')
 		   		read(1,*) DNS_filename
 		   		read(1,*) DNS_ngx
