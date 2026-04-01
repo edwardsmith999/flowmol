@@ -3252,6 +3252,10 @@ subroutine cumulative_pressure(ixyz, sample_count)
 		enddo
 		enddo
 
+		call globalSum(Pxytemp(:,1), nd)	
+		call globalSum(Pxytemp(:,2), nd) 	
+		call globalSum(Pxytemp(:,3), nd)
+
 		!Divide sum of stress by volume and number of samples for each bin
 		Pxytemp = Pxytemp / (volume*sample_count)
 

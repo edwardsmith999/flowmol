@@ -42,6 +42,7 @@ module module_parallel_io
     use calculated_properties_MD
     use messenger, only : MD_COMM
     use interfaces
+    use module_read_input, only :  initial_sine_A, initial_sine_alpha, initial_sine_b
     implicit none
 
     integer     :: restartfileid, fileid, fileidtrue !File name used for parallel i/o
@@ -1306,6 +1307,9 @@ subroutine setup_restart_microstate()
             call setup_initialise_velocities_test
         case('taylor_green')
             call setup_initialise_velocities_TG_parallel
+        case('sine')
+            call set_velocity_field_sine(initial_sine_A, initial_sine_b, initial_sine_alpha, & 
+                                         2, (/tethereddistbottom(2), tethereddisttop(2)/))
         case('dns')
             call set_velocity_field_from_DNS_restart(trim(DNS_filename),DNS_ngx,DNS_ngy,DNS_ngz)
         case default
@@ -3578,6 +3582,7 @@ end subroutine virial_stress_io
 
 subroutine VA_stress_io()
     use module_parallel_io
+    use messenger_data_exchange, only : globalSum
     implicit none
 
     integer                                         :: ixyz, jxyz, m, nresults
@@ -3601,10 +3606,14 @@ subroutine VA_stress_io()
         Pxy(ixyz,jxyz) = sum(Pxybin(:,:,:,ixyz,jxyz))
     enddo
     enddo
+
+	call globalSum(Pxy(:,1), nd)	
+	call globalSum(Pxy(:,2), nd) 	
+	call globalSum(Pxy(:,3), nd)
     Pxy = Pxy / volume
 
     !Write out Virial stress
-    call virial_stress_io
+    call virial_stress_io()
 
 !       vvbin = 0.d0
     !VA pressure per bin
